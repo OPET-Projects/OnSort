@@ -39,7 +39,7 @@ async function submit(): Promise<void> {
       <button
         type="submit"
         :disabled="state === 'sending'"
-        class="rounded bg-neutral-900 px-4 py-2 text-white disabled:opacity-50"
+        class="rounded bg-neutral-900 px-4 py-3 text-white disabled:opacity-50"
       >
         {{ state === 'sending' ? 'Envoi…' : 'Recevoir un lien de connexion' }}
       </button>

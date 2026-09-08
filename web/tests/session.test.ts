@@ -1,9 +1,13 @@
 import { createPinia, setActivePinia } from 'pinia'
-import { beforeEach, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { useSessionStore } from '../src/stores/session.ts'
 
 beforeEach(() => {
   setActivePinia(createPinia())
+})
+
+afterEach(() => {
+  vi.unstubAllGlobals()
 })
 
 it('passe en anonyme quand la session est refusée', async () => {
@@ -36,4 +40,19 @@ it('retient l’utilisateur quand la session est valide', async () => {
 
   expect(store.status).toBe('authenticated')
   expect(store.user?.email).toBe('alice@example.test')
+})
+
+it('passe en anonyme sans propager d’exception quand l’API est injoignable', async () => {
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async () => {
+      throw new Error('network error')
+    }),
+  )
+
+  const store = useSessionStore()
+
+  await expect(store.fetchSession()).resolves.toBeUndefined()
+  expect(store.status).toBe('anonymous')
+  expect(store.user).toBeNull()
 })

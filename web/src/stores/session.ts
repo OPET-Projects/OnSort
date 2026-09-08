@@ -9,17 +9,26 @@ export const useSessionStore = defineStore('session', () => {
   const status = ref<SessionStatus>('unknown')
 
   async function fetchSession(): Promise<void> {
-    const response = await fetch('/api/me', { credentials: 'include' })
+    try {
+      const response = await fetch('/api/me', { credentials: 'include' })
 
-    if (!response.ok) {
+      if (!response.ok) {
+        user.value = null
+        status.value = 'anonymous'
+        return
+      }
+
+      const body = (await response.json()) as { user: SessionUser }
+      user.value = body.user
+      status.value = 'authenticated'
+    } catch {
+      // Une API injoignable (réseau coupé, DNS, connexion refusée) ne prouve pas que
+      // l'utilisateur est connecté. Une exception non rattrapée ici remonterait dans le
+      // garde de routeur asynchrone et bloquerait la navigation : on retombe donc sur
+      // l'état anonyme, exactement comme pour un refus explicite.
       user.value = null
       status.value = 'anonymous'
-      return
     }
-
-    const body = (await response.json()) as { user: SessionUser }
-    user.value = body.user
-    status.value = 'authenticated'
   }
 
   async function requestMagicLink(email: string): Promise<void> {
