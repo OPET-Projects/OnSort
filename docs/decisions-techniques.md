@@ -10,7 +10,7 @@ Dernière mise à jour : 8 septembre 2026.
 
 ## 1. Contexte
 
-OnSort est un projet de cours. Le VPS est fourni par l'intervenant. Le produit n'a pas
+« On Sort ? » est un projet de cours. Le VPS est fourni par l'intervenant. Le produit n'a pas
 vocation à supporter une mise en production à grande échelle. Les arbitrages ci-dessous
 privilégient donc, dans l'ordre : la livraison dans les délais, la démontrabilité, la
 qualité de modélisation, puis seulement la robustesse d'exploitation.

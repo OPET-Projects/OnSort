@@ -1,10 +1,10 @@
-# OnSort
+# On Sort ?
 
 Application web d'organisation de sorties de groupe.
 
-OnSort réunit dans un seul outil ce qui est aujourd'hui éclaté entre un sondage de dates,
-une recherche de lieu et une application de partage de dépenses. La boucle d'usage complète
-est : disponibilités → date → activités → carte → partage des dépenses.
+« On Sort ? » réunit dans un seul outil ce qui est aujourd'hui éclaté entre un sondage
+de dates, une recherche de lieu et une application de partage de dépenses. La boucle
+d'usage complète est : disponibilités → date → activités → carte → partage des dépenses.
 
 ## Concepts
 
@@ -23,7 +23,7 @@ est : disponibilités → date → activités → carte → partage des dépense
   le calendrier de groupe superpose celles des membres et suggère un créneau commun.
   Le groupe voit uniquement « occupé », jamais la raison.
 - **Présence renseignée par activité**, pour que le partage des dépenses reste juste.
-- **Règlement hors application** via Wero. OnSort calcule qui doit combien, minimise le
+- **Règlement hors application** via Wero. L'application calcule qui doit combien, minimise le
   nombre de virements et permet de marquer un règlement comme effectué.
 - **Carte** : un pin par activité, ajoutée par adresse, les pins étant reliés selon l'ordre
   des activités.
