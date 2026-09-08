@@ -9,8 +9,9 @@ dist/
 # Prisma — client généré
 api/src/generated/
 
-# Plans de travail générés par l'outillage : locaux, jamais versionnés
+# Outillage local : plans de travail et espace de travail des agents
 docs/plans/
+.superpowers/
 
 # Environnement
 .env
