@@ -104,5 +104,11 @@ de `api/`, `web/` et du `docker-compose.yml` de développement.
 
 ## Documentation
 
+- [Rapport de projet](RAPPORT.md) — veille, démarche, revirements (cours *Culture des
+  concepts informatiques*)
 - [Conception détaillée](docs/conception.md)
 - [Décisions techniques et produit](docs/decisions-techniques.md)
+
+## Équipe
+
+Eliott Barker · Théo Gillet · Paul Ragueneau — Master 2, Efrei.
