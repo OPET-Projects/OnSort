@@ -17,11 +17,11 @@ type Options = {
   logger?: (line: string) => void
 }
 
-export function createMailer({ apiKey, from, logger = console.info }: Options): Mailer {
+export function createMailer({ apiKey, from, logger }: Options): Mailer {
   if (apiKey === null) {
     return {
       async send(mail) {
-        logger(
+        ;(logger ?? console.info)(
           [
             '',
             '─── courriel non envoyé (aucune clé Resend) ───',
