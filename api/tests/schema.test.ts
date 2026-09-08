@@ -1,9 +1,5 @@
-import { afterAll, expect, it } from 'vitest'
+import { expect, it } from 'vitest'
 import { prisma } from '../src/db.ts'
-
-afterAll(async () => {
-  await prisma.user.deleteMany({ where: { email: 'schema@example.test' } })
-})
 
 it('crée un utilisateur et le relit', async () => {
   const created = await prisma.user.create({
@@ -20,14 +16,13 @@ it('crée un utilisateur et le relit', async () => {
 })
 
 it('refuse deux utilisateurs avec la même adresse', async () => {
-  await expect(
-    prisma.user.create({
-      data: {
-        id: 'test-user-doublon',
-        name: 'Doublon',
-        email: 'schema@example.test',
-        emailVerified: false,
-      },
-    }),
-  ).rejects.toThrow()
+  const data = {
+    name: 'Doublon',
+    email: 'schema@example.test',
+    emailVerified: false,
+  }
+
+  await prisma.user.create({ data: { ...data, id: 'test-user-premier' } })
+
+  await expect(prisma.user.create({ data: { ...data, id: 'test-user-second' } })).rejects.toThrow()
 })
