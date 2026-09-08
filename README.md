@@ -54,24 +54,30 @@ produit est cohérent et se défend seul. Voir la section 9 de la conception.
 Itinéraire routé entre les activités, notifications push navigateur, relance automatique des
 non-votants, suggestions intelligentes.
 
-## Stack envisagée
+## Stack
 
 | Couche             | Choix                                                       |
 | ------------------ | ----------------------------------------------------------- |
+| Organisation       | Monorepo `npm workspaces` — `api/` et `web/`                |
 | Front              | Vue 3 + Vite + TypeScript (SPA)                             |
-| Back               | Deno 2 + Hono                                               |
+| Back               | Node 24 LTS + Hono                                          |
 | Types front ↔ back | Hono RPC                                                    |
 | Base de données    | PostgreSQL 17                                               |
-| Accès aux données  | Drizzle ORM + `postgres.js`                                 |
+| Accès aux données  | Prisma 7 + `@prisma/adapter-pg`                             |
 | Authentification   | Better Auth (plugin `magicLink`), compte obligatoire        |
 | Carte              | Leaflet + tuiles raster MapTiler ou Stadia (offre gratuite) |
 | Géocodage          | API Base Adresse Nationale (`api-adresse.data.gouv.fr`)     |
 | Email              | Resend                                                      |
 | Temps réel         | SSE, deux flux : par événement et personnel                 |
+| Qualité            | Biome (format et lint), Vitest, GitHub Actions              |
 | Base locale        | Docker (PostgreSQL)                                         |
 
+Les versions exactes et les contraintes qui les déterminent sont dans
+[`docs/versions.md`](docs/versions.md).
+
 Le déploiement n'est pas encore défini. Un VPS est disponible ; le choix de la chaîne de
-livraison est reporté.
+livraison est reporté — mais il devient un livrable du jalon M1, dont la démonstration
+suppose une URL publique.
 
 Les raisons de chacun de ces choix, ainsi que les options écartées, sont documentées dans
 [`docs/decisions-techniques.md`](docs/decisions-techniques.md). La conception détaillée —
@@ -82,25 +88,51 @@ modèle de données, règles métier, API, séquencement — est dans
 
 ```txt
 onsort/
-├─ api/                 # Deno + Hono
-│  ├─ src/
-│  │  ├─ main.ts        # expose AppType pour le client typé
-│  │  ├─ auth.ts        # Better Auth
-│  │  ├─ db/            # schéma Drizzle + migrations
-│  │  └─ routes/        # events, availability, activities, expenses
-│  └─ tests/
-├─ web/                 # Vue 3 + Vite
+├─ api/                    # Node + Hono
+│  ├─ prisma/
+│  │  ├─ schema.prisma     # modèle de données
+│  │  └─ migrations/
+│  ├─ prisma.config.ts     # URL de connexion (Prisma 7)
 │  └─ src/
-│     ├─ lib/api.ts     # client Hono RPC typé
-│     ├─ views/ components/ stores/
+│     ├─ main.ts           # expose AppType pour le client typé
+│     ├─ modules/          # auth, friends, groups, events, activities, expenses
+│     └─ lib/              # sse, money, permissions
+├─ web/                    # Vue 3 + Vite
+│  └─ src/
+│     ├─ lib/api.ts        # client Hono RPC typé
+│     └─ views/ components/ stores/
 ├─ docs/
-└─ docker-compose.yml   # PostgreSQL local
+├─ docker-compose.yml      # PostgreSQL local
+└─ package.json            # workspaces
 ```
 
 ## Démarrage
 
-Le projet n'est pas encore initialisé. Cette section sera complétée avec la mise en place
-de `api/`, `web/` et du `docker-compose.yml` de développement.
+Prérequis : Node 24 (voir `.nvmrc`) et Docker.
+
+```sh
+npm install                  # installe les deux espaces de travail
+cp .env.example .env         # puis compléter BETTER_AUTH_SECRET
+npm run db:up                # PostgreSQL 17 en conteneur
+npm run db:migrate           # migrations Prisma
+npm run dev                  # API sur :3000, front sur :5173
+```
+
+Générer un secret d'authentification : `openssl rand -base64 32`.
+
+Laisser `RESEND_API_KEY` vide en développement : les liens magiques sont alors écrits dans
+la console plutôt qu'envoyés par courriel.
+
+### Vérification
+
+```sh
+npm run lint                 # Biome
+npm run typecheck            # tsc et vue-tsc
+npm test                     # Vitest sur les deux espaces
+npm run build
+```
+
+C'est exactement ce que la CI exécute à chaque poussée.
 
 ## Documentation
 
