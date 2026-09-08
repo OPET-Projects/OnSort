@@ -22,7 +22,8 @@
     "db:down": "docker compose down",
     "db:migrate": "npm run db:migrate --workspace api",
     "db:generate": "npm run db:generate --workspace api",
-    "db:studio": "npm run db:studio --workspace api"
+    "db:studio": "npm run db:studio --workspace api",
+    "db:seed": "npm run db:seed --workspace api"
   },
   "devDependencies": {
     "@biomejs/biome": "2.5.12"

@@ -115,6 +115,7 @@ npm install                  # installe les deux espaces de travail
 cp .env.example .env         # puis compléter BETTER_AUTH_SECRET
 npm run db:up                # PostgreSQL 17 en conteneur
 npm run db:migrate           # migrations Prisma
+npm run db:seed              # comptes de développement : alice@, bob@, carla@example.test
 npm run dev                  # API sur :3000, front sur :5173
 ```
 
