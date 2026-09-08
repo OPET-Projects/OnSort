@@ -1,0 +1,63 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: Lint, types et tests
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: onsort
+          POSTGRES_PASSWORD: onsort
+          POSTGRES_DB: onsort_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U onsort -d onsort_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      DATABASE_URL: postgresql://onsort:onsort@localhost:5432/onsort_test?schema=public
+      BETTER_AUTH_SECRET: ci-secret-jamais-utilise-en-production
+      BETTER_AUTH_URL: http://localhost:3000
+      APP_URL: http://localhost:5173
+      MAIL_FROM: On Sort ? <no-reply@example.test>
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Installer les dépendances
+        run: npm ci
+
+      - name: Format et lint
+        run: npx biome ci .
+
+      - name: Valider le schéma Prisma
+        run: npx prisma validate --schema api/prisma/schema.prisma
+
+      - name: Générer le client Prisma
+        run: npm run db:generate
+
+      - name: Vérification des types
+        run: npm run typecheck
+
+      - name: Tests
+        run: npm test
