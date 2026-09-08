@@ -97,12 +97,17 @@ n'existe pas : le client Go de Prisma n'est plus officiellement supporté depuis
 
 ### 2.5 Authentification — Better Auth
 
-Plugins retenus : `magicLink` et `anonymous`.
+Plugin retenu : `magicLink` seul. **Le compte est obligatoire**, aucun accès anonyme.
 
-Le besoin structurant n'est pas la connexion classique mais la **participation sans compte
-via un lien d'invitation**, puis la conversion ultérieure en compte sans perte de données.
-Le plugin `anonymous` de Better Auth modélise exactement ce flux : création d'un utilisateur
-anonyme, puis fusion avec un compte réel à l'inscription.
+Le plugin `anonymous` avait été retenu dans un premier temps, pour permettre de rejoindre un
+événement sans compte puis de convertir l'identité ensuite. Cette voie a été abandonnée au
+profit de l'inscription obligatoire (section 3.3). Bénéfice collatéral : toute la mécanique
+de fusion d'identités disparaît, et la contrainte `UNIQUE(event_id, user_id)` suffit à
+interdire le doublon.
+
+Conséquence à assumer : l'e-mail se trouve sur le chemin critique, puisque la connexion en
+dépend. Un mode de développement avec comptes pré-remplis et connexion directe est prévu,
+afin qu'une démonstration ne dépende jamais de la délivrabilité.
 
 Une implémentation maison (magic link + sessions opaques en base) avait été envisagée
 lorsque le back était en Go, faute d'équivalent dans cet écosystème. Le passage à TypeScript
@@ -201,7 +206,18 @@ ou un PaaS auto-hébergé type Coolify) est reporté.
 
 **Vercel a été écarté** pour deux raisons cumulatives : la plateforme ne supporte pas Deno
 comme runtime de première classe, et son offre Hobby limite les tâches planifiées à deux
-exécutions quotidiennes — insuffisant pour la clôture des votes à échéance et les relances.
+exécutions quotidiennes, tout en interdisant l'usage commercial.
+
+### 2.11 Temps réel — SSE
+
+Le décompte des votes doit bouger en direct. Retenu : Server-Sent Events via `streamSSE` de
+Hono, avec un bus en mémoire indexé par événement.
+
+Le sondage périodique aurait suffi fonctionnellement et reste plus robuste, mais le SSE a été
+préféré délibérément. Contrainte structurante : `EventSource` ne permet pas d'envoyer
+d'en-têtes, l'authentification passe donc obligatoirement par cookie de session — ce qui
+impose de servir le front et l'API sur la même origine. WebSocket a été écarté : le flux est
+unidirectionnel, le duplex n'apporterait rien.
 
 ---
 
@@ -225,23 +241,34 @@ Alternative proposée : un sondage de disponibilité **par événement**, le cal
 groupe se remplissant alors comme sous-produit des réponses. Cela inverse la dépendance et
 fait arriver la donnée gratuitement.
 
-Décision : conservé tel quel pour le cours, car c'est le différenciateur du sujet.
+Décision : le calendrier personnel est conservé, mais il ne décide plus d'une date. Il
+alimente le **calendrier partagé du groupe**, que le créateur consulte avant de fixer la
+date. Le sondage de disponibilité par événement a été abandonné : la date est fixée par le
+créateur, les invités acceptent ou déclinent.
 
 ### 3.3 Le compte obligatoire pénalise le taux de participation
 
 Chaque étape du tunnel d'invitation perd 30 à 50 % des invités. Avec compte obligatoire et
 saisie de disponibilités, on peut anticiper 3 à 4 réponses sur 8 invitations.
 
-Décision : **participation sans compte via lien d'invitation**, puis conversion en compte.
-C'est ce qui motive le plugin `anonymous` (section 2.5).
+La participation sans compte via lien d'invitation avait d'abord été retenue, puis
+abandonnée.
+
+Décision : **compte obligatoire**. L'objection sur le tunnel est acceptée et assumée. En
+contrepartie, le modèle se simplifie nettement — plus de fusion d'identités, plus de session
+anonyme à faire vivre — et trois canaux d'invitation compensent en partie la friction : lien
+à copier, adresse e-mail, et invitation d'un ami depuis l'application.
 
 ### 3.4 Le vote peut produire des états bloqués
 
 Dans l'usage réel, une ou deux personnes décident et les autres suivent. Un vote sans règle
 de clôture explicite laisse l'événement en attente indéfiniment.
 
-Décision : le vote est conservé, mais **doit** comporter une échéance, un quorum et une
-règle de départage. Voir section 4.2.
+Décision : le vote disparaît sur les dates — le créateur les fixe — et **subsiste sur les
+activités**. Sa clôture est déclenchée par le seul administrateur, sans échéance ni quorum :
+tant que l'activité est proposée, chacun peut changer d'avis et le décompte s'actualise en
+direct. C'est ce qui garantit qu'aucun état n'est absorbant, sans introduire de tâche
+planifiée.
 
 ---
 
@@ -250,20 +277,21 @@ règle de départage. Voir section 4.2.
 Ce sont les endroits où le produit peut réellement se casser. Ils coûtent le même effort
 d'implémentation que leur version naïve.
 
-### 4.1 Les soldes doivent être une somme de lignes immuables
+### 4.1 Aucun solde n'est stocké
 
 **Problème** : que se passe-t-il si une dépense est modifiée après qu'un règlement a été
-marqué comme effectué ? Une approche où « qui doit combien » est un état global recalculé
-produit une incohérence silencieuse.
+marqué comme effectué ? Une approche où « qui doit combien » est un état stocké produit une
+incohérence silencieuse.
 
-**Décision** : ne jamais recalculer un état global. Le solde est la somme de lignes :
+**Décision** : un solde est **toujours dérivé** de `expense_shares` et `settlements`, jamais
+enregistré. Un règlement est une ligne indépendante : un virement de 20 € reste un virement
+de 20 € même si une dépense antérieure change, et le delta réapparaît naturellement dans le
+solde.
 
-- une dépense est une ligne, avec ses parts ;
-- un règlement est une ligne de type transfert.
-
-Un virement de 20 € reste un transfert de 20 €, même si une dépense antérieure change ; le
-delta réapparaît naturellement dans le solde. Aucun verrouillage n'est nécessaire. Une
-fonction optionnelle « clôturer l'événement » peut geler la saisie.
+Précision par rapport à une première formulation : les dépenses n'ont pas besoin d'être
+immuables. L'immuabilité stricte coûterait plus cher et ne réglerait rien de plus. Ce qui
+compte est l'absence de solde stocké et l'indépendance des règlements. Une fonction
+« clôturer l'événement » peut geler la saisie.
 
 ### 4.2 Arrondis
 
@@ -290,11 +318,14 @@ l'utilisateur la prendra pour un défaut.
 Si le débiteur déclare seul avoir payé, le modèle produit des litiges. Deux états sont
 nécessaires : le débiteur déclare « envoyé », le créancier confirme « reçu ».
 
-### 4.6 Fusion d'une identité anonyme avec un compte existant
+### 4.6 Fusion d'identités — sans objet
 
-Cas limite : un participant anonyme fusionne son identité avec un compte qui est **déjà**
-membre du même événement. Deux identités, deux jeux de parts de dépenses, un seul humain.
-La règle de fusion doit être définie avant l'implémentation de l'invitation par lien.
+Le problème existait tant que la participation anonyme était prévue : un participant anonyme
+rattaché à un compte déjà membre du même événement produisait deux identités pour un seul
+humain, avec deux jeux de parts de dépenses.
+
+Le passage au compte obligatoire (section 3.3) le supprime entièrement. Consigné ici parce
+que c'est le principal bénéfice technique de cette décision.
 
 ### 4.7 Activité annulée
 
@@ -316,13 +347,15 @@ au membre le plus ancien. Coût maintenant : négligeable. Coût plus tard : une
 
 ## 5. Périmètre de livraison
 
-Une tranche verticale complète est préférable à une couverture large et inachevée :
+Le périmètre visé est complet. Le séquencement place des points de coupe explicites, de
+sorte qu'une version démontrable existe à chaque étape et que la coupe soit possible à tout
+moment sans laisser de fonctionnalité à moitié faite.
 
-> créer un événement → lien d'invitation → disponibilités → date retenue → activités →
-> dépenses à parts inégales → récapitulatif optimisé des virements
+À l'issue du jalon M3 — événement, invitations, activités votées, dépenses et récapitulatif
+des virements — le produit est cohérent et se défend seul. Carte, calendrier partagé, amis et
+finitions viennent ensuite, dans l'ordre du temps restant.
 
-Le reste (notifications, carte, recherche de POI, partage en pourcentage ou en montant fixe)
-est ajouté par ordre de priorité dans le temps restant.
+Le détail des jalons est en section 9 de [`conception.md`](conception.md).
 
 ---
 
@@ -346,8 +379,10 @@ Ces éléments relèvent d'une exploitation en production réelle. Ils ont été
 
 ## 7. Questions ouvertes
 
-1. Règle exacte de clôture du vote : échéance, quorum, départage en cas d'égalité.
-2. Règle de fusion lorsqu'une identité anonyme rejoint un compte déjà participant du même
-   événement (section 4.6).
-3. Caractéristiques du VPS, qui conditionnent la faisabilité d'un Photon auto-hébergé.
-4. Chaîne de déploiement à retenir.
+Les deux premières questions de la version initiale — règle de clôture du vote et fusion
+d'identités — sont résolues, respectivement en sections 3.4 et 4.6.
+
+1. Position du calendrier partagé dans le séquencement : il est placé en M5 alors que c'est
+   le différenciateur du sujet.
+2. Caractéristiques du VPS, qui conditionnent la faisabilité d'un Photon auto-hébergé.
+3. Chaîne de déploiement à retenir.

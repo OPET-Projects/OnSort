@@ -18,10 +18,17 @@ d'usage complète est : disponibilités → date → activités → carte → pa
 
 ## Principes retenus
 
-- **Décision collective par vote** sur les dates et sur les activités.
+- **Compte obligatoire.** Aucun accès anonyme : rejoindre un événement suppose de
+  s'authentifier.
+- **La date est fixée par le créateur** de l'événement, sous forme d'une date précise ou
+  d'une période. Les invités acceptent ou déclinent.
+- **Décision collective par vote** sur les activités. Les votes sont modifiables et le
+  décompte s'actualise en direct ; l'administrateur clôt quand il le décide.
 - **Calendrier à deux dimensions** : le calendrier personnel liste les indisponibilités,
-  le calendrier de groupe superpose celles des membres et suggère un créneau commun.
+  le calendrier partagé du groupe superpose celles de ses membres.
   Le groupe voit uniquement « occupé », jamais la raison.
+- **Trois canaux d'invitation** : lien à copier, adresse e-mail, ou ami dans l'application.
+  Une liste d'amis permet le troisième.
 - **Présence renseignée par activité**, pour que le partage des dépenses reste juste.
 - **Règlement hors application** via Wero. L'application calcule qui doit combien, minimise le
   nombre de virements et permet de marquer un règlement comme effectué.
@@ -33,15 +40,19 @@ d'usage complète est : disponibilités → date → activités → carte → pa
 
 ### MVP
 
-Comptes, groupes, calendriers personnel et de groupe (suggestion de créneau et avertissement
-en cas de sélection manuelle), création d'événement et invitations, proposition d'activités
-avec vote, carte avec pins par adresse, dépenses (partage équitable, rattachement par
-activité, présence, récapitulatif optimisé, validation de règlement), notifications in-app.
+Comptes, amis, groupes, calendrier personnel et calendrier partagé du groupe, création
+d'événement et invitations par trois canaux, proposition d'activités avec vote et décompte
+en temps réel, carte avec pins par adresse, dépenses (partage équitable, en pourcentage ou
+en montant fixe, rattachement par activité, présence, récapitulatif optimisé, validation de
+règlement en deux temps), notifications internes.
+
+Le séquencement retenu place des points de coupe explicites : à l'issue du jalon M3, le
+produit est cohérent et se défend seul. Voir la section 9 de la conception.
 
 ### Reporté en V2
 
-Itinéraire routé entre les activités, partage en pourcentage et en montant fixe,
-notifications push navigateur, suggestions intelligentes.
+Itinéraire routé entre les activités, notifications push navigateur, relance automatique des
+non-votants, suggestions intelligentes.
 
 ## Stack envisagée
 
@@ -52,17 +63,20 @@ notifications push navigateur, suggestions intelligentes.
 | Types front ↔ back | Hono RPC                                                    |
 | Base de données    | PostgreSQL 17                                               |
 | Accès aux données  | Drizzle ORM + `postgres.js`                                 |
-| Authentification   | Better Auth (plugins `magicLink` et `anonymous`)            |
+| Authentification   | Better Auth (plugin `magicLink`), compte obligatoire        |
 | Carte              | Leaflet + tuiles raster MapTiler ou Stadia (offre gratuite) |
 | Géocodage          | API Base Adresse Nationale (`api-adresse.data.gouv.fr`)     |
 | Email              | Resend                                                      |
+| Temps réel         | SSE, deux flux : par événement et personnel                 |
 | Base locale        | Docker (PostgreSQL)                                         |
 
 Le déploiement n'est pas encore défini. Un VPS est disponible ; le choix de la chaîne de
 livraison est reporté.
 
 Les raisons de chacun de ces choix, ainsi que les options écartées, sont documentées dans
-[`docs/decisions-techniques.md`](docs/decisions-techniques.md).
+[`docs/decisions-techniques.md`](docs/decisions-techniques.md). La conception détaillée —
+modèle de données, règles métier, API, séquencement — est dans
+[`docs/conception.md`](docs/conception.md).
 
 ## Structure prévue
 
@@ -90,4 +104,5 @@ de `api/`, `web/` et du `docker-compose.yml` de développement.
 
 ## Documentation
 
+- [Conception détaillée](docs/conception.md)
 - [Décisions techniques et produit](docs/decisions-techniques.md)
