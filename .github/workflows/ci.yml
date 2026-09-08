@@ -30,6 +30,8 @@ jobs:
           --health-retries 10
 
     env:
+      NODE_ENV: test
+      PORT: 3000
       DATABASE_URL: postgresql://onsort:onsort@localhost:5432/onsort_test?schema=public
       BETTER_AUTH_SECRET: ci-secret-jamais-utilise-en-production
       BETTER_AUTH_URL: http://localhost:3000
@@ -55,6 +57,9 @@ jobs:
 
       - name: Générer le client Prisma
         run: npm run db:generate
+
+      - name: Appliquer les migrations
+        run: npx prisma migrate deploy --config api/prisma.config.ts --schema api/prisma/schema.prisma
 
       - name: Vérification des types
         run: npm run typecheck
