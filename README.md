@@ -53,7 +53,7 @@ notifications push navigateur, suggestions intelligentes.
 | Base de données    | PostgreSQL 17                                               |
 | Accès aux données  | Drizzle ORM + `postgres.js`                                 |
 | Authentification   | Better Auth (plugins `magicLink` et `anonymous`)            |
-| Carte              | MapLibre GL JS + tuiles MapTiler ou Stadia (offre gratuite) |
+| Carte              | Leaflet + tuiles raster MapTiler ou Stadia (offre gratuite) |
 | Géocodage          | API Base Adresse Nationale (`api-adresse.data.gouv.fr`)     |
 | Email              | Resend                                                      |
 | Base locale        | Docker (PostgreSQL)                                         |

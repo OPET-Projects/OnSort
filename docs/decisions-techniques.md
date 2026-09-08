@@ -111,16 +111,42 @@ rend ce travail inutile.
 Choix associé : **sessions opaques en base plutôt que JWT**. Sur une application à base
 unique, le JWT n'apporte rien et coûte des problèmes de révocation et de rotation de clés.
 
-### 2.6 Carte — MapLibre GL JS
+### 2.6 Carte — Leaflet
 
-Les serveurs de tuiles de la fondation OpenStreetMap (`tile.openstreetmap.org`) interdisent
-explicitement l'usage par une application tierce. Il faut donc une source de tuiles distincte.
+MapLibre GL JS était initialement retenu. Leaflet lui est préféré, pour trois raisons :
 
-Retenu : MapTiler ou Stadia Maps, en offre gratuite, avec une simple clé d'API.
+- **Pas de WebGL.** MapLibre en dépend, et le WebGL peut être désactivé ou tomber en rendu
+  logiciel dans une machine virtuelle ou un bureau distant — soit un risque direct pour une
+  démonstration faite sur une machine qui n'est pas la nôtre. Leaflet s'appuie sur le DOM et
+  le canvas et fonctionne partout.
+- **Poids** : environ 40 Ko contre plus de 200 Ko.
+- **Simplicité** : poser des marqueurs et tracer une polyligne tient en quelques dizaines de
+  lignes, avec une documentation et un historique de questions bien plus fournis.
+
+Ce que Leaflet ne sait pas faire — tuiles vectorielles, restylage côté client, rotation,
+inclinaison — ne concerne pas le produit : il s'agit d'afficher des pins ordonnés.
+
+Pour l'itinéraire routé prévu en V2, les deux bibliothèques se valent : l'appel à OSRM ou
+OpenRouteService est fait par l'application, et le GeoJSON retourné est tracé avec
+`L.geoJSON`. Le greffon `leaflet-routing-machine` est à éviter : il interroge par défaut le
+serveur de démonstration d'OSRM, qui n'est pas destiné à un usage applicatif.
+
+La carte est isolée dans un composant `MapView` recevant une liste de points. Un retour vers
+MapLibre, si le besoin de vectoriel apparaissait, se limiterait à l'intérieur de ce composant.
+
+**Source des tuiles.** Le choix de la bibliothèque ne règle pas cette question : Leaflet est
+un moteur de rendu, pas un fournisseur de tuiles. Les serveurs de la fondation OpenStreetMap
+(`tile.openstreetmap.org`) interdisent explicitement l'usage par une application tierce.
+
+Retenu : tuiles raster de MapTiler ou Stadia Maps, en offre gratuite, avec une clé d'API.
 
 Écarté pour l'instant : héberger un fichier `.pmtiles` (Protomaps) sur du stockage objet.
 C'est la seule option qui reste gratuite à grande échelle, mais elle demande une préparation
 de données qui ne se justifie pas dans le cadre du cours.
+
+**Intégration Vue** : pas de wrapper. Le support Vue 3 de `@vue-leaflet/vue-leaflet` a
+longtemps été incomplet, et instancier la carte sur une `ref` dans `onMounted`, puis appeler
+`map.remove()` dans `onUnmounted`, est plus court que la documentation du greffon.
 
 ### 2.7 Recherche de lieu — API Base Adresse Nationale
 
