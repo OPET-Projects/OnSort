@@ -6,8 +6,12 @@ import { defineConfig } from 'vitest/config'
 // le try/catch.
 try {
   process.loadEnvFile('../.env')
-} catch {
-  // pas de fichier .env : on compte sur l'environnement déjà chargé
+} catch (error) {
+  // Un .env absent est normal en intégration continue, où les variables sont déjà
+  // présentes. Toute autre erreur — fichier illisible ou malformé — doit rester visible.
+  if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
+    throw error
+  }
 }
 
 // Forcé, pas `??=` : .env positionne NODE_ENV=development, et main.ts ouvre un port

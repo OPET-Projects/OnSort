@@ -12,9 +12,16 @@ const valid = {
 describe('loadConfig', () => {
   it('lit une configuration complète', () => {
     const config = loadConfig(valid)
-    expect(config.port).toBe(3000)
-    expect(config.resendApiKey).toBeNull()
-    expect(config.isProduction).toBe(false)
+    expect(config).toEqual({
+      databaseUrl: valid.DATABASE_URL,
+      port: 3000,
+      appUrl: valid.APP_URL,
+      authSecret: valid.BETTER_AUTH_SECRET,
+      authUrl: valid.BETTER_AUTH_URL,
+      resendApiKey: null,
+      mailFrom: valid.MAIL_FROM,
+      isProduction: false,
+    })
   })
 
   it('nomme la variable manquante', () => {
