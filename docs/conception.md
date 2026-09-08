@@ -18,7 +18,7 @@ invitations par trois canaux, activités avec vote, carte, dépenses, notificati
 Le séquencement de la section 9 place des points de coupe explicites afin qu'une version
 démontrable existe à chaque étape.
 
-Stack arrêtée : Vue 3 + Vite en SPA, Deno 2 + Hono, PostgreSQL 17 + Drizzle, Better Auth,
+Stack arrêtée : Vue 3 + Vite en SPA, Node 24 LTS + Hono, PostgreSQL 17 + Prisma 7, Better Auth,
 Leaflet, API Base Adresse Nationale, Resend, Docker pour la base locale.
 
 ---
@@ -69,18 +69,28 @@ group_members(
 ```sql
 unavailability(
   id, user_id,
-  period tstzrange NOT NULL,
+  starts_at timestamptz NOT NULL,
+  ends_at   timestamptz NOT NULL,
   label text NULL,
   created_at,
-  EXCLUDE USING gist (user_id WITH =, period WITH &&)
+  INDEX (user_id, starts_at)
 )
 ```
 
 `label` est privé. Il n'est jamais exposé dans une réponse de groupe : le groupe voit
 « occupé », jamais la raison.
 
-La contrainte d'exclusion interdit par construction deux indisponibilités qui se recouvrent
-pour un même utilisateur. La normalisation est déléguée à la base, pas au code applicatif.
+**Non-superposition.** Deux indisponibilités d'un même utilisateur ne doivent pas se
+recouvrir. Une contrainte `EXCLUDE USING gist` sur un `tstzrange` l'aurait garanti au niveau
+de la base, mais aucun ORM TypeScript ne l'exprime — voir `decisions-techniques.md` §2.3.
+
+La règle est donc appliquée en couche service : à l'écriture, dans une transaction avec
+verrou de ligne sur les indisponibilités de l'utilisateur, les plages qui se touchent ou se
+recouvrent sont **fusionnées** plutôt que rejetées. C'est aussi la meilleure ergonomie.
+
+**Convention de bornes** : intervalles semi-ouverts, `starts_at` inclus, `ends_at` exclu.
+Deux créneaux adjacents ne se chevauchent donc pas. Le test de chevauchement s'écrit
+`starts_at < :end AND ends_at > :start`.
 
 Le calendrier partagé d'un groupe est la superposition des `unavailability` de ses membres
 sur une fenêtre donnée. C'est une vue calculée, pas une table.
@@ -91,7 +101,8 @@ sur une fenêtre donnée. C'est une vue calculée, pas une table.
 events(
   id, group_id NULL,
   title, description,
-  period tstzrange NOT NULL,
+  starts_at timestamptz NOT NULL,
+  ends_at   timestamptz NOT NULL,
   status draft|active|closed,
   created_by, created_at
 )
@@ -142,7 +153,8 @@ activities(
   id, event_id,
   title, kind,
   address, lat, lng,
-  period tstzrange,
+  starts_at timestamptz NULL,
+  ends_at   timestamptz NULL,
   position int,
   status proposed|accepted|rejected,
   attendance_mode all|optional,
@@ -347,18 +359,18 @@ api/src/
   modules/
     auth/  friends/  groups/  availability/
     events/  activities/  expenses/  notifications/
-  db/
-    schema/        un fichier par table
-    migrations/
   lib/
     sse.ts         bus de diffusion
     money.ts       centimes, répartition, minimisation
     permissions.ts
 ```
 
-Chaque module porte ses routes, son service et ses tests. Le schéma Drizzle reste centralisé
-dans `db/schema/` : les migrations et les clés étrangères ont besoin d'une vue d'ensemble, et
-l'éclatement par module produit des imports circulaires.
+Chaque module porte ses routes, son service et ses tests. Le schéma reste centralisé dans
+`api/prisma/schema.prisma` : les migrations et les clés étrangères ont besoin d'une vue
+d'ensemble, et Prisma n'admet de toute façon qu'un schéma par projet.
+
+L'URL de connexion vit dans `api/prisma.config.ts`, et le client s'instancie avec
+`@prisma/adapter-pg` — exigences de Prisma 7.
 
 ### 5.1 Surface HTTP
 
@@ -493,7 +505,7 @@ Chaque vue traite explicitement quatre cas : chargement, vide, erreur, succès.
 
 ## 7. Tests
 
-`deno test` côté API, Vitest côté front.
+Vitest des deux côtés, un seul lanceur pour les deux espaces de travail.
 
 ### 7.1 Unitaires, sans entrées-sorties
 
@@ -518,7 +530,7 @@ Routes exécutées contre un PostgreSQL réel, une transaction par test annulée
 - une dépense modifiée après un règlement déclaré : le delta réapparaît, le règlement est
   intact ;
 - un participant qui rejoint tardivement : les parts existantes ne changent pas ;
-- deux indisponibilités qui se chevauchent : rejetées par la contrainte `EXCLUDE` ;
+- deux indisponibilités qui se chevauchent : fusionnées en une seule, sous concurrence ;
 - token d'invitation expiré, révoqué, déjà consommé ;
 - un non-administrateur qui tente de trancher une activité : 403 ;
 - adresse connue et adresse inconnue : réponses identiques.
@@ -544,23 +556,27 @@ Chaque jalon laisse une application démontrable.
 
 | Jalon  | Contenu                                                                  | Démonstration                                      |
 | ------ | ------------------------------------------------------------------------ | -------------------------------------------------- |
-| **M0** | Deno + Hono, PostgreSQL Docker, Drizzle, migration initiale, Better Auth | Connexion                                          |
+| **M0** | Node + Hono, PostgreSQL Docker, Prisma, migration initiale, Better Auth  | Connexion                                          |
 | **M1** | Événement, lien, invitation par e-mail, RSVP, participants               | Un tiers rejoint un événement depuis son téléphone |
 | **M2** | Activités, vote, SSE, décision de l'administrateur                       | Le décompte bouge en direct sur deux écrans        |
 | **M3** | Dépenses, parts, présence, soldes, virements minimisés, règlement        | Quatre virements au lieu de dix                    |
-| **M4** | Carte Leaflet, géocodage BAN, pins ordonnés                              | Le programme sur une carte                         |
-| **M5** | Groupes, calendrier partagé, superposition des indisponibilités          | Le créneau qui convient à tous                     |
+| **M4** | Groupes, calendrier partagé, superposition des indisponibilités          | Le créneau qui convient à tous                     |
+| **M5** | Carte Leaflet, géocodage BAN, pins ordonnés                              | Le programme sur une carte                         |
 | **M6** | Amis, notifications complètes                                            |                                                    |
 | **M7** | Finitions : pourcentage et montant fixe, réordonnancement, annulation    |                                                    |
 
 **Point de coupe** : à l'issue de M3, le produit est cohérent et se défend seul. M4 à M7
 s'ajoutent dans l'ordre du temps restant.
 
+Le calendrier partagé passe devant la carte : c'est le différenciateur du sujet, la carte est
+un agrément. En cas de coupe, mieux vaut perdre la carte.
+
+**Le déploiement est un livrable de M1**, dont la démonstration suppose une URL publique.
+
 ---
 
 ## 10. Points ouverts
 
-1. **Position de M5.** Le calendrier partagé est le différenciateur du sujet mais arrive en
-   cinquième position. S'il pèse lourd dans l'évaluation, il doit passer avant M4.
-2. **Relance des non-votants.** Hors périmètre : elle demanderait une tâche planifiée.
-3. **Chaîne de déploiement.** Non définie ; un VPS est disponible.
+1. **Relance des non-votants.** Hors périmètre : elle demanderait une tâche planifiée.
+2. **Chaîne de déploiement.** Non définie ; un VPS est disponible. À trancher avant M1.
+3. **Caractéristiques du VPS**, qui conditionnent la faisabilité d'un Photon auto-hébergé.
