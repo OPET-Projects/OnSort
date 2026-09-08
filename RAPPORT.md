@@ -56,11 +56,11 @@ retenu : c'est en général là que se trouve l'apprentissage.
 
 ### 2.1 Les outils que le produit remplace
 
-| Outil | Fonction couverte | Limite |
-|---|---|---|
-| Doodle, Framadate, Rallly | Sondage de dates | Aucun suivi après le choix de la date |
-| Google Maps, listes partagées | Repérage de lieux | Aucune notion de groupe ni de programme |
-| Tricount, Splitwise | Partage de dépenses | Aucune notion d'activité ni de présence |
+| Outil                         | Fonction couverte   | Limite                                  |
+| ----------------------------- | ------------------- | --------------------------------------- |
+| Doodle, Framadate, Rallly     | Sondage de dates    | Aucun suivi après le choix de la date   |
+| Google Maps, listes partagées | Repérage de lieux   | Aucune notion de groupe ni de programme |
+| Tricount, Splitwise           | Partage de dépenses | Aucune notion d'activité ni de présence |
 
 ### 2.2 Le concurrent que nous avions sous-estimé
 
@@ -111,11 +111,11 @@ qu'il nous rend en retour.
 Trois environnements coexistent aujourd'hui, et la distinction est instructive : elle
 oppose une plateforme historique enrichie à deux réécritures qui intègrent l'outillage.
 
-| | TypeScript | Outillage intégré | Écosystème | Maturité |
-|---|---|---|---|---|
-| **Node.js** | natif depuis les versions récentes (retrait de types) | test, watch | le plus large | la plus élevée |
-| **Deno 2** | natif | `fmt`, `lint`, `test`, `task`, permissions | compatible npm | bonne |
-| **Bun** | natif | test, bundler, compilation en binaire | compatible npm | plus récente |
+|             | TypeScript                                            | Outillage intégré                          | Écosystème     | Maturité       |
+| ----------- | ----------------------------------------------------- | ------------------------------------------ | -------------- | -------------- |
+| **Node.js** | natif depuis les versions récentes (retrait de types) | test, watch                                | le plus large  | la plus élevée |
+| **Deno 2**  | natif                                                 | `fmt`, `lint`, `test`, `task`, permissions | compatible npm | bonne          |
+| **Bun**     | natif                                                 | test, bundler, compilation en binaire      | compatible npm | plus récente   |
 
 L'enseignement principal de cette veille est négatif : pour une application dont le travail
 consiste à lire et écrire dans une base, **le choix du runtime est la décision la moins
@@ -143,12 +143,12 @@ La veille cartographique a été la plus formatrice, parce qu'elle a d'abord ré
 confusion de notre part. « Faire une carte » recouvre en réalité quatre problèmes
 indépendants, servis par des outils différents :
 
-| Problème | Question | Outils |
-|---|---|---|
-| **Rendu** | Comment dessiner la carte dans le navigateur ? | Leaflet, MapLibre GL |
-| **Tuiles** | D'où viennent les images ou les vecteurs du fond ? | MapTiler, Stadia, Protomaps |
-| **Géocodage** | Comment transformer une adresse en coordonnées ? | Base Adresse Nationale, Nominatim |
-| **Recherche de POI** | Comment trouver « Le Comptoir Général » ? | Photon, Geoapify, Foursquare |
+| Problème             | Question                                           | Outils                            |
+| -------------------- | -------------------------------------------------- | --------------------------------- |
+| **Rendu**            | Comment dessiner la carte dans le navigateur ?     | Leaflet, MapLibre GL              |
+| **Tuiles**           | D'où viennent les images ou les vecteurs du fond ? | MapTiler, Stadia, Protomaps       |
+| **Géocodage**        | Comment transformer une adresse en coordonnées ?   | Base Adresse Nationale, Nominatim |
+| **Recherche de POI** | Comment trouver « Le Comptoir Général » ?          | Photon, Geoapify, Foursquare      |
 
 Deux erreurs que cette grille nous a évitées :
 
@@ -170,11 +170,11 @@ Nous retenons la session opaque en base.
 
 ### 3.5 Temps réel : trois familles
 
-| Technique | Sens | Coût | Adapté à |
-|---|---|---|---|
-| Sondage périodique | client → serveur | trivial | tout, de façon dégradée |
-| **SSE** | serveur → client | faible | flux de notifications |
-| WebSocket | bidirectionnel | plus élevé | édition collaborative, jeu |
+| Technique          | Sens             | Coût       | Adapté à                   |
+| ------------------ | ---------------- | ---------- | -------------------------- |
+| Sondage périodique | client → serveur | trivial    | tout, de façon dégradée    |
+| **SSE**            | serveur → client | faible     | flux de notifications      |
+| WebSocket          | bidirectionnel   | plus élevé | édition collaborative, jeu |
 
 Notre besoin — un décompte de votes qui s'actualise chez tous les participants — est
 strictement unidirectionnel. Le duplex du WebSocket n'apporterait rien.
@@ -205,11 +205,11 @@ Cette méthode a un rendement mesurable dans ce projet : **trois de nos choix in
 Les décisions ne vivent pas dans une conversation mais dans le dépôt Git, en trois
 documents versionnés :
 
-| Document | Rôle |
-|---|---|
-| `README.md` | Le produit, son périmètre, sa pile technique |
-| `docs/decisions-techniques.md` | Chaque choix, les options écartées, la raison |
-| `docs/conception.md` | Le modèle de données, les règles, l'API, le séquencement |
+| Document                       | Rôle                                                     |
+| ------------------------------ | -------------------------------------------------------- |
+| `README.md`                    | Le produit, son périmètre, sa pile technique             |
+| `docs/decisions-techniques.md` | Chaque choix, les options écartées, la raison            |
+| `docs/conception.md`           | Le modèle de données, les règles, l'API, le séquencement |
 
 Quand une décision change, le document correspondant est corrigé dans le même commit que le
 changement. Un document qui contredit le code est pire que pas de document.
@@ -227,17 +227,17 @@ fonctionnalité à moitié faite.
 
 ### 5.1 Pile technique
 
-| Couche | Choix | Raison principale |
-|---|---|---|
-| Front | Vue 3 + Vite, SPA | Aucun enjeu de référencement, tout est derrière authentification |
-| Back | Deno 2 + Hono | TypeScript natif, outillage intégré, types partagés avec le front |
-| Base | PostgreSQL 17 | Types intervalles et contraintes d'exclusion natifs |
-| Accès données | Drizzle | Seul à traiter correctement notre requête centrale |
-| Authentification | Better Auth, lien magique | Pas de mot de passe à stocker ni à protéger |
-| Carte | Leaflet | Aucune dépendance à WebGL |
-| Géocodage | Base Adresse Nationale | Gratuit, sans clé, sans quota, officiel, excellent sur la France |
-| Temps réel | SSE | Flux unidirectionnel |
-| E-mail | Resend | Envoi transactionnel, pas de serveur SMTP à administrer |
+| Couche           | Choix                     | Raison principale                                                 |
+| ---------------- | ------------------------- | ----------------------------------------------------------------- |
+| Front            | Vue 3 + Vite, SPA         | Aucun enjeu de référencement, tout est derrière authentification  |
+| Back             | Deno 2 + Hono             | TypeScript natif, outillage intégré, types partagés avec le front |
+| Base             | PostgreSQL 17             | Types intervalles et contraintes d'exclusion natifs               |
+| Accès données    | Drizzle                   | Seul à traiter correctement notre requête centrale                |
+| Authentification | Better Auth, lien magique | Pas de mot de passe à stocker ni à protéger                       |
+| Carte            | Leaflet                   | Aucune dépendance à WebGL                                         |
+| Géocodage        | Base Adresse Nationale    | Gratuit, sans clé, sans quota, officiel, excellent sur la France  |
+| Temps réel       | SSE                       | Flux unidirectionnel                                              |
+| E-mail           | Resend                    | Envoi transactionnel, pas de serveur SMTP à administrer           |
 
 ### 5.2 Le choix de Hono RPC
 
@@ -264,17 +264,17 @@ typage était l'argument principal.
 Cette section est le cœur du rapport. Chaque ligne du tableau correspond à une décision que
 nous avons prise, puis défaite.
 
-| # | Décision initiale | Décision finale | Déclencheur |
-|---|---|---|---|
-| 1 | Backend en Go | Deno 2 + Hono | Coût de la double frontière de types |
-| 2 | Prisma comme ORM | Drizzle | Prisma ne gère pas les types intervalles |
-| 3 | Overpass API pour les lieux | BAN, Photon en option | Overpass n'est pas un moteur de recherche |
-| 4 | Déploiement sur Vercel | VPS | Vercel ne supporte pas Deno |
-| 5 | MapLibre GL | Leaflet | Dépendance à WebGL, risque en démonstration |
-| 6 | Participation sans compte | Compte obligatoire | Arbitrage assumé friction / simplicité |
-| 7 | Vote sur les dates | Date fixée par le créateur | Simplification du modèle |
-| 8 | Dépenses immuables | Aucun solde stocké | Formulation plus simple du même invariant |
-| 9 | Sondage périodique | SSE | Choix pédagogique assumé |
+| #   | Décision initiale           | Décision finale            | Déclencheur                                 |
+| --- | --------------------------- | -------------------------- | ------------------------------------------- |
+| 1   | Backend en Go               | Deno 2 + Hono              | Coût de la double frontière de types        |
+| 2   | Prisma comme ORM            | Drizzle                    | Prisma ne gère pas les types intervalles    |
+| 3   | Overpass API pour les lieux | BAN, Photon en option      | Overpass n'est pas un moteur de recherche   |
+| 4   | Déploiement sur Vercel      | VPS                        | Vercel ne supporte pas Deno                 |
+| 5   | MapLibre GL                 | Leaflet                    | Dépendance à WebGL, risque en démonstration |
+| 6   | Participation sans compte   | Compte obligatoire         | Arbitrage assumé friction / simplicité      |
+| 7   | Vote sur les dates          | Date fixée par le créateur | Simplification du modèle                    |
+| 8   | Dépenses immuables          | Aucun solde stocké         | Formulation plus simple du même invariant   |
+| 9   | Sondage périodique          | SSE                        | Choix pédagogique assumé                    |
 
 ### 6.1 Go → Deno *(incompatibilités en cascade)*
 
@@ -518,16 +518,16 @@ Utilisateur ──► amis, indisponibilités personnelles
 
 ### 8.3 Séquencement
 
-| Jalon | Contenu | Démonstration |
-|---|---|---|
-| M0 | Socle technique, authentification | Connexion |
-| M1 | Événement, invitations, participants | Un tiers rejoint depuis son téléphone |
-| M2 | Activités, vote, SSE | Le décompte bouge en direct sur deux écrans |
-| M3 | Dépenses, soldes, virements minimisés | Quatre virements au lieu de dix |
-| M4 | Carte, géocodage | Le programme sur une carte |
-| M5 | Groupes, calendrier partagé | Le créneau qui convient à tous |
-| M6 | Amis, notifications | |
-| M7 | Finitions | |
+| Jalon | Contenu                               | Démonstration                               |
+| ----- | ------------------------------------- | ------------------------------------------- |
+| M0    | Socle technique, authentification     | Connexion                                   |
+| M1    | Événement, invitations, participants  | Un tiers rejoint depuis son téléphone       |
+| M2    | Activités, vote, SSE                  | Le décompte bouge en direct sur deux écrans |
+| M3    | Dépenses, soldes, virements minimisés | Quatre virements au lieu de dix             |
+| M4    | Carte, géocodage                      | Le programme sur une carte                  |
+| M5    | Groupes, calendrier partagé           | Le créneau qui convient à tous              |
+| M6    | Amis, notifications                   |                                             |
+| M7    | Finitions                             |                                             |
 
 À l'issue de M3, le produit est cohérent et se défend seul.
 
@@ -551,6 +551,6 @@ produit, décisions prises en cours de route, et bilan final.
 
 ## 10. Journal des révisions
 
-| Date | Modification |
-|---|---|
+| Date             | Modification                                                        |
+| ---------------- | ------------------------------------------------------------------- |
 | 8 septembre 2026 | Version initiale : veille, démarche, choix, revirements, conception |

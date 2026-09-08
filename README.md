@@ -108,6 +108,7 @@ de `api/`, `web/` et du `docker-compose.yml` de développement.
   concepts informatiques*)
 - [Conception détaillée](docs/conception.md)
 - [Décisions techniques et produit](docs/decisions-techniques.md)
+- [Versions et compatibilité](docs/versions.md)
 
 ## Équipe
 
