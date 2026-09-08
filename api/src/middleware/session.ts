@@ -15,7 +15,10 @@ export const requireSession = createMiddleware<{ Variables: Variables }>(async (
   const session = await auth.api.getSession({ headers: c.req.raw.headers })
 
   if (!session) {
-    return c.json({ code: 'unauthenticated', message: 'Authentification requise' }, 401)
+    return c.json(
+      { code: 'unauthenticated', message: 'Authentification requise', details: {} },
+      401,
+    )
   }
 
   c.set('user', {
