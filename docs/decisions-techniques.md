@@ -31,9 +31,9 @@ une authentification. Une SPA suffit, et se marie bien avec une API séparée.
 Nuxt a été envisagé : il aurait apporté des routes serveur et un déploiement natif sur
 Vercel. Ce bénéfice disparaît dès lors que le déploiement se fait sur un VPS.
 
-### 2.2 Back — Deno 2 + Hono
+### 2.2 Back — Node 24 LTS + Hono
 
-**Trajectoire de la décision** : Go → TypeScript hors Node → Deno.
+**Trajectoire de la décision** : Go → TypeScript hors Node → Deno → Node.
 
 Go a été écarté après analyse : pour une application de type CRUD à formulaires, il
 représente environ deux à trois fois plus de code que l'équivalent TypeScript, impose deux
@@ -41,37 +41,63 @@ systèmes de types de part et d'autre de la frontière HTTP, et deux couches de 
 distinctes. Ses avantages réels (binaire unique, faible empreinte mémoire) ne compensent pas
 ce coût sur un projet de cette taille.
 
-Deno apporte TypeScript nativement sans étape de build, un bac à sable de permissions, et
-`fmt` / `lint` / `test` / `task` intégrés — soit un nombre réduit de dépendances de
-développement à maintenir. Sa contrepartie est un écosystème plus restreint que Node.
+Deno a d'abord été retenu pour son TypeScript natif, son bac à sable de permissions et son
+outillage intégré. Il a ensuite été abandonné au profit de Node 24 LTS. Trois raisons :
 
-**Hono** est retenu comme framework HTTP pour trois raisons : support Deno natif, empreinte
-minimale, et surtout **Hono RPC**, qui expose le type du routeur serveur au client. Le front
-importe ce type et obtient un client entièrement typé, sans génération de code ni contrat
-OpenAPI à maintenir. C'est le principal bénéfice du choix de TypeScript des deux côtés ; ne
-pas l'exploiter reviendrait à perdre la robustesse de Go sans contrepartie.
+- **Asymétrie du bénéfice.** Les atouts de Deno portent sur le code qu'on écrit. Or
+  l'outillage front — Vite, Vitest, `vue-tsc` — est du code qu'on se contente d'exécuter,
+  conçu et éprouvé pour Node. L'exécuter sous Deno n'apporte aucun de ses avantages et
+  n'apporte que son risque de compatibilité.
+- **Un risque non vérifié supprimé.** Better Auth sous Deno était la combinaison la moins
+  éprouvée de la pile et aurait exigé une vérification préalable.
+- **Le partage de types devient structurel.** En monorepo `npm workspaces`, `web` déclare
+  `api` en dépendance et importe le type du routeur directement. Le montage à base de carte
+  d'import et la règle imposant des versions identiques de `hono` et `zod` des deux côtés
+  disparaissent.
 
-Alternatives écartées : Oak (natif Deno, mais pas de client typé), Fresh (basé sur Preact,
-incompatible avec le choix de Vue).
+Bénéfices annexes : un seul lanceur de tests (Vitest) pour les deux espaces de travail, et
+Biome qui remplace d'un coup ESLint, Prettier et ce que `deno fmt` et `deno lint` offraient.
+
+Ce que nous perdons : l'outillage intégré, qu'il faut désormais déclarer et maintenir.
+
+**Hono** est retenu comme framework HTTP pour deux raisons : une empreinte minimale, et
+surtout **Hono RPC**, qui expose le type du routeur serveur au client. Le front importe ce
+type et obtient un client entièrement typé, sans génération de code ni contrat OpenAPI à
+maintenir. C'est le principal bénéfice du choix de TypeScript des deux côtés ; ne pas
+l'exploiter reviendrait à perdre la robustesse de Go sans contrepartie.
+
+Hono est agnostique du runtime : le passage de Deno à Node n'a coûté qu'un adaptateur,
+`@hono/node-server`. C'est précisément ce qui a rendu le revirement bon marché.
 
 ### 2.3 Base de données — PostgreSQL 17
 
 La requête centrale du produit est un calcul d'intersection de créneaux entre les
 indisponibilités des membres d'un groupe. PostgreSQL la traite nativement :
 
+Une première conception s'appuyait sur le type `tstzrange`, un index GiST et une contrainte
+d'exclusion :
+
 ```sql
 CREATE EXTENSION btree_gist;
-
-unavailability (
-  id, user_id, period tstzrange,
-  EXCLUDE USING gist (user_id WITH =, period WITH &&)
-)
+EXCLUDE USING gist (user_id WITH =, period WITH &&)
 ```
 
-Le type `tstzrange` associé à un index GiST donne la recherche de chevauchement, et la
-contrainte d'exclusion empêche par construction qu'un utilisateur saisisse deux
-indisponibilités qui se recoupent — la normalisation est déléguée à la base plutôt que
-codée dans l'application.
+C'était élégant : l'invariant « deux indisponibilités d'un même utilisateur ne se recouvrent
+jamais » était garanti par la base, donc incontournable par un chemin de code oublié.
+
+**Cette approche a été abandonnée.** Aucun ORM TypeScript ne modélise les contraintes
+d'exclusion : il aurait fallu écrire et maintenir cette migration à la main, et veiller à ce
+que l'outil de migration ne cherche pas à la supprimer au passage suivant.
+
+Retenu : **deux colonnes `timestamptz`**, `startsAt` et `endsAt`. Le chevauchement s'écrit
+`startsAt < ? AND endsAt > ?` — requête standard, exprimable par tout constructeur de
+requêtes, typée. La non-superposition passe en couche service : à l'écriture, les plages qui
+se touchent sont **fusionnées** dans une transaction avec verrou de ligne, ce qui est par
+ailleurs une meilleure ergonomie que de rejeter la saisie.
+
+Ce que nous perdons : l'index GiST, remplacé par un B-tree sur `(userId, startsAt)` — écart
+non mesurable à notre échelle — et surtout la garantie apportée par le système de stockage,
+désormais confiée au code applicatif. C'est un arbitrage assumé en faveur de l'outillage.
 
 Les montants sont stockés en **entiers, en centimes**. Aucun flottant ne doit apparaître
 dans le domaine financier.
@@ -79,21 +105,37 @@ dans le domaine financier.
 Un champ `currency` est prévu dès le schéma initial bien que seul l'euro soit supporté :
 le coût est nul maintenant, celui d'une migration ultérieure ne l'est pas.
 
-### 2.4 Accès aux données — Drizzle ORM
+### 2.4 Accès aux données — Prisma 7
 
-**Prisma a été écarté.** Motif décisif : Prisma ne supporte pas les types range de
-PostgreSQL. Toutes les requêtes de disponibilité — c'est-à-dire le cœur du produit —
-devraient passer par `$queryRaw` ou TypedSQL, hors du modèle. On paierait l'ORM sans en
-bénéficier là où le problème est difficile.
+Drizzle avait été retenu, sur un motif unique : Prisma ne modélise pas les types intervalles
+de PostgreSQL, et les requêtes de disponibilité seraient sorties du modèle.
 
-Drizzle permet de déclarer `tstzrange` via `customType`, gère les migrations, et offre une
-échappatoire SQL propre (``db.execute(sql`…`)``) pour les requêtes de créneau.
+Ce motif tombe avec l'abandon de `tstzrange` (section 2.3). Une fois les disponibilités
+ramenées à deux colonnes `timestamptz`, les deux ORM traitent le problème aussi bien, et
+Prisma l'emporte sur le confort : `prisma migrate dev`, Prisma Studio, et une documentation
+plus abondante.
 
-Kysely était une alternative crédible — meilleure affinité avec le SQL brut — mais son
+**Précision utile, car l'intuition est trompeuse** : ce n'est pas Drizzle qui imposait
+d'écrire du SQL à la main. `drizzle-kit generate` produit ses migrations par différence,
+exactement comme Prisma. Le seul SQL manuel venait de la contrainte `EXCLUDE`, qu'aucun des
+deux ne sait exprimer. Changer d'ORM ne résolvait rien ; renoncer à la contrainte, si.
+
+**Prisma 7 change son modèle de configuration**, ce qui n'est pas anodin :
+
+- l'URL de connexion sort du bloc `datasource` et vit dans `api/prisma.config.ts` ;
+- le client s'instancie avec un **adaptateur de pilote**, d'où `@prisma/adapter-pg` et `pg`
+  dans les dépendances. Contrairement aux versions antérieures, Prisma n'embarque plus son
+  propre pilote.
+
+Le tag `latest` du paquet `prisma` pointe par ailleurs sur une version candidate (8.0.0-rc).
+La version épinglée est 7.10.0, seule ligne acceptée par Better Auth.
+
+Kysely reste une alternative crédible — meilleure affinité avec le SQL brut — mais son
 support des migrations demande un outillage supplémentaire.
 
 Note historique : Prisma avait initialement été envisagé avec un back Go. Cette combinaison
-n'existe pas : le client Go de Prisma n'est plus officiellement supporté depuis 2021.
+n'existait pas : le client Go de Prisma n'est plus officiellement supporté depuis 2021.
+C'est ce qui avait entraîné l'abandon de Go.
 
 ### 2.5 Authentification — Better Auth
 
@@ -204,9 +246,15 @@ PostgreSQL en conteneur pour le développement. Deux précautions :
 Un VPS est disponible. Le choix de la chaîne de livraison (Docker Compose et Caddy, Kamal,
 ou un PaaS auto-hébergé type Coolify) est reporté.
 
-**Vercel a été écarté** pour deux raisons cumulatives : la plateforme ne supporte pas Deno
-comme runtime de première classe, et son offre Hobby limite les tâches planifiées à deux
-exécutions quotidiennes, tout en interdisant l'usage commercial.
+**Vercel a été écarté.** À l'époque du back Deno, la plateforme ne le supportait pas comme
+runtime de première classe ; ce motif est caduc depuis le retour à Node. Deux raisons
+subsistent : l'offre Hobby limite les tâches planifiées à deux exécutions quotidiennes et
+interdit l'usage commercial, et une plateforme sans serveur persistant exclut d'héberger
+Photon, ce qui supprimerait silencieusement une option décidée ailleurs.
+
+**Le déploiement devient un livrable du jalon M1.** Sa démonstration — un tiers rejoint un
+événement depuis son téléphone — suppose une URL publique et HTTPS. Il ne peut donc pas être
+reporté en fin de projet.
 
 ### 2.11 Temps réel — SSE
 
@@ -352,8 +400,11 @@ sorte qu'une version démontrable existe à chaque étape et que la coupe soit p
 moment sans laisser de fonctionnalité à moitié faite.
 
 À l'issue du jalon M3 — événement, invitations, activités votées, dépenses et récapitulatif
-des virements — le produit est cohérent et se défend seul. Carte, calendrier partagé, amis et
+des virements — le produit est cohérent et se défend seul. Calendrier partagé, carte, amis et
 finitions viennent ensuite, dans l'ordre du temps restant.
+
+**Le calendrier partagé passe devant la carte.** C'est le différenciateur du sujet, alors que
+la carte est un agrément. En cas de coupe, il vaut mieux perdre la carte.
 
 Le détail des jalons est en section 9 de [`conception.md`](conception.md).
 
@@ -379,10 +430,9 @@ Ces éléments relèvent d'une exploitation en production réelle. Ils ont été
 
 ## 7. Questions ouvertes
 
-Les deux premières questions de la version initiale — règle de clôture du vote et fusion
-d'identités — sont résolues, respectivement en sections 3.4 et 4.6.
+Trois questions des versions précédentes sont résolues : la règle de clôture du vote
+(section 3.4), la fusion d'identités (section 4.6) et la position du calendrier partagé, qui
+passe désormais devant la carte (section 5).
 
-1. Position du calendrier partagé dans le séquencement : il est placé en M5 alors que c'est
-   le différenciateur du sujet.
-2. Caractéristiques du VPS, qui conditionnent la faisabilité d'un Photon auto-hébergé.
-3. Chaîne de déploiement à retenir.
+1. Caractéristiques du VPS, qui conditionnent la faisabilité d'un Photon auto-hébergé.
+2. Chaîne de déploiement à retenir — devenue un livrable du jalon M1, voir section 2.10.
