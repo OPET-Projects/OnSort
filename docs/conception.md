@@ -345,8 +345,12 @@ se connecter, renvoie toujours la même réponse : même message, même code HTT
 l'état du compte visé. Un compte existant reçoit une notification interne ou un e-mail ; une
 adresse inconnue reçoit un e-mail d'invitation ; l'appelant ne peut pas distinguer les deux.
 
-Correspondance stricte sur l'adresse, jamais de recherche partielle. Limitation de débit de
-dix requêtes par minute et par utilisateur sur ces points d'entrée.
+Correspondance stricte sur l'adresse, jamais de recherche partielle.
+
+La limitation de débit sur ces points d'entrée est **hors périmètre de ce jalon** : voir
+`decisions-techniques.md` section 6, qui la classe parmi les recommandations retirées du
+cadre du cours. Elle redeviendra nécessaire dès que l'application sera exposée
+publiquement.
 
 ---
 

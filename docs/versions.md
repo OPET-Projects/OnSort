@@ -88,7 +88,7 @@ Biome remplace ESLint et Prettier : un outil, une configuration.
 | `pinia` | 4.0.3 | |
 | `@vue/devtools-api` | 8.2.1 | peer de Pinia, déclaré explicitement |
 | `leaflet` | 1.9.4 | |
-| `vite` | 8.2.2 | développement |
+| `vite` | 7.3.6 | développement |
 | `@vitejs/plugin-vue` | 6.0.8 | développement |
 | `tailwindcss` | 4.3.3 | développement |
 | `@tailwindcss/vite` | 4.3.3 | doit suivre `tailwindcss` à l'identique |
@@ -105,8 +105,8 @@ Biome remplace ESLint et Prettier : un outil, une configuration.
 |---|---|---|
 | `better-auth@1.7.3` : `vitest ^2 \|\| ^3 \|\| ^4` | **Vitest 4.1.11**, pas 5.0.0 | **`npm install` échoue** |
 | `better-auth@1.7.3` : `prisma` et `@prisma/client ^5 \|\| ^6 \|\| ^7` | Prisma 7.10.0 | bloquant |
-| `vitest@4.1.11` : `vite ^6 \|\| ^7 \|\| ^8` | Vite 8.2.2 conservé | — |
-| `vue-router@5.3.1` : `pinia ^3.0.4 \|\| ^4.0.2`, `vite ^7.3.0 \|\| ^8.0.0` | Pinia 4.0.3, Vite 8.2.2 | — |
+| `vitest@4.1.11` : `vite ^6 \|\| ^7 \|\| ^8` | Vite 7.3.6 retenu (voir 6.4) | — |
+| `vue-router@5.3.1` : `pinia ^3.0.4 \|\| ^4.0.2`, `vite ^7.3.0 \|\| ^8.0.0` | Pinia 4.0.3, Vite 7.3.6 | — |
 | `@hono/zod-validator@0.9.1` : `hono >=4.11.2`, `zod ^3.25.0 \|\| ^4.0.0` | Hono 4.13.7, Zod 4.5.4 | — |
 | `@hono/node-server@2.1.1` : `hono ^4` | Hono 4.x | — |
 
@@ -172,6 +172,20 @@ L'autorisation est versionnée dans `package.json` :
 Cette liste est nominative et porte la version : elle devra être mise à jour à chaque montée
 de ces paquets. C'est voulu — un script d'installation est du code exécuté sur la machine du
 développeur et sur celle de la CI.
+
+### 6.4 Vite 8 : binaire natif rolldown absent du verrou
+
+Vite 8 dépend de rolldown, dont le binaire natif est publié par plateforme. Le fichier de
+verrouillage npm ne porte que le binaire résolu localement lors de l'installation ; sous
+Linux (intégration continue), l'installation échouait avec :
+
+```
+Error: Cannot find native binding
+```
+
+Vitest 4.1.11 acceptant `vite ^6 || ^7 || ^8`, la rétrogradation vers Vite 7.3.6 ne coûte
+rien d'autre et évite ce piège tant que rolldown n'a pas de binaire portable dans
+`package-lock.json`.
 
 ## 7. Sécurité des dépendances
 
