@@ -2,10 +2,14 @@
 import { computed, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import ActivityCard from '../components/ActivityCard.vue'
+import BalanceSheet from '../components/BalanceSheet.vue'
+import ExpenseCard from '../components/ExpenseCard.vue'
 import { useActivities } from '../composables/useActivities'
 import { useEvent } from '../composables/useEvent'
 import { useEventStream } from '../composables/useEventStream'
+import { useExpenses } from '../composables/useExpenses'
 import { formatPeriod } from '../lib/dates'
+import { formatCents, parseEurosToCents } from '../lib/money'
 
 const route = useRoute()
 const id = String(route.params.id)
@@ -25,6 +29,22 @@ const {
   decide,
 } = useActivities(id)
 
+// Même remarque que ci-dessus sur la destructuration : les `Ref` doivent rester nommées.
+const {
+  state: expensesState,
+  expenses,
+  balances,
+  transfers,
+  pendingSettlements,
+  error: expensesError,
+  reload: reloadExpenses,
+  record,
+  declare,
+  confirm,
+  withdraw,
+} = useExpenses(id)
+
+const viewerId = computed(() => event.value?.viewer.participantId ?? '')
 const isAdmin = computed(() => event.value?.viewer.role === 'admin')
 // Proposer et voter supposent d'avoir accepté l'événement (conception §3.8). L'interface
 // applique la même règle que l'API, pour que le refus ne survienne pas après le clic.
@@ -40,9 +60,14 @@ useEventStream(id, {
   onParticipantChange: () => {
     void refresh()
   },
+  // Dépenses et règlements rechargent la même moitié d'écran : un virement confirmé sur un
+  // téléphone efface la dette sur l'écran d'en face, sans rechargement.
+  onExpenseChange: () => {
+    void reloadExpenses()
+  },
 })
 
-const tab = ref<'programme' | 'participants'>('programme')
+const tab = ref<'programme' | 'participants' | 'depenses'>('programme')
 
 const proposal = ref({ title: '', address: '' })
 const proposalError = ref('')
@@ -53,6 +78,37 @@ async function submitProposal(): Promise<void> {
     proposal.value = { title: '', address: '' }
   } catch (cause) {
     proposalError.value = cause instanceof Error ? cause.message : 'La proposition a échoué.'
+  }
+}
+
+const spending = ref({ label: '', amount: '' })
+const spendingError = ref('')
+async function submitExpense(): Promise<void> {
+  spendingError.value = ''
+  const amountCents = parseEurosToCents(spending.value.amount)
+
+  // Le montant est refusé ici, avec le contexte du formulaire, plutôt que dans
+  // `parseEurosToCents` qui n'aurait pas de quoi rédiger le message.
+  if (!Number.isFinite(amountCents) || amountCents <= 0) {
+    spendingError.value = 'Saisissez un montant en euros, supérieur à zéro.'
+    return
+  }
+
+  try {
+    await record({ label: spending.value.label, amountCents })
+    spending.value = { label: '', amount: '' }
+  } catch (cause) {
+    spendingError.value = cause instanceof Error ? cause.message : 'La saisie a échoué.'
+  }
+}
+
+const settlementError = ref('')
+async function runSettlement(action: () => Promise<void>): Promise<void> {
+  settlementError.value = ''
+  try {
+    await action()
+  } catch (cause) {
+    settlementError.value = cause instanceof Error ? cause.message : "L'opération a échoué."
   }
 }
 
@@ -144,7 +200,16 @@ async function sendEmailInvite(): Promise<void> {
         >
           Participants
         </button>
-        <span class="pb-2 text-neutral-400">Dépenses · à venir</span>
+        <button
+          type="button"
+          class="pb-2"
+          :class="
+            tab === 'depenses' ? 'border-b-2 border-neutral-900 font-medium' : 'text-neutral-500'
+          "
+          @click="tab = 'depenses'"
+        >
+          Dépenses
+        </button>
       </nav>
 
       <section v-if="tab === 'programme'" class="mt-6">
@@ -205,6 +270,80 @@ async function sendEmailInvite(): Promise<void> {
         <p v-else class="mt-6 border-t border-neutral-100 pt-4 text-sm text-neutral-500">
           Acceptez l'événement pour proposer une activité et voter.
         </p>
+      </section>
+
+      <section v-if="tab === 'depenses'" class="mt-6">
+        <p v-if="expensesState === 'loading'" class="text-sm text-neutral-500">
+          Chargement des dépenses…
+        </p>
+
+        <div v-else-if="expensesState === 'error'" class="text-sm text-red-700">
+          <p>{{ expensesError }}</p>
+          <button type="button" class="mt-2 underline" @click="reloadExpenses()">Réessayer</button>
+        </div>
+
+        <template v-else>
+          <p v-if="expensesState === 'empty'" class="text-sm text-neutral-600">
+            Aucune dépense pour l'instant. Saisissez la première pour que les comptes démarrent.
+          </p>
+
+          <div v-else class="flex flex-col gap-3">
+            <ExpenseCard
+              v-for="expense in expenses"
+              :key="expense.id"
+              :expense="expense"
+              :viewer-id="viewerId"
+            />
+          </div>
+
+          <form
+            v-if="hasAccepted"
+            class="mt-6 flex flex-col gap-2 border-t border-neutral-100 pt-4"
+            @submit.prevent="submitExpense"
+          >
+            <h2 class="text-sm font-medium">Saisir une dépense</h2>
+            <input
+              v-model="spending.label"
+              type="text"
+              required
+              maxlength="200"
+              placeholder="Restaurant, taxi, billets…"
+              class="rounded border border-neutral-300 px-3 py-2 text-base"
+            />
+            <input
+              v-model="spending.amount"
+              type="text"
+              inputmode="decimal"
+              required
+              placeholder="Montant en euros"
+              class="rounded border border-neutral-300 px-3 py-2 text-base"
+            />
+            <button type="submit" class="rounded bg-neutral-900 px-4 py-2 text-sm text-white">
+              Enregistrer
+            </button>
+            <p class="text-xs text-neutral-500">
+              La dépense est partagée à parts égales entre ceux qui ont accepté l'événement.
+            </p>
+            <p v-if="spendingError" class="text-sm text-red-700">{{ spendingError }}</p>
+          </form>
+
+          <p v-else class="mt-6 border-t border-neutral-100 pt-4 text-sm text-neutral-500">
+            Acceptez l'événement pour saisir une dépense.
+          </p>
+
+          <div class="mt-8 border-t border-neutral-100 pt-6">
+            <BalanceSheet
+              :balances="balances"
+              :transfers="transfers"
+              :pending-settlements="pendingSettlements"
+              :viewer-id="viewerId"
+              @declare="(to, amount) => runSettlement(() => declare(to, amount))"
+              @confirm="(settlementId) => runSettlement(() => confirm(settlementId))"
+              @withdraw="(settlementId) => runSettlement(() => withdraw(settlementId))"
+            />
+            <p v-if="settlementError" class="mt-2 text-sm text-red-700">{{ settlementError }}</p>
+          </div>
+        </template>
       </section>
 
       <section v-if="tab === 'participants'" class="mt-6">
