@@ -59,6 +59,9 @@ services:
       BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?le secret d authentification est obligatoire}
       RESEND_API_KEY: ${RESEND_API_KEY:-}
       MAIL_FROM: ${MAIL_FROM:?l adresse d expedition est obligatoire}
+      # Vides, les tuiles OpenStreetMap sont utilisées : aucune clé n'est nécessaire.
+      MAP_TILES_URL: ${MAP_TILES_URL:-}
+      MAP_TILES_ATTRIBUTION: ${MAP_TILES_ATTRIBUTION:-}
     depends_on:
       migrate:
         condition: service_completed_successfully

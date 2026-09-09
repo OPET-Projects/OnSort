@@ -97,6 +97,8 @@ openssl rand -base64 32   # BETTER_AUTH_SECRET
 | `BETTER_AUTH_SECRET` | `openssl rand -base64 32`, 32 caractères au moins | l'API refuse de démarrer. Le changer plus tard invalide **toutes** les sessions ouvertes |
 | `RESEND_API_KEY` | tableau de bord Resend | l'application tourne, mais les liens de connexion restent dans les journaux du conteneur : **personne ne peut se connecter à distance** |
 | `MAIL_FROM` | `On Sort ? <no-reply@onsort.eliott-b.fr>` | l'API refuse de démarrer. Le domaine d'expédition doit être **vérifié chez Resend**, sinon les envois sont refusés |
+| `MAP_TILES_URL` | vide | les tuiles OpenStreetMap sont utilisées, sans clé. À renseigner seulement pour basculer vers un fournisseur |
+| `MAP_TILES_ATTRIBUTION` | vide | suit la source. Servir les tuiles d'un fournisseur sous l'attribution d'un autre serait faux |
 
 Aucune de ces valeurs n'apparaît dans le dépôt, et aucune ne transite par GitHub.
 
@@ -131,6 +133,7 @@ silence si on la retire :
 | `proxy_buffering off` | un flux SSE ne se ferme jamais, donc le tampon ne se vide jamais : le temps réel disparaît sans aucune erreur |
 | `proxy_read_timeout 1h` | la coupure par défaut à 60 s ferme le flux sans cesse, et le client passe son temps à se reconnecter |
 | `proxy_set_header X-Real-IP` | sans elle, Better Auth ne résout aucune adresse et limite les connexions dans un seau **partagé par tous les visiteurs** |
+| `Referrer-Policy: strict-origin-when-cross-origin` | `same-origin` supprimerait l'en-tête que les serveurs de tuiles OpenStreetMap utilisent pour identifier l'application, mettant l'usage hors de leur politique |
 
 Puis `nginx -t && systemctl reload nginx`.
 
