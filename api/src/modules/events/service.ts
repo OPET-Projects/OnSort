@@ -2,6 +2,7 @@ import { config } from '../../config.ts'
 import { prisma } from '../../db.ts'
 import { ApiError } from '../../lib/http.ts'
 import { mailer } from '../../lib/mailer.ts'
+import { notify } from '../../lib/notify.ts'
 import { canManageEvent, type ParticipantRole } from '../../lib/permissions.ts'
 import { publish } from '../../lib/sse.ts'
 import { generateInviteToken, hashInviteToken } from '../../lib/tokens.ts'
@@ -168,6 +169,16 @@ export async function createInvitation(userId: string, eventId: string, input: I
   })
 
   const event = await prisma.event.findUniqueOrThrow({ where: { id: eventId } })
+
+  // Une notification interne **en plus** du courriel quand le compte existe (§4) : c'est ce
+  // que la règle anti-énumération prévoit, et l'appelant ne voit toujours pas la différence
+  // puisque la réponse est la même.
+  await notify({
+    userIds: invited === null ? [] : [invited.id],
+    type: 'event.invited',
+    eventId,
+    payload: { title: event.title },
+  })
 
   // Envoi depuis le handler, comme le lien magique de M0 ; la file d'attente reste une
   // recommandation retirée (decisions-techniques §6). Un échec d'envoi est journalisé et

@@ -3,6 +3,7 @@ import { prisma } from '../../db.ts'
 import { freeSlots } from '../../lib/calendar.ts'
 import { ApiError } from '../../lib/http.ts'
 import { mailer } from '../../lib/mailer.ts'
+import { notify } from '../../lib/notify.ts'
 import { canManageGroup } from '../../lib/permissions.ts'
 import type { CalendarWindowInput, CreateGroupInput, InviteMemberInput } from './schema.ts'
 
@@ -109,6 +110,14 @@ export async function inviteToGroup(userId: string, groupId: string, input: Invi
   })
 
   const group = await prisma.group.findUniqueOrThrow({ where: { id: groupId } })
+
+  // Notification interne en plus du courriel quand le compte existe (§4). La réponse reste
+  // la même dans les deux cas : rien de tout cela n'est observable de l'extérieur.
+  await notify({
+    userIds: invited === null ? [] : [invited.id],
+    type: 'group.invited',
+    payload: { name: group.name },
+  })
 
   // Un échec d'envoi est journalisé et n'interrompt pas l'invitation, ni ne révèle l'état du
   // compte visé.

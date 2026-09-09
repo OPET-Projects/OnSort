@@ -1,6 +1,7 @@
 import { prisma } from '../../db.ts'
 import { ApiError } from '../../lib/http.ts'
 import { computeBalances, minimizeTransfers, splitEqually } from '../../lib/money.ts'
+import { notify } from '../../lib/notify.ts'
 import {
   canConfirmSettlement,
   canDeclareSettlement,
@@ -86,6 +87,21 @@ export async function createExpense(userId: string, eventId: string, input: Crea
   })
 
   publish(eventId, { type: 'expense.created', id: expense.id })
+
+  // Les bénéficiaires, sauf l'auteur : il sait déjà ce qu'il vient de saisir. Le montant ne
+  // voyage pas dans la notification — la dépense se relit, la ligne d'alerte n'a besoin que
+  // de son libellé.
+  const beneficiaryUsers = await prisma.eventParticipant.findMany({
+    where: { id: { in: beneficiaries } },
+    select: { userId: true },
+  })
+
+  await notify({
+    userIds: beneficiaryUsers.map((row) => row.userId).filter((id) => id !== userId),
+    type: 'expense.created',
+    eventId,
+    payload: { label: expense.label },
+  })
 
   return expense
 }
@@ -273,12 +289,14 @@ export async function declareSettlement(
 
   const creditor = await prisma.eventParticipant.findFirst({
     where: { id: input.toParticipantId, eventId },
-    select: { id: true },
+    select: { id: true, userId: true },
   })
 
   if (creditor === null) {
     throw new ApiError('unknown_creditor', 400, 'Ce bénéficiaire ne participe pas à cet événement.')
   }
+
+  const creditorUserId = creditor.userId
 
   const settlement = await prisma.settlement.create({
     data: {
@@ -290,6 +308,15 @@ export async function declareSettlement(
   })
 
   publish(eventId, { type: 'settlement.declared', id: settlement.id })
+
+  // Le créancier seul : c'est lui qui doit confirmer, et personne d'autre n'a d'action à
+  // faire.
+  await notify({
+    userIds: [creditorUserId],
+    type: 'settlement.declared',
+    eventId,
+    payload: {},
+  })
 
   return settlement
 }
@@ -328,6 +355,19 @@ export async function confirmSettlement(userId: string, settlementId: string) {
   })
 
   publish(settlement.eventId, { type: 'settlement.confirmed', id: settlementId })
+
+  // Le débiteur seul : sa dette vient d'être reconnue éteinte, c'est lui que ça concerne.
+  const debtor = await prisma.eventParticipant.findUnique({
+    where: { id: settlement.fromParticipantId },
+    select: { userId: true },
+  })
+
+  await notify({
+    userIds: debtor === null ? [] : [debtor.userId],
+    type: 'settlement.confirmed',
+    eventId: settlement.eventId,
+    payload: {},
+  })
 
   return confirmed
 }
