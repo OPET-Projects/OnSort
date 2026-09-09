@@ -231,6 +231,35 @@ administrateur puisse corriger celle d'un autre. *Coût si erroné : une conditi
 émis, on ne peut plus répondre par un code d'erreur : un non-participant recevrait un 200
 suivi d'un flux vide. *Coût si erroné : un contrôle à déplacer.*
 
+### Ce qu'une relecture de conformité a trouvé après coup
+
+Le jalon a d'abord été déclaré fini alors qu'il débordait d'un côté et manquait de l'autre.
+Les trois constats sont consignés parce qu'ils viennent tous d'une même cause : le plan
+avait raisonné sur le périmètre des **routes**, jamais sur celui des **messages diffusés**.
+
+**`PATCH /activities/:id` déborde de M2 — conservé, et §5.2 corrigée.** §9 range M2 sur
+« activités, vote, SSE, décision » : la modification n'y figure pas, la démonstration ne
+s'en sert pas. Le même raisonnement avait pourtant servi à écarter `attendance`, `cancel` et
+`order` de la surface §5.1 — l'incohérence était de ne pas l'appliquer à `PATCH`. Décision
+prise : garder la route, déjà écrite et testée, et **ajouter `activity.updated` à la liste
+des types diffusés de §5.2**, qui ne l'admettait pas. Un message inventé sans corriger le
+document est exactement ce que la règle d'autorité interdit. *Coût si erroné : une route et
+un type à retirer ensemble.*
+
+**`activity.created` n'était jamais diffusé.** §5.2 le liste, le front l'écoutait, et le
+README affirmait qu'une activité proposée apparaît sur les deux écrans. C'était faux : la
+proposition ne publiait rien. Aucun test ne l'a vu parce que le plan n'en demandait pas — il
+faisait tester la diffusion du vote et de la décision, pas celle de la création.
+
+**`participant.rsvp` n'était jamais diffusé** non plus, alors que la fonctionnalité existe
+depuis M1 et que le flux existe depuis M2. Le front distingue désormais deux rechargements
+ciblés : une réponse recharge l'événement, une activité recharge le programme. Recharger
+l'un pour l'autre coûterait une requête pour rien et laisserait périmée la moitié qui a
+bougé.
+
+*Leçon retenue pour M3 : quand un jalon introduit un canal de diffusion, la liste des
+messages de §5.2 est une liste de vérification au même titre que la surface HTTP de §5.1.*
+
 ---
 
 ## Points laissés ouverts
