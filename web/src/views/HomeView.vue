@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { RouterLink } from 'vue-router'
+import NotificationBell from '../components/NotificationBell.vue'
 import { useEvents } from '../composables/useEvents'
 import { formatPeriod } from '../lib/dates'
 import { useSessionStore } from '../stores/session'
@@ -27,12 +28,15 @@ const rsvpLabel: Record<string, string> = {
         <h1 class="text-2xl font-semibold">Bonjour {{ session.user?.name }}</h1>
         <p class="text-sm text-neutral-600">{{ session.user?.email }}</p>
       </div>
-      <RouterLink
-        to="/events/new"
-        class="rounded bg-neutral-900 px-4 py-2 text-sm text-white"
-      >
-        Nouvel événement
-      </RouterLink>
+      <div class="flex items-center gap-2">
+        <NotificationBell />
+        <RouterLink
+          to="/events/new"
+          class="rounded bg-neutral-900 px-4 py-2 text-sm text-white"
+        >
+          Nouvel événement
+        </RouterLink>
+      </div>
     </header>
 
     <!--
@@ -40,6 +44,7 @@ const rsvpLabel: Record<string, string> = {
       deux écrans de M4 ne s'atteignent qu'en tapant leur adresse à la main.
     -->
     <nav class="mt-4 flex gap-4 text-sm">
+      <RouterLink to="/friends" class="underline">Mes amis</RouterLink>
       <RouterLink to="/groups" class="underline">Mes groupes</RouterLink>
       <RouterLink to="/me/calendar" class="underline">Mes indisponibilités</RouterLink>
     </nav>
