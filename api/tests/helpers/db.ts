@@ -3,6 +3,8 @@ import { prisma } from '../../src/db.ts'
 // Chaque jalon qui ajoute des tables étend cette liste à la main : un oubli se voit.
 // `CASCADE` rend l'ordre indifférent.
 const TABLES = [
+  'activity_votes',
+  'activities',
   'invitations',
   'invite_links',
   'event_participants',

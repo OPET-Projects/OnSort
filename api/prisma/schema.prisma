@@ -119,20 +119,23 @@ model Event {
   creator      User               @relation("EventCreator", fields: [createdBy], references: [id])
   createdAt    DateTime           @default(now()) @map("created_at")
   participants EventParticipant[]
+  activities   Activity[]
 
   @@index([groupId])
   @@map("events")
 }
 
 model EventParticipant {
-  id       String          @id @default(uuid())
-  eventId  String          @map("event_id")
-  event    Event           @relation(fields: [eventId], references: [id], onDelete: Cascade)
-  userId   String          @map("user_id")
-  user     User            @relation(fields: [userId], references: [id], onDelete: Cascade)
-  role     ParticipantRole @default(member)
-  rsvp     Rsvp            @default(invited)
-  joinedAt DateTime        @default(now()) @map("joined_at")
+  id                 String          @id @default(uuid())
+  eventId            String          @map("event_id")
+  event              Event           @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  userId             String          @map("user_id")
+  user               User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role               ParticipantRole @default(member)
+  rsvp               Rsvp            @default(invited)
+  joinedAt           DateTime        @default(now()) @map("joined_at")
+  proposedActivities Activity[]
+  votes              ActivityVote[]
 
   @@unique([eventId, userId])
   @@index([userId])
@@ -171,4 +174,59 @@ model Invitation {
   @@index([invitedUserId])
   @@index([invitedEmail])
   @@map("invitations")
+}
+
+// --- M2 : activités et vote ------------------------------------------------------------
+// Modèle : conception.md §2.7.
+//
+// Quatre colonnes de §2.7 sont volontairement absentes, chacune arrivant avec la
+// fonctionnalité qui l'écrit : `lat`/`lng` en M5 (géocodage et carte), `attendance_mode` en
+// M3 (présence), `cancelled_at` en M7 (annulation). « On ne crée pas aujourd'hui des tables
+// que personne n'écrit encore » — docs/workflow.md. La table `activity_absences` suit la
+// même règle et arrivera en M3.
+
+enum ActivityStatus {
+  proposed
+  accepted
+  rejected
+}
+
+enum VoteValue {
+  for
+  against
+}
+
+model Activity {
+  id         String           @id @default(uuid())
+  eventId    String           @map("event_id")
+  event      Event            @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  title      String
+  kind       String           @default("")
+  address    String           @default("")
+  startsAt   DateTime?        @map("starts_at")
+  endsAt     DateTime?        @map("ends_at")
+  position   Int              @default(0)
+  status     ActivityStatus   @default(proposed)
+  proposedBy String           @map("proposed_by")
+  proposer   EventParticipant @relation(fields: [proposedBy], references: [id], onDelete: Cascade)
+  createdAt  DateTime         @default(now()) @map("created_at")
+  votes      ActivityVote[]
+
+  @@index([eventId, position])
+  @@map("activities")
+}
+
+// Le vote référence une **participation**, pas un utilisateur : c'est la clé primaire de
+// §2.7. Elle lie le vote à l'appartenance à l'événement — quitter l'événement emporte le
+// vote — et interdit le double vote sans une ligne de code.
+model ActivityVote {
+  activityId    String           @map("activity_id")
+  activity      Activity         @relation(fields: [activityId], references: [id], onDelete: Cascade)
+  participantId String           @map("participant_id")
+  participant   EventParticipant @relation(fields: [participantId], references: [id], onDelete: Cascade)
+  value         VoteValue
+  updatedAt     DateTime         @updatedAt @map("updated_at")
+
+  @@id([activityId, participantId])
+  @@map("activity_votes")
 }
