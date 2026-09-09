@@ -1,5 +1,5 @@
 import { Hono } from 'hono'
-import { jsonBody } from '../../lib/validator.ts'
+import { jsonBody, queryParams } from '../../lib/validator.ts'
 import { requireSession, type SessionVariables } from '../../middleware/session.ts'
 import { addUnavailabilitySchema, windowSchema } from './schema.ts'
 import { addUnavailability, listUnavailability, removeUnavailability } from './service.ts'
@@ -7,7 +7,7 @@ import { addUnavailability, listUnavailability, removeUnavailability } from './s
 export const calendarRoutes = new Hono<{ Variables: SessionVariables }>()
   .use('*', requireSession)
   .get('/unavailability', async (c) => {
-    const window = windowSchema.parse(c.req.query())
+    const window = queryParams(windowSchema, c.req.query())
     return c.json({ unavailability: await listUnavailability(c.get('user').id, window) })
   })
   .post('/unavailability', jsonBody(addUnavailabilitySchema), async (c) => {

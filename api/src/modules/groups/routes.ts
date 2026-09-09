@@ -1,5 +1,5 @@
 import { Hono } from 'hono'
-import { jsonBody } from '../../lib/validator.ts'
+import { jsonBody, queryParams } from '../../lib/validator.ts'
 import { requireSession, type SessionVariables } from '../../middleware/session.ts'
 import { calendarWindowSchema, createGroupSchema, inviteMemberSchema } from './schema.ts'
 import { createGroup, getGroup, getGroupCalendar, inviteToGroup, listGroups } from './service.ts'
@@ -21,6 +21,6 @@ export const groupsRoutes = new Hono<{ Variables: SessionVariables }>()
     return c.json(result)
   })
   .get('/:id/calendar', async (c) => {
-    const window = calendarWindowSchema.parse(c.req.query())
+    const window = queryParams(calendarWindowSchema, c.req.query())
     return c.json(await getGroupCalendar(c.get('user').id, c.req.param('id'), window))
   })
