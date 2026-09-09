@@ -124,9 +124,17 @@ export function minimizeTransfers(balances: readonly Balance[]): Transfer[] {
 
   const transfers: Transfer[] = []
 
-  while (creditors.length > 0 && debtors.length > 0) {
-    const creditor = creditors[0]
-    const debtor = debtors[0]
+  // Les deux têtes de liste sont retirées puis remises si elles gardent un reste. Le
+  // `undefined` d'une liste vide **est** la condition d'arrêt : la retirer au profit d'un
+  // test de longueur obligerait à réaffirmer ensuite à TypeScript ce qu'il vient de vérifier.
+  for (;;) {
+    const creditor = creditors.shift()
+    const debtor = debtors.shift()
+
+    if (creditor === undefined || debtor === undefined) {
+      break
+    }
+
     const amountCents = Math.min(creditor.balanceCents, debtor.balanceCents)
 
     transfers.push({
@@ -138,8 +146,10 @@ export function minimizeTransfers(balances: readonly Balance[]): Transfer[] {
     creditor.balanceCents -= amountCents
     debtor.balanceCents -= amountCents
 
-    if (creditor.balanceCents === 0) creditors.shift()
-    if (debtor.balanceCents === 0) debtors.shift()
+    // Au moins l'un des deux tombe à zéro et ne revient pas : c'est ce qui borne le
+    // résultat à N−1 virements.
+    if (creditor.balanceCents > 0) creditors.push(creditor)
+    if (debtor.balanceCents > 0) debtors.push(debtor)
 
     creditors.sort(byAmountThenId)
     debtors.sort(byAmountThenId)
