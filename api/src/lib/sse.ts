@@ -14,6 +14,17 @@ export type Subscriber = (event: ServerEvent) => void
 
 const rooms = new Map<string, Set<Subscriber>>()
 
+// Salon personnel d'un utilisateur, à côté des salons d'événement. Le bus indexe déjà par
+// une chaîne quelconque : un second bus dupliquerait la gestion des abonnés et des
+// connexions mortes pour rien.
+//
+// Le préfixe n'est pas cosmétique. Sans lui, un identifiant d'utilisateur égal à un
+// identifiant d'événement mêlerait deux flux — les deux sont des UUID, la collision est
+// improbable, mais « improbable » n'est pas une garantie et le préfixe en est une.
+export function userRoom(userId: string): string {
+  return `user:${userId}`
+}
+
 // Rend la fonction de désabonnement. L'appeler deux fois est sans effet : une connexion
 // peut être abandonnée puis démontée.
 export function subscribe(eventId: string, subscriber: Subscriber): () => void {
