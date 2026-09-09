@@ -1,5 +1,6 @@
 import { expect, it } from 'vitest'
 import { prisma } from '../../src/db.ts'
+import { type ServerEvent, subscribe } from '../../src/lib/sse.ts'
 import { app } from '../../src/main.ts'
 import { signIn } from '../helpers/auth.ts'
 
@@ -160,4 +161,95 @@ it('rend un décompte nul et aucun vote personnel tant que personne n’a voté'
   }
   expect(activities[0]?.tally).toEqual({ for: 0, against: 0 })
   expect(activities[0]?.myVote).toBeNull()
+})
+
+// --- vote -----------------------------------------------------------------------------
+
+const vote = (headers: Headers, activityId: string, value: 'for' | 'against') =>
+  send('POST', `/api/activities/${activityId}/vote`, headers, { value })
+
+async function makeActivity(headers: Headers, eventId: string): Promise<string> {
+  const response = await propose(headers, eventId)
+  return ((await response.json()) as { id: string }).id
+}
+
+it('refuse le vote d’un participant qui n’a pas accepté', async () => {
+  const alice = await signIn('alice@example.test')
+  const bob = await signIn('bob@example.test')
+  const eventId = await makeEvent(alice)
+  await addParticipant(bob, eventId, 'invited')
+  const activityId = await makeActivity(alice, eventId)
+
+  const response = await vote(bob, activityId, 'for')
+
+  expect(response.status).toBe(403)
+  expect(await response.json()).toMatchObject({ code: 'must_accept_first' })
+})
+
+it('enregistre un vote et rend le décompte', async () => {
+  const alice = await signIn('alice@example.test')
+  const eventId = await makeEvent(alice)
+  const activityId = await makeActivity(alice, eventId)
+
+  const response = await vote(alice, activityId, 'for')
+
+  expect(response.status).toBe(200)
+  expect(await response.json()).toEqual({ for: 1, against: 0 })
+  expect(await prisma.activityVote.count({ where: { activityId } })).toBe(1)
+})
+
+it('remplace le vote quand on change d’avis', async () => {
+  const alice = await signIn('alice@example.test')
+  const eventId = await makeEvent(alice)
+  const activityId = await makeActivity(alice, eventId)
+
+  await vote(alice, activityId, 'for')
+  const response = await vote(alice, activityId, 'against')
+
+  expect(await response.json()).toEqual({ for: 0, against: 1 })
+  expect(await prisma.activityVote.count({ where: { activityId } })).toBe(1)
+})
+
+it('additionne les voix de deux participants', async () => {
+  const alice = await signIn('alice@example.test')
+  const bob = await signIn('bob@example.test')
+  const eventId = await makeEvent(alice)
+  await addParticipant(bob, eventId, 'accepted')
+  const activityId = await makeActivity(alice, eventId)
+
+  await vote(alice, activityId, 'for')
+  const response = await vote(bob, activityId, 'against')
+
+  expect(await response.json()).toEqual({ for: 1, against: 1 })
+})
+
+it('refuse le vote sur une activité déjà tranchée', async () => {
+  const alice = await signIn('alice@example.test')
+  const eventId = await makeEvent(alice)
+  const activityId = await makeActivity(alice, eventId)
+  await prisma.activity.update({ where: { id: activityId }, data: { status: 'accepted' } })
+
+  const response = await vote(alice, activityId, 'for')
+
+  expect(response.status).toBe(409)
+  expect(await response.json()).toMatchObject({ code: 'activity_already_decided' })
+})
+
+it('diffuse le décompte sur le bus à chaque vote', async () => {
+  const alice = await signIn('alice@example.test')
+  const eventId = await makeEvent(alice)
+  const activityId = await makeActivity(alice, eventId)
+
+  // L'exception de la conception §5.2 : `activity.vote` transporte son contenu, parce que
+  // c'est le compteur qui doit bouger en direct sans que le client recharge quoi que ce soit.
+  const received: ServerEvent[] = []
+  const unsubscribe = subscribe(eventId, (event) => received.push(event))
+
+  try {
+    await vote(alice, activityId, 'for')
+  } finally {
+    unsubscribe()
+  }
+
+  expect(received).toEqual([{ type: 'activity.vote', activityId, for: 1, against: 0 }])
 })

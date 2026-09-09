@@ -1,7 +1,8 @@
 import { prisma } from '../../db.ts'
 import { ApiError } from '../../lib/http.ts'
-import { canProposeActivity } from '../../lib/permissions.ts'
-import { tally } from '../../lib/vote.ts'
+import { canProposeActivity, canVote } from '../../lib/permissions.ts'
+import { publish } from '../../lib/sse.ts'
+import { tally, type VoteValue } from '../../lib/vote.ts'
 import { loadParticipant } from '../events/service.ts'
 import type { CreateActivityInput } from './schema.ts'
 
@@ -91,4 +92,61 @@ export async function listActivities(userId: string, eventId: string) {
   }))
 }
 
-export { assertPeriod, loadAcceptedParticipant }
+// Charge une activité avec l'événement auquel elle appartient, ou lève 404.
+async function loadActivity(activityId: string) {
+  const activity = await prisma.activity.findUnique({ where: { id: activityId } })
+
+  if (activity === null) {
+    throw new ApiError('activity_not_found', 404, 'Activité introuvable.')
+  }
+
+  return activity
+}
+
+async function tallyOf(activityId: string) {
+  return tally(await prisma.activityVote.findMany({ where: { activityId } }))
+}
+
+export async function castVote(userId: string, activityId: string, value: VoteValue) {
+  const activity = await loadActivity(activityId)
+  const participant = await loadParticipant(userId, activity.eventId)
+
+  if (!canVote(participant.rsvp)) {
+    throw new ApiError(
+      'must_accept_first',
+      403,
+      "Acceptez d'abord l'événement pour voter sur son programme.",
+    )
+  }
+
+  // Le vote n'est ouvert que tant que l'activité est proposée (§3.3). Rouvrir le vote passe
+  // par une décision de l'administrateur qui la ramène à `proposed`.
+  if (activity.status !== 'proposed') {
+    throw new ApiError('activity_already_decided', 409, 'Cette activité a déjà été tranchée.')
+  }
+
+  // Changer d'avis est explicitement prévu (§3.3) : le vote remplace le précédent au lieu
+  // de s'y ajouter. La clé primaire (activity_id, participant_id) rend l'`upsert` atomique.
+  await prisma.activityVote.upsert({
+    where: { activityId_participantId: { activityId, participantId: participant.id } },
+    create: { activityId, participantId: participant.id, value },
+    update: { value },
+  })
+
+  const counts = await tallyOf(activityId)
+
+  // L'exception de la conception §5.2 : ce message transporte son contenu au lieu d'un
+  // simple `{ type, id }`. C'est l'événement le plus fréquent, son décompte est public pour
+  // tous les participants, et c'est le compteur qui doit bouger en direct — le client n'a
+  // donc rien à recharger.
+  publish(activity.eventId, {
+    type: 'activity.vote',
+    activityId,
+    for: counts.for,
+    against: counts.against,
+  })
+
+  return counts
+}
+
+export { assertPeriod, loadAcceptedParticipant, loadActivity, tallyOf }

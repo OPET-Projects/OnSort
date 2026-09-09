@@ -50,7 +50,9 @@ it('interdit deux votes du même participant sur une activité', async () => {
 
   await prisma.activityVote.create({ data: { ...vote, value: 'for' } })
 
-  await expect(prisma.activityVote.create({ data: { ...vote, value: 'against' } })).rejects.toThrow()
+  await expect(
+    prisma.activityVote.create({ data: { ...vote, value: 'against' } }),
+  ).rejects.toThrow()
 })
 
 it('emporte activités et votes avec l’événement supprimé', async () => {
