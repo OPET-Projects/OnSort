@@ -404,13 +404,16 @@ GET    /events/:id/activities     programme, trié par position
 POST   /events/:id/activities      PATCH  /activities/:id
 POST   /activities/:id/vote
 POST   /activities/:id/decision    administrateur
+GET    /activities/:id/attendance  présents à une activité
 POST   /activities/:id/attendance
 POST   /activities/:id/cancel
 PATCH  /events/:id/activities/order
 
+GET    /events/:id/expenses        dépenses de l'événement
 POST   /events/:id/expenses        PATCH  /expenses/:id
 GET    /events/:id/balances        soldes et virements minimisés
 POST   /events/:id/settlements     POST   /settlements/:id/confirm
+DELETE /settlements/:id            retrait d'une déclaration non confirmée
 
 GET    /notifications              POST   /notifications/:id/read
 GET    /me/stream                  SSE

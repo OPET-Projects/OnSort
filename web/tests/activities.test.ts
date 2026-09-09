@@ -62,7 +62,7 @@ it('passe à « error » quand l’API échoue', async () => {
 })
 
 it('applique le décompte renvoyé par un vote sans recharger la liste', async () => {
-  const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
+  const fetchMock = vi.fn(async (_url: string, init?: RequestInit) => {
     if (init?.method === 'POST') return json({ for: 2, against: 1 })
     return json({ activities: [activity] })
   })
