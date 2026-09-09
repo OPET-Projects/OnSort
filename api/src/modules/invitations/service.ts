@@ -1,6 +1,7 @@
 import { prisma } from '../../db.ts'
 import { ApiError } from '../../lib/http.ts'
 import { hashInviteToken } from '../../lib/tokens.ts'
+import type { RespondInput } from './schema.ts'
 
 // Consommation d'un jeton d'invitation (conception §2.6, §3.2). Le jeton désigne soit un
 // lien partageable (résolu par son hachage), soit une invitation nominative (résolue par
@@ -8,7 +9,19 @@ import { hashInviteToken } from '../../lib/tokens.ts'
 
 type Accepter = { id: string; email: string }
 
-async function joinEvent(userId: string, eventId: string): Promise<void> {
+// Jeton résolu, sans effet de bord. La résolution est séparée de l'acceptation depuis que
+// l'invité voit un aperçu avant de décider : les deux gestes partagent exactement les mêmes
+// contrôles de validité, et un contrôle dupliqué finirait par diverger.
+type Resolved = {
+  eventId: string
+  invitationId: string | null
+}
+
+async function joinEvent(
+  userId: string,
+  eventId: string,
+  rsvp: RespondInput['rsvp'],
+): Promise<void> {
   const event = await prisma.event.findUnique({ where: { id: eventId }, select: { id: true } })
 
   if (event === null) {
@@ -21,19 +34,22 @@ async function joinEvent(userId: string, eventId: string): Promise<void> {
   // heurterait alors la contrainte d'unicité et l'appelant recevrait un 500. Un `upsert`
   // s'appuie sur cette même contrainte pour trancher en une seule instruction.
   //
-  // `update: {}` est délibérément vide : une nouvelle acceptation ne doit ni rétrograder un
-  // administrateur en simple participant, ni effacer une réponse déjà donnée.
+  // **La réponse entre avec le participant.** L'invité vient de la donner dans la popup ;
+  // la lui redemander dans l'onglet Participants ferait répondre deux fois à la même
+  // question. Décliner fait entrer quand même : la ligne conserve la trace de la réponse et
+  // son auteur peut revenir dessus (§3.2).
+  //
+  // `update: {}` est délibérément vide : une nouvelle ouverture du lien ne doit ni
+  // rétrograder un administrateur en simple participant, ni écraser une réponse donnée
+  // depuis. Le cas ne se présente pas depuis la popup, que `alreadyMember` court-circuite.
   await prisma.eventParticipant.upsert({
     where: { eventId_userId: { eventId, userId } },
-    create: { eventId, userId, role: 'member', rsvp: 'invited' },
+    create: { eventId, userId, role: 'member', rsvp },
     update: {},
   })
 }
 
-async function acceptViaLink(
-  accepter: Accepter,
-  token: string,
-): Promise<{ eventId: string } | null> {
+async function resolveViaLink(token: string): Promise<Resolved | null> {
   const link = await prisma.inviteLink.findUnique({
     where: { tokenHash: hashInviteToken(token) },
   })
@@ -50,14 +66,10 @@ async function acceptViaLink(
     throw new ApiError('invitation_link_expired', 410, "Ce lien d'invitation a expiré.")
   }
 
-  await joinEvent(accepter.id, link.targetId)
-  return { eventId: link.targetId }
+  return { eventId: link.targetId, invitationId: null }
 }
 
-async function acceptViaInvitation(
-  accepter: Accepter,
-  token: string,
-): Promise<{ eventId: string }> {
+async function resolveViaInvitation(accepter: Accepter, token: string): Promise<Resolved> {
   const invitation = await prisma.invitation.findUnique({ where: { id: token } })
 
   if (invitation === null || invitation.scope !== 'event') {
@@ -80,18 +92,69 @@ async function acceptViaInvitation(
     throw new ApiError('invitation_not_found', 404, "Cette invitation n'est plus valide.")
   }
 
-  await joinEvent(accepter.id, invitation.targetId)
+  return { eventId: invitation.targetId, invitationId: invitation.id }
+}
 
-  if (invitation.status === 'pending') {
-    await prisma.invitation.update({ where: { id: invitation.id }, data: { status: 'accepted' } })
+async function resolveInvitation(accepter: Accepter, token: string): Promise<Resolved> {
+  return (await resolveViaLink(token)) ?? (await resolveViaInvitation(accepter, token))
+}
+
+// Aperçu montré derrière la popup « rejoindre ou non ». Volontairement pauvre : un lien
+// partageable circule sans contrôle, et son porteur n'est pas encore un participant. Ni la
+// liste des participants — qui porterait leurs adresses — ni le programme, ni les dépenses
+// ne franchissent cette route ; seul de quoi reconnaître l'événement auquel on dit oui.
+export async function previewInvitation(accepter: Accepter, token: string) {
+  const { eventId } = await resolveInvitation(accepter, token)
+
+  const event = await prisma.event.findUnique({
+    where: { id: eventId },
+    include: {
+      creator: { select: { name: true } },
+      _count: { select: { participants: true } },
+    },
+  })
+
+  if (event === null) {
+    throw new ApiError('event_not_found', 404, 'Événement introuvable.')
   }
 
-  return { eventId: invitation.targetId }
+  // Rouvrir son propre lien une fois entré ne doit pas reposer la question : le front saute
+  // alors la popup et ouvre l'événement.
+  const membership = await prisma.eventParticipant.findUnique({
+    where: { eventId_userId: { eventId, userId: accepter.id } },
+    select: { id: true },
+  })
+
+  return {
+    eventId: event.id,
+    title: event.title,
+    startsAt: event.startsAt,
+    endsAt: event.endsAt,
+    organiser: event.creator.name,
+    participantCount: event._count.participants,
+    alreadyMember: membership !== null,
+  }
 }
 
 export async function acceptInvitation(
   accepter: Accepter,
   token: string,
+  rsvp: RespondInput['rsvp'] = 'accepted',
 ): Promise<{ eventId: string }> {
-  return (await acceptViaLink(accepter, token)) ?? (await acceptViaInvitation(accepter, token))
+  const { eventId, invitationId } = await resolveInvitation(accepter, token)
+
+  await joinEvent(accepter.id, eventId, rsvp)
+
+  // Une invitation nominative ne se clôt que sur un oui ; un lien partageable n'a pas de
+  // statut. Sur « je ne sais pas » ou sur un refus elle reste ouverte, faute de quoi le
+  // service la traiterait ensuite comme invalide et le destinataire ne pourrait plus jamais
+  // la rouvrir : un cul-de-sac, que les règles du projet interdisent.
+  if (invitationId !== null && rsvp === 'accepted') {
+    await prisma.invitation.updateMany({
+      where: { id: invitationId, status: 'pending' },
+      data: { status: 'accepted' },
+    })
+  }
+
+  return { eventId }
 }

@@ -262,6 +262,159 @@ messages de §5.2 est une liste de vérification au même titre que la surface H
 
 ---
 
+## Jalon M3 — dépenses, parts, présence, soldes, règlements
+
+Six arbitrages que la conception ne tranchait pas. Chacun porte son coût si la décision se
+révèle mauvaise.
+
+**Seuls les règlements confirmés entrent dans le solde.** §3.5 écrit « + transferts reçus −
+transferts émis » sans distinguer `declared_at` de `confirmed_at`. Un règlement déclaré mais
+non confirmé ne bouge donc aucun solde ; il apparaît à part, « en attente de confirmation ».
+Motif : c'est la raison d'être des deux états de §3.6 — « celui qui doit ne pouvant pas
+décider seul qu'il a payé ». Compter la déclaration rendrait le second état décoratif et
+donnerait au débiteur le pouvoir d'effacer sa dette seul. *Coût si erroné : un filtre à
+retirer dans `getBalances`.*
+
+**`DELETE /api/settlements/:id` ajouté à la surface HTTP.** §5.1 ne liste que la déclaration
+et la confirmation. Sans retrait, un virement déclaré par erreur — mauvais destinataire,
+mauvais montant — reste éternellement en attente : le créancier ne peut ni le confirmer ni
+le refuser, et la paire est bloquée. Aucun état de cette application n'a le droit d'être un
+cul-de-sac. Le **débiteur** peut donc retirer sa propre déclaration **tant qu'elle n'est pas
+confirmée** ; après, la ligne est définitive et se corrige par un virement inverse — un
+règlement est un fait, pas un brouillon. §5.1 a été corrigée. *Coût si erroné : une route et
+sa ligne de documentation à retirer ensemble.*
+
+**`GET /api/events/:id/expenses` ajouté à la surface HTTP.** Même situation qu'en M2 pour les
+activités : §5.1 liste la création mais pas la lecture, alors que §6.1 prévoit un écran qui
+les affiche. La liste est ouverte à **tout** participant, y compris celui qui n'a pas
+répondu — savoir ce que la sortie coûte fait partie de la décision de venir. *Coût si
+erroné : une route à restreindre.*
+
+**Modifier une dépense est réservé à son auteur et aux administrateurs.** §3.8 dit qui
+*saisit* une dépense, pas qui la corrige. Aligné sur le précédent de M2 pour les activités,
+et pour la même raison : une faute de frappe doit se réparer sans mobiliser un
+administrateur, et un administrateur doit pouvoir réparer celle de quelqu'un qui a quitté la
+conversation. *Coût si erroné : une condition à resserrer.*
+
+**La modification d'une dépense recalcule ses parts.** §2.8 note 2 fige les parts « à la
+saisie » contre les changements de **présence et de liste de participants** — pas contre la
+correction de la dépense elle-même. Laisser les anciennes parts sur un nouveau montant
+casserait l'invariant `SUM(parts) = montant`. La suppression et la réécriture partagent une
+transaction : sans elle, un incident entre les deux laisserait une dépense sans aucune part,
+ce qui se lit comme un solde faux et non comme une erreur. *Coût si erroné : une réécriture
+à conditionner.*
+
+**`attendance_mode` est porté par l'activité, pas par l'événement.** §3.4 dit que
+« l'administrateur peut le changer à tout moment » sans nommer le porteur ; §2.7 le liste
+dans les colonnes d'`activities`, et le commentaire de `schema.prisma` posé en M2 l'annonçait
+sur cette table. La présence se raisonne par activité : on saute le musée, pas la sortie.
+*Coût si erroné : une colonne à déplacer, avec sa migration.*
+
+### Deux refus délibérés
+
+**Se déclarer absent d'une activité en mode `all` répond 409, au lieu d'être ignoré.**
+L'absence n'aurait aucun effet sur le partage : l'accepter en silence laisserait croire le
+contraire à celui qui vient de cliquer.
+
+**Confirmer deux fois un règlement répond 200, pas 409.** Deux clics sur un réseau lent sont
+une situation normale ; la première date fait foi. La symétrie n'est qu'apparente avec le cas
+précédent : ici le second appel ne ment sur rien, il ne change simplement rien.
+
+### Ce que l'exécution a appris
+
+**Le typage est resté cassé pendant trois commits.** Les portes étaient lancées enchaînées
+par `&&` avec un `| tail -1` sur chacune : le code de sortie observé était celui de `tail`,
+toujours nul, et l'échec de `tsc` passait inaperçu. C'est la répétition exacte de l'incident
+consigné dans `CLAUDE.md` — « il est resté cassé pendant cinq tâches parce que seuls les
+tests étaient lancés » — sous une forme nouvelle : la porte était bien lancée, c'est son
+résultat qui était jeté. Les trois portes passent désormais par un script qui propage les
+codes de sortie.
+
+**La faute de typage elle-même est instructive.** `noUncheckedIndexedAccess` refuse
+`creditors[0]` même sous un `while (creditors.length > 0)`. Retirer les deux têtes de liste
+et remettre celle qui garde un reste fait du cas vide la condition d'arrêt de la boucle,
+plutôt qu'un fait à réaffirmer au vérificateur.
+
+## Ouvrir une invitation ne fait plus rejoindre
+
+Jusqu'ici, cliquer un lien d'invitation créait la participation à l'insu de l'invité : la vue
+appelait `accept` au montage, et rejoindre un événement était la conséquence silencieuse d'un
+clic sur un lien reçu. L'invité découvrait l'événement **après** y être entré.
+
+Désormais la page de l'événement s'affiche floutée derrière une popup, et rien n'est écrit
+tant que l'invité n'a pas répondu.
+
+**Nouvelle route `GET /api/invitations/:token`, ajoutée à §5.1.** Elle rend le titre, la
+période, le prénom de l'organisateur et le nombre de participants — rien d'autre. La lecture
+de l'événement, elle, reste refusée à un non-participant.
+
+**L'aperçu est volontairement pauvre, et c'est une décision de sécurité.** Un lien
+partageable circule sans contrôle. Rendre l'événement complet au porteur du jeton aurait
+exposé `getEvent`, qui porte l'**adresse électronique** de chaque participant : n'importe qui
+recevant le lien aurait lu les adresses de tout le groupe sans jamais rejoindre. *Coût si
+erroné : des champs à ajouter, ce qui est le sens facile à corriger.*
+
+**« Non merci » n'écrit rien.** Le lien reste utilisable, et l'invité qui change d'avis le
+rouvre. Marquer l'invitation `declined` aurait été plus expressif, mais le service traite
+ensuite une invitation refusée comme invalide : le refus serait devenu définitif, donc un
+cul-de-sac — ce que les règles du projet interdisent. Tracer le refus supposerait d'abord de
+rendre cet état réversible. *Coût si erroné : le refus n'est pas mesurable.*
+
+**La popup pose la question une fois, avec les trois réponses du modèle.** *Je participe*,
+*je ne sais pas encore*, *je ne peux pas* — les trois valeurs de `rsvp`. « Je ne sais pas »
+n'est pas une absence de réponse : c'est l'état `invited`, qui dit à l'organisateur que la
+question a été vue. Les trois font entrer dans l'événement, refus compris, faute de quoi un
+refus serait indistinguable d'un lien jamais ouvert. Refuser renvoie toutefois à l'accueil :
+ouvrir l'événement qu'on vient de décliner serait contradictoire, et le tableau de bord
+suffit à y revenir. *Coût si erroné : une redirection à changer.*
+
+**Une invitation nominative ne se clôt que sur un oui.** Sur « je ne sais pas » ou sur un
+refus, elle reste `pending`. La passer à `declined` la rendrait invalide aux yeux du service,
+et son destinataire ne pourrait plus jamais la rouvrir — un cul-de-sac. La réponse vit dans
+la participation, pas dans l'invitation.
+
+**Rejoindre porte la réponse, et §3.2 a été corrigée en conséquence.** La participation était
+créée au statut `invited`, l'invité devant ensuite cliquer « Je participe » dans l'onglet
+Participants. Cette seconde étape n'avait de sens que parce que le lien faisait entrer sans
+rien demander : elle était le seul moment où quelqu'un consentait vraiment. La popup ayant
+pris ce rôle, la garder revenait à poser deux fois la même question, et le bouton « Je
+participe » n'avait plus rien à trancher — c'est le constat qui a déclenché ce changement.
+Le RSVP garde tout son sens ensuite : changer d'avis dans un sens ou dans l'autre. *Coût si
+erroné : une valeur par défaut à remettre.*
+
+**`POST /events/:id/rsvp` accepte désormais `invited`.** Il ne connaissait que `accepted` et
+`declined` : on pouvait quitter « à confirmer », jamais y revenir. C'était un état absorbant
+à l'envers, contraire à la garantie de §3.1.
+
+**Une invitation nominative apparaît « à confirmer », un lien partageable non.** La demande
+initiale était que l'invité figure dans la liste dès l'invitation. Créer une participation à ce
+moment-là était impossible dans un cas et interdit dans l'autre : impossible pour une adresse
+sans compte, `EventParticipant` référençant un `user` ; interdit pour une adresse qui en a
+un, car la liste aurait alors dit à l'organisateur quelles adresses sont inscrites — l'oracle
+d'énumération que §4 proscrit.
+
+La sortie retenue affiche l'**invitation** et non une participation. L'adresse vient de ce
+que l'organisateur a tapé, elle s'affiche pareil dans les deux cas, et la liste est réservée
+aux administrateurs — les autres participants n'ont pas à lire l'adresse de quelqu'un qui
+n'est pas encore là. *Coût si erroné : un bloc d'interface à retirer.*
+
+Le filtre porte sur la **participation** et non sur le statut de l'invitation : celle-ci
+reste `pending` après un « je ne sais pas », si bien que trier par statut aurait affiché
+l'invité deux fois, avec deux réponses contradictoires.
+
+**Copier le lien d'invitation le dit.** Le geste ne produisait aucun retour visible : il
+réussissait ou échouait dans le même silence. Un bandeau l'annonce en haut de l'écran, et la
+copie elle-même passe par un repli — `navigator.clipboard` n'existe qu'en contexte sécurisé
+et lève quand la permission est refusée, ce que le code précédent ne rattrapait pas.
+
+**`alreadyMember` court-circuite la popup.** Rouvrir son propre lien une fois entré ouvre
+directement l'événement : reposer la question ferait de la popup une porte à pousser chaque
+jour.
+
+**Le flou est décoratif, jamais une protection.** Le serveur n'envoie que le nécessaire ;
+aucune donnée cachée ne se lit en désactivant un style. Le décor porte `aria-hidden`, un
+arrière-plan illisible n'ayant aucun sens pour un lecteur d'écran.
+
 ## Points laissés ouverts
 
 - `api/prisma.config.ts` charge `../.env`, chemin relatif au **répertoire courant** et non au
@@ -275,3 +428,9 @@ messages de §5.2 est une liste de vérification au même titre que la surface H
 - **Déploiement M1.** `conception.md` §9 et `decisions-techniques.md` §2.10 font du
   déploiement (URL publique + HTTPS) un livrable de M1. Le code est prêt ; la chaîne de
   livraison et l'accès au VPS restent à trancher.
+- **Le partage en pourcentage et en montant fixe reste sans interface.** L'enum `split_mode`
+  porte les trois valeurs et le stockage est déjà identique dans les trois cas ; seul `equal`
+  est proposé à la saisie. §9 range les deux autres en M7.
+- **Un solde est recalculé à chaque lecture**, sans cache. C'est délibéré et non mesuré : les
+  volumes d'une sortie entre amis ne le justifient pas. À reconsidérer seulement avec un
+  profil sous les yeux.

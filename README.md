@@ -201,6 +201,33 @@ C'est la démonstration du jalon M2, et elle demande **deux écrans**.
    informe la décision, il ne la contraint pas. **Rouvrir le vote** ramène l'activité en
    discussion : aucun état n'est bloquant.
 
+### Quatre virements au lieu de dix
+
+C'est la démonstration du jalon M3, et elle demande **deux écrans** comme la précédente.
+
+1. Réunir trois ou quatre participants ayant **accepté** l'événement — saisir une dépense y
+   est réservé, comme le vote.
+2. Onglet **Dépenses**. Chacun saisit ce qu'il a avancé : « Restaurant, 90 », « Taxi, 30 ».
+   Le montant se tape en euros, la virgule décimale est acceptée ; l'API, elle, ne manipule
+   que des centimes entiers.
+3. La dépense apparaît sur l'écran d'en face **sans rechargement**, et chaque carte indique
+   ce qu'elle coûte à celui qui la lit.
+4. Plus bas, les **soldes** : qui a avancé, qui doit. Leur somme est toujours nulle. Puis
+   les **virements à faire** — au plus N−1 pour N participants, là où un remboursement deux
+   à deux en produirait bien davantage.
+5. Le débiteur clique **J'ai envoyé**. Son solde ne bouge pas encore : un virement déclaré
+   n'est pas un virement reçu. La ligne passe en **attente de confirmation** sur les deux
+   écrans.
+6. Le créancier clique **J'ai reçu**. Les deux soldes tombent à zéro, en direct, des deux
+   côtés.
+
+Une déclaration faite par erreur se **retire** tant qu'elle n'est pas confirmée. Après
+confirmation elle est définitive : un règlement est un fait, et se corrige par un virement
+inverse.
+
+Modifier une dépense recalcule ses parts ; changer la présence à une activité, jamais. Une
+dépense passée ne se réécrit pas.
+
 ### Vérification
 
 ```sh

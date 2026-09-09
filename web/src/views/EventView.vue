@@ -1,11 +1,16 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, onUnmounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import ActivityCard from '../components/ActivityCard.vue'
+import BalanceSheet from '../components/BalanceSheet.vue'
+import ExpenseCard from '../components/ExpenseCard.vue'
 import { useActivities } from '../composables/useActivities'
 import { useEvent } from '../composables/useEvent'
 import { useEventStream } from '../composables/useEventStream'
+import { useExpenses } from '../composables/useExpenses'
+import { copyToClipboard } from '../lib/clipboard'
 import { formatPeriod } from '../lib/dates'
+import { formatCents, parseEurosToCents } from '../lib/money'
 
 const route = useRoute()
 const id = String(route.params.id)
@@ -25,6 +30,22 @@ const {
   decide,
 } = useActivities(id)
 
+// Même remarque que ci-dessus sur la destructuration : les `Ref` doivent rester nommées.
+const {
+  state: expensesState,
+  expenses,
+  balances,
+  transfers,
+  pendingSettlements,
+  error: expensesError,
+  reload: reloadExpenses,
+  record,
+  declare,
+  confirm,
+  withdraw,
+} = useExpenses(id)
+
+const viewerId = computed(() => event.value?.viewer.participantId ?? '')
 const isAdmin = computed(() => event.value?.viewer.role === 'admin')
 // Proposer et voter supposent d'avoir accepté l'événement (conception §3.8). L'interface
 // applique la même règle que l'API, pour que le refus ne survienne pas après le clic.
@@ -40,9 +61,14 @@ useEventStream(id, {
   onParticipantChange: () => {
     void refresh()
   },
+  // Dépenses et règlements rechargent la même moitié d'écran : un virement confirmé sur un
+  // téléphone efface la dette sur l'écran d'en face, sans rechargement.
+  onExpenseChange: () => {
+    void reloadExpenses()
+  },
 })
 
-const tab = ref<'programme' | 'participants'>('programme')
+const tab = ref<'programme' | 'participants' | 'depenses'>('programme')
 
 const proposal = ref({ title: '', address: '' })
 const proposalError = ref('')
@@ -53,6 +79,37 @@ async function submitProposal(): Promise<void> {
     proposal.value = { title: '', address: '' }
   } catch (cause) {
     proposalError.value = cause instanceof Error ? cause.message : 'La proposition a échoué.'
+  }
+}
+
+const spending = ref({ label: '', amount: '' })
+const spendingError = ref('')
+async function submitExpense(): Promise<void> {
+  spendingError.value = ''
+  const amountCents = parseEurosToCents(spending.value.amount)
+
+  // Le montant est refusé ici, avec le contexte du formulaire, plutôt que dans
+  // `parseEurosToCents` qui n'aurait pas de quoi rédiger le message.
+  if (!Number.isFinite(amountCents) || amountCents <= 0) {
+    spendingError.value = 'Saisissez un montant en euros, supérieur à zéro.'
+    return
+  }
+
+  try {
+    await record({ label: spending.value.label, amountCents })
+    spending.value = { label: '', amount: '' }
+  } catch (cause) {
+    spendingError.value = cause instanceof Error ? cause.message : 'La saisie a échoué.'
+  }
+}
+
+const settlementError = ref('')
+async function runSettlement(action: () => Promise<void>): Promise<void> {
+  settlementError.value = ''
+  try {
+    await action()
+  } catch (cause) {
+    settlementError.value = cause instanceof Error ? cause.message : "L'opération a échoué."
   }
 }
 
@@ -68,7 +125,7 @@ const rsvpLabel: Record<string, string> = {
 }
 
 const rsvpBusy = ref(false)
-async function reply(value: 'accepted' | 'declined'): Promise<void> {
+async function reply(value: 'accepted' | 'invited' | 'declined'): Promise<void> {
   rsvpBusy.value = true
   try {
     await setRsvp(value)
@@ -88,8 +145,31 @@ const inviteUrl = ref('')
 async function generateLink(): Promise<void> {
   inviteUrl.value = await createInviteLink()
 }
+// Bandeau de confirmation, en haut de l'écran. Sans lui, copier un lien ne produit aucun
+// retour visible : le geste réussit ou échoue dans le même silence.
+const snackbar = ref<{ tone: 'ok' | 'error'; text: string } | null>(null)
+let snackbarTimer: ReturnType<typeof setTimeout> | undefined
+
+function notify(tone: 'ok' | 'error', text: string): void {
+  snackbar.value = { tone, text }
+  clearTimeout(snackbarTimer)
+  snackbarTimer = setTimeout(() => {
+    snackbar.value = null
+  }, 3000)
+}
+
+// Le compteur est annulé au démontage : sans cela, une navigation juste après une copie
+// écrirait dans une `ref` dont le composant n'existe plus.
+onUnmounted(() => clearTimeout(snackbarTimer))
+
 async function copyLink(): Promise<void> {
-  await navigator.clipboard.writeText(inviteUrl.value)
+  const copied = await copyToClipboard(inviteUrl.value)
+
+  if (copied) {
+    notify('ok', 'Lien copié dans le presse-papiers.')
+  } else {
+    notify('error', 'La copie a échoué. Sélectionnez le lien et copiez-le à la main.')
+  }
 }
 
 const inviteEmail = ref('')
@@ -102,6 +182,27 @@ async function sendEmailInvite(): Promise<void> {
 </script>
 
 <template>
+  <!--
+    `role="status"` et `aria-live="polite"` : le message est annoncé sans interrompre ce que
+    l'utilisateur est en train de faire. `aria-hidden` sur le conteneur vide éviterait
+    l'annonce d'un bandeau absent, mais Vue le retire du DOM, ce qui suffit.
+  -->
+  <div
+    v-if="snackbar"
+    role="status"
+    aria-live="polite"
+    class="fixed inset-x-0 top-0 z-10 flex justify-center p-4"
+  >
+    <p
+      class="rounded px-4 py-2 text-sm shadow-lg"
+      :class="
+        snackbar.tone === 'ok' ? 'bg-neutral-900 text-white' : 'bg-red-700 text-white'
+      "
+    >
+      {{ snackbar.text }}
+    </p>
+  </div>
+
   <main class="mx-auto max-w-2xl p-6 md:p-10">
     <p v-if="state === 'loading'" class="text-sm text-neutral-500">Chargement…</p>
 
@@ -144,7 +245,16 @@ async function sendEmailInvite(): Promise<void> {
         >
           Participants
         </button>
-        <span class="pb-2 text-neutral-400">Dépenses · à venir</span>
+        <button
+          type="button"
+          class="pb-2"
+          :class="
+            tab === 'depenses' ? 'border-b-2 border-neutral-900 font-medium' : 'text-neutral-500'
+          "
+          @click="tab = 'depenses'"
+        >
+          Dépenses
+        </button>
       </nav>
 
       <section v-if="tab === 'programme'" class="mt-6">
@@ -207,6 +317,80 @@ async function sendEmailInvite(): Promise<void> {
         </p>
       </section>
 
+      <section v-if="tab === 'depenses'" class="mt-6">
+        <p v-if="expensesState === 'loading'" class="text-sm text-neutral-500">
+          Chargement des dépenses…
+        </p>
+
+        <div v-else-if="expensesState === 'error'" class="text-sm text-red-700">
+          <p>{{ expensesError }}</p>
+          <button type="button" class="mt-2 underline" @click="reloadExpenses()">Réessayer</button>
+        </div>
+
+        <template v-else>
+          <p v-if="expensesState === 'empty'" class="text-sm text-neutral-600">
+            Aucune dépense pour l'instant. Saisissez la première pour que les comptes démarrent.
+          </p>
+
+          <div v-else class="flex flex-col gap-3">
+            <ExpenseCard
+              v-for="expense in expenses"
+              :key="expense.id"
+              :expense="expense"
+              :viewer-id="viewerId"
+            />
+          </div>
+
+          <form
+            v-if="hasAccepted"
+            class="mt-6 flex flex-col gap-2 border-t border-neutral-100 pt-4"
+            @submit.prevent="submitExpense"
+          >
+            <h2 class="text-sm font-medium">Saisir une dépense</h2>
+            <input
+              v-model="spending.label"
+              type="text"
+              required
+              maxlength="200"
+              placeholder="Restaurant, taxi, billets…"
+              class="rounded border border-neutral-300 px-3 py-2 text-base"
+            />
+            <input
+              v-model="spending.amount"
+              type="text"
+              inputmode="decimal"
+              required
+              placeholder="Montant en euros"
+              class="rounded border border-neutral-300 px-3 py-2 text-base"
+            />
+            <button type="submit" class="rounded bg-neutral-900 px-4 py-2 text-sm text-white">
+              Enregistrer
+            </button>
+            <p class="text-xs text-neutral-500">
+              La dépense est partagée à parts égales entre ceux qui ont accepté l'événement.
+            </p>
+            <p v-if="spendingError" class="text-sm text-red-700">{{ spendingError }}</p>
+          </form>
+
+          <p v-else class="mt-6 border-t border-neutral-100 pt-4 text-sm text-neutral-500">
+            Acceptez l'événement pour saisir une dépense.
+          </p>
+
+          <div class="mt-8 border-t border-neutral-100 pt-6">
+            <BalanceSheet
+              :balances="balances"
+              :transfers="transfers"
+              :pending-settlements="pendingSettlements"
+              :viewer-id="viewerId"
+              @declare="(to, amount) => runSettlement(() => declare(to, amount))"
+              @confirm="(settlementId) => runSettlement(() => confirm(settlementId))"
+              @withdraw="(settlementId) => runSettlement(() => withdraw(settlementId))"
+            />
+            <p v-if="settlementError" class="mt-2 text-sm text-red-700">{{ settlementError }}</p>
+          </div>
+        </template>
+      </section>
+
       <section v-if="tab === 'participants'" class="mt-6">
         <div class="flex items-center gap-2">
           <span class="text-sm">Votre réponse :</span>
@@ -222,6 +406,19 @@ async function sendEmailInvite(): Promise<void> {
             @click="reply('accepted')"
           >
             Je participe
+          </button>
+          <button
+            type="button"
+            :disabled="rsvpBusy"
+            class="rounded px-3 py-1 text-sm"
+            :class="
+              event.viewer.rsvp === 'invited'
+                ? 'bg-neutral-900 text-white'
+                : 'border border-neutral-300'
+            "
+            @click="reply('invited')"
+          >
+            Je ne sais pas
           </button>
           <button
             type="button"
@@ -252,7 +449,29 @@ async function sendEmailInvite(): Promise<void> {
             </span>
             <span class="text-xs text-neutral-500">{{ rsvpLabel[participant.rsvp] }}</span>
           </li>
+
+          <!--
+            Invitations nominatives sans réponse, visibles du seul organisateur. Elles
+            répondent à « qui ai-je invité qui n'a rien dit ? ». Un lien partageable n'a pas
+            de destinataire et n'en produit aucune.
+          -->
+          <li
+            v-for="invitation in event.pendingInvitations"
+            :key="invitation.id"
+            class="flex items-center justify-between gap-3 py-2 text-neutral-500"
+          >
+            <span class="min-w-0 truncate italic">{{ invitation.email }}</span>
+            <span class="shrink-0 text-xs">À confirmer</span>
+          </li>
         </ul>
+
+        <p
+          v-if="isAdmin && event.pendingInvitations.length > 0"
+          class="mt-2 text-xs text-neutral-500"
+        >
+          Ces personnes ont reçu une invitation et n'ont pas encore répondu. Vous seul voyez
+          cette liste.
+        </p>
       </section>
 
       <section v-if="isAdmin" class="mt-8 rounded border border-neutral-200 p-4">

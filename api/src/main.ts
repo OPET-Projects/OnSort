@@ -6,7 +6,9 @@ import { renderApiError } from './lib/http.ts'
 import { requireSession } from './middleware/session.ts'
 import { activitiesRoutes } from './modules/activities/routes.ts'
 import { eventsRoutes } from './modules/events/routes.ts'
+import { expensesRoutes } from './modules/expenses/routes.ts'
 import { invitationsRoutes } from './modules/invitations/routes.ts'
+import { settlementsRoutes } from './modules/settlements/routes.ts'
 
 export const app = new Hono()
   .get('/api/health', (c) => c.json({ status: 'ok' }))
@@ -14,7 +16,9 @@ export const app = new Hono()
   .get('/api/me', requireSession, (c) => c.json({ user: c.get('user') }))
   .route('/api/events', eventsRoutes)
   .route('/api/activities', activitiesRoutes)
+  .route('/api/expenses', expensesRoutes)
   .route('/api/invitations', invitationsRoutes)
+  .route('/api/settlements', settlementsRoutes)
   .onError(renderApiError)
 
 export type AppType = typeof app

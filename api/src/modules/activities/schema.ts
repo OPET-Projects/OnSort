@@ -19,8 +19,15 @@ export const updateActivitySchema = z
     address: z.string().trim().max(500),
     startsAt: z.coerce.date().nullable(),
     endsAt: z.coerce.date().nullable(),
+    // Réglage de présence (§3.4), changeable à tout moment — mais par un administrateur
+    // seul, ce que le service vérifie : le schéma ne décrit que la forme.
+    attendanceMode: z.enum(['all', 'optional']),
   })
   .partial()
+
+export const attendanceSchema = z.object({
+  present: z.boolean(),
+})
 
 export const voteSchema = z.object({
   value: z.enum(['for', 'against']),

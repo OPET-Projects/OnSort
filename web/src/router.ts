@@ -1,4 +1,5 @@
 import { createRouter, createWebHistory } from 'vue-router'
+import { splitAuthError } from './lib/redirect'
 import { useSessionStore } from './stores/session'
 import EventCreateView from './views/EventCreateView.vue'
 import HomeView from './views/HomeView.vue'
@@ -38,7 +39,15 @@ router.beforeEach(async (to) => {
   }
 
   if (to.meta.requiresAuth && session.status !== 'authenticated') {
-    return { name: 'login', query: { redirect: to.fullPath } }
+    // L'erreur d'authentification est hissée dans la requête de `/login` au lieu de rester
+    // enfouie dans `redirect` : c'est le formulaire qui doit l'expliquer, et le chemin de
+    // reprise ne doit pas la traîner après une connexion réussie.
+    const { redirect, error } = splitAuthError(to.path, to.query)
+
+    return {
+      name: 'login',
+      query: error === '' ? { redirect } : { redirect, error },
+    }
   }
 
   if (to.name === 'login' && session.status === 'authenticated') {

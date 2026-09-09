@@ -30,20 +30,20 @@ même commit que le code**. Un document qui ment est pire que pas de document.
 
 ## État actuel
 
-Les jalons **M0** (socle et authentification), **M1** (événement, invitations,
-participants) et **M2** (activités, vote, décision, temps réel) sont terminés côté code. Un
-utilisateur crée un événement, invite par lien ou par courriel ; l'invité rejoint et répond ;
-les participants ayant accepté proposent des activités et votent, le décompte bougeant en
-direct sur tous les écrans ouverts ; l'administrateur tranche.
+Les jalons **M0 à M3** sont terminés côté code : socle et authentification, événement et
+invitations, activités et vote en temps réel, puis dépenses et règlements. Un utilisateur
+crée un événement, invite, chacun répond, propose des activités et vote ; les dépenses se
+saisissent, les soldes s'en dérivent, et l'application propose le plus petit jeu de
+virements qui remet tout le monde à zéro. Chaque virement se déclare puis se confirme.
 
-**Reste dû sur M1, hors code :** le déploiement sur une URL publique HTTPS, livrable de
-`docs/conception.md` §9. La chaîne de livraison et l'accès au VPS ne sont pas tranchés. Le
-front est une SPA : l'hébergement devra assurer le repli sur `index.html`.
+**M3 était le point de coupe** de `docs/conception.md` §9 : le produit se défend désormais
+seul.
 
-Le jalon suivant est **M3 — dépenses, parts, présence, soldes, virements minimisés,
-règlement**. C'est M3 qui introduit `api/src/lib/money.ts`, la table `activity_absences` et
-la colonne `attendance_mode`. Le séquencement complet est en section 9 de
-`docs/conception.md`.
+**Reste dû, hors code :** le déploiement sur une URL publique HTTPS, livrable de M1. La
+chaîne de livraison et l'accès au VPS ne sont pas tranchés.
+
+Le jalon suivant est **M4 — groupes, calendrier partagé, superposition des
+indisponibilités**. Le séquencement complet est en section 9 de `docs/conception.md`.
 
 ## Stack
 
@@ -174,6 +174,17 @@ humain de lancer `reset`. `migrate deploy` n'est pas bloqué.
 **Une contrainte `CHECK` ajoutée à une migration doit l'être avant sa première
 application.** Éditer un `.sql` déjà appliqué casse sa somme de contrôle. Reconstruire le
 schéma (ci-dessus) puis réappliquer.
+
+**Après un `git pull` qui touche `schema.prisma`, régénère le client avant les portes.**
+`api/src/generated/` n'est pas versionné : le typage échoue alors sur des `TS2339` du genre
+« Property 'event' does not exist on type 'PrismaClient' », qui accusent le code alors que
+c'est l'artefact local qui est périmé. `npm run db:generate --workspace api`. `db:migrate` ne
+suffit pas si la migration est déjà appliquée en base — `migrate dev` n'a alors rien à faire.
+
+**Ne lance jamais une porte à travers un tube.** `npm run typecheck | tail -1` rend le code
+de sortie de `tail`, toujours nul : l'échec disparaît et la chaîne `&&` continue. Le typage
+est resté cassé trois commits d'affilée pour cette raison au jalon M3. Lance chaque porte
+seule, ou redirige vers un fichier et teste le code de retour.
 
 ## Règles métier à ne pas affaiblir
 

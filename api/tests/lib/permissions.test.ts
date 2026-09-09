@@ -1,8 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import {
+  canConfirmSettlement,
   canDecideActivity,
+  canDeclareSettlement,
   canManageEvent,
   canProposeActivity,
+  canRecordExpense,
   canVote,
 } from '../../src/lib/permissions.ts'
 
@@ -39,5 +42,26 @@ describe('canVote', () => {
     expect(canVote('accepted')).toBe(true)
     expect(canVote('invited')).toBe(false)
     expect(canVote('declined')).toBe(false)
+  })
+})
+
+describe('permissions financières', () => {
+  // « Saisir une dépense → participant ayant accepté » (§3.8).
+  it("réserve la saisie d'une dépense au participant ayant accepté", () => {
+    expect(canRecordExpense('accepted')).toBe(true)
+    expect(canRecordExpense('invited')).toBe(false)
+    expect(canRecordExpense('declined')).toBe(false)
+  })
+
+  // Un administrateur n'y a pas droit non plus : personne ne peut affirmer à la place de
+  // quelqu'un d'autre qu'il a payé.
+  it('réserve la déclaration au débiteur', () => {
+    expect(canDeclareSettlement('p1', 'p1')).toBe(true)
+    expect(canDeclareSettlement('p2', 'p1')).toBe(false)
+  })
+
+  it('réserve la confirmation au créancier', () => {
+    expect(canConfirmSettlement('p2', 'p2')).toBe(true)
+    expect(canConfirmSettlement('p1', 'p2')).toBe(false)
   })
 })

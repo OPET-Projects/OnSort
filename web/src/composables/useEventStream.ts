@@ -9,11 +9,20 @@ import type { Tally } from './useActivities'
 // coûterait une requête pour rien et laisserait l'écran périmé sur la moitié qui a bougé.
 const ACTIVITY_TYPES = ['activity.created', 'activity.updated', 'activity.decided'] as const
 const PARTICIPANT_TYPES = ['participant.rsvp'] as const
+// Les quatre messages financiers déclenchent le même rechargement : dépenses et soldes
+// voyagent ensemble, et un virement confirmé bouge les deux.
+const EXPENSE_TYPES = [
+  'expense.created',
+  'expense.updated',
+  'settlement.declared',
+  'settlement.confirmed',
+] as const
 
 type Handlers = {
   onTally: (activityId: string, tally: Tally) => void
   onActivityChange: () => void
   onParticipantChange: () => void
+  onExpenseChange: () => void
 }
 
 type VoteMessage = { activityId: string; for: number; against: number }
@@ -38,6 +47,10 @@ export function useEventStream(eventId: string, handlers: Handlers) {
 
     for (const type of PARTICIPANT_TYPES) {
       source.addEventListener(type, () => handlers.onParticipantChange())
+    }
+
+    for (const type of EXPENSE_TYPES) {
+      source.addEventListener(type, () => handlers.onExpenseChange())
     }
   })
 

@@ -21,8 +21,10 @@ export const updateEventSchema = z
   })
   .partial()
 
+// Les trois états de §2.5, `invited` compris : « je ne sais pas encore » est une réponse,
+// et on doit pouvoir y revenir après avoir accepté ou décliné. Aucun état n'est absorbant.
 export const rsvpSchema = z.object({
-  rsvp: z.enum(['accepted', 'declined']),
+  rsvp: z.enum(['accepted', 'invited', 'declined']),
 })
 
 export const inviteSchema = z.discriminatedUnion('kind', [

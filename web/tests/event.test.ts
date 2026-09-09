@@ -17,7 +17,8 @@ const detail = {
   status: 'draft',
   createdBy: 'u1',
   participants: [],
-  viewer: { role: 'member', rsvp: 'invited' },
+  pendingInvitations: [],
+  viewer: { participantId: 'p1', role: 'member', rsvp: 'invited' },
 }
 
 it('charge l’événement', async () => {
@@ -49,7 +50,9 @@ it('signale un accès refusé avec un message dédié', async () => {
 it('poste le RSVP puis recharge', async () => {
   const fetchMock = vi.fn(async (_url: string, init?: RequestInit) => {
     if (init?.method === 'POST') return json({ ok: true })
-    return json({ event: { ...detail, viewer: { role: 'member', rsvp: 'accepted' } } })
+    return json({
+      event: { ...detail, viewer: { participantId: 'p1', role: 'member', rsvp: 'accepted' } },
+    })
   })
   vi.stubGlobal('fetch', fetchMock)
 
