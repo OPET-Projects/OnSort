@@ -400,6 +400,7 @@ POST   /invitations/:token/accept
 POST   /events/:id/rsvp
 GET    /events/:id/stream          SSE
 
+GET    /events/:id/activities     programme, trié par position
 POST   /events/:id/activities      PATCH  /activities/:id
 POST   /activities/:id/vote
 POST   /activities/:id/decision    administrateur

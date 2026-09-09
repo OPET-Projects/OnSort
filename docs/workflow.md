@@ -15,7 +15,7 @@ avant la fin.
 |---|---|---|
 | M0 | Socle, authentification | Je me connecte — **terminé** |
 | M1 | Événement, invitations, participants | Un tiers rejoint depuis son téléphone — **terminé (code) ; déploiement dû** |
-| M2 | Activités, vote, temps réel | Le décompte bouge en direct sur deux écrans |
+| M2 | Activités, vote, temps réel | Le décompte bouge en direct sur deux écrans — **terminé** |
 | M3 | Dépenses, soldes, virements minimisés | Quatre virements au lieu de dix |
 | M4 | Groupes, calendrier partagé | Le créneau qui convient à tous |
 | M5 | Carte, géocodage | Le programme sur une carte |

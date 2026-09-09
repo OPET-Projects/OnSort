@@ -30,17 +30,20 @@ même commit que le code**. Un document qui ment est pire que pas de document.
 
 ## État actuel
 
-Les jalons **M0 — socle et authentification** et **M1 — événement, invitations,
-participants** sont terminés côté code : un utilisateur crée un événement, en fixe la date,
-invite par lien partageable ou par adresse e-mail ; l'invité s'authentifie, rejoint
-l'événement et répond, et chacun voit la liste des participants.
+Les jalons **M0** (socle et authentification), **M1** (événement, invitations,
+participants) et **M2** (activités, vote, décision, temps réel) sont terminés côté code. Un
+utilisateur crée un événement, invite par lien ou par courriel ; l'invité rejoint et répond ;
+les participants ayant accepté proposent des activités et votent, le décompte bougeant en
+direct sur tous les écrans ouverts ; l'administrateur tranche.
 
 **Reste dû sur M1, hors code :** le déploiement sur une URL publique HTTPS, livrable de
-`docs/conception.md` §9. La chaîne de livraison et l'accès au VPS ne sont pas tranchés.
+`docs/conception.md` §9. La chaîne de livraison et l'accès au VPS ne sont pas tranchés. Le
+front est une SPA : l'hébergement devra assurer le repli sur `index.html`.
 
-Le jalon suivant est **M2 — activités, vote, temps réel (SSE)**. C'est M2 qui introduit
-`api/src/lib/sse.ts` et la route `GET /events/:id/stream`. Le séquencement complet est en
-section 9 de `docs/conception.md`.
+Le jalon suivant est **M3 — dépenses, parts, présence, soldes, virements minimisés,
+règlement**. C'est M3 qui introduit `api/src/lib/money.ts`, la table `activity_absences` et
+la colonne `attendance_mode`. Le séquencement complet est en section 9 de
+`docs/conception.md`.
 
 ## Stack
 
@@ -149,6 +152,11 @@ optionnelles de plateforme.
 front.** En développement les deux origines diffèrent : un chemin relatif renvoie donc sur
 l'API, où aucune page n'existe. Le front envoie une URL absolue bâtie sur
 `window.location.origin` ; `trustedOrigins` la valide côté API et refuse le reste par un 403.
+
+**Un test qui ouvre un flux SSE sans l'abandonner suspend Vitest indéfiniment.** Le flux ne
+se ferme jamais de lui-même et son battement de cœur maintient une minuterie ouverte. Passer
+un `AbortController` à `app.request`, l'abandonner, puis annuler le corps de la réponse —
+voir `api/tests/modules/stream.test.ts`.
 
 **`npm test` vide la base à chaque test.** Les comptes de `npm run db:seed` disparaissent
 donc dès qu'on lance la suite. Relancer le seed avant une démonstration.

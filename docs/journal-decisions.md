@@ -196,6 +196,43 @@ le client. *Coût si erroné : un intergiciel à réaligner.*
 
 ---
 
+## Jalon M2 — activités, vote, décision, temps réel
+
+**`GET /api/events/:id/activities` ajouté à la surface HTTP.** §5.1 ne listait pas de route
+de lecture du programme, mais §5.2 impose que le client « recharge la ressource concernée »
+à réception d'un message. Sans route dédiée, il faudrait recharger l'événement entier à
+chaque vote. §5.1 est corrigé dans le commit qui introduit la route. *Coût si erroné : une
+route à retirer.*
+
+**Quatre colonnes de `activities` et une table entière sont volontairement absentes.** §2.7
+décrit le modèle **final** ; §9 dit *quand*, et `workflow.md` tranche — « on ne crée pas
+aujourd'hui des tables que personne n'écrit encore ». Sont donc reportées : `lat`/`lng` en
+M5 (géocodage), `attendance_mode` et la table `activity_absences` en M3 (présence),
+`cancelled_at` en M7 (annulation). `address` est conservée dès M2 : c'est un champ libre
+« où est-ce ? », utile sans géocodage. *Coût si erroné : quatre migrations d'une ligne, déjà
+prévues.*
+
+**Un vote référence une participation, pas un utilisateur.** C'est la clé primaire de §2.7.
+Elle lie le vote à l'appartenance à l'événement — quitter l'événement emporte le vote — et
+interdit le double vote sans une ligne de code. Le changement d'avis passe par un `upsert`
+sur cette clé, ce qui le rend atomique. *Coût si erroné : une clé étrangère à changer.*
+
+**Le bus SSE est un module à état, testé sans HTTP.** `lib/sse.ts` expose `subscribe` et
+`publish` sur des fonctions ordinaires ; la route Hono n'en est qu'un adaptateur. Sans cette
+séparation, tester le temps réel exigerait d'ouvrir des sockets. Un abonné qui lève est
+journalisé et sauté : une connexion morte ne doit pas faire taire le flux des autres.
+*Coût si erroné : un module à replier dans la route.*
+
+**Modifier une activité est réservé à son proposant et aux administrateurs.** La matrice
+§3.8 ne tranche pas ce cas ; retenu qu'on corrige sa propre proposition, et qu'un
+administrateur puisse corriger celle d'un autre. *Coût si erroné : une condition à élargir.*
+
+**La permission du flux est vérifiée avant l'ouverture du flux.** Une fois les en-têtes SSE
+émis, on ne peut plus répondre par un code d'erreur : un non-participant recevrait un 200
+suivi d'un flux vide. *Coût si erroné : un contrôle à déplacer.*
+
+---
+
 ## Points laissés ouverts
 
 - `api/prisma.config.ts` charge `../.env`, chemin relatif au **répertoire courant** et non au
