@@ -32,10 +32,14 @@ même commit que le code**. Un document qui ment est pire que pas de document.
 
 Les jalons **M0 à M6** sont terminés côté code : socle et authentification, événement et
 invitations, activités et vote en temps réel, dépenses et règlements, groupes et calendrier
-partagé, carte et géocodage, puis amis et notifications. Un utilisateur crée un événement, invite, chacun répond, propose des
-activités et vote ; les dépenses se saisissent, les soldes s'en dérivent, et l'application
-propose le plus petit jeu de virements qui remet tout le monde à zéro. Un groupe superpose
-les indisponibilités de ses membres et fait apparaître les créneaux qui conviennent à tous.
+partagé, carte et géocodage, puis amis et notifications.
+
+Un utilisateur crée un événement, invite, chacun répond, propose des activités et vote. Les
+dépenses se saisissent, les soldes s'en dérivent, et l'application propose le plus petit jeu
+de virements qui remet tout le monde à zéro. Un groupe superpose les indisponibilités de ses
+membres et fait apparaître les créneaux qui conviennent à tous. Le programme s'affiche sur
+une carte, pins numérotés dans l'ordre. Et chaque geste qui concerne quelqu'un le prévient,
+en direct, sans qu'il recharge.
 
 **M3 était le point de coupe** de `docs/conception.md` §9 : le produit se défend désormais
 seul.
