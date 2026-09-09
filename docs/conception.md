@@ -392,6 +392,7 @@ GET    /groups/:id/calendar        superposition, fenêtre from/to
 GET    /me/unavailability          POST   /me/unavailability
 DELETE /me/unavailability/:id
 
+GET    /events                     événements de l'appelant, triés par date
 POST   /events                     GET    /events/:id
 PATCH  /events/:id
 POST   /events/:id/invitations     lien ou adresse e-mail

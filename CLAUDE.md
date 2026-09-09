@@ -30,11 +30,17 @@ même commit que le code**. Un document qui ment est pire que pas de document.
 
 ## État actuel
 
-Le jalon **M0 — socle et authentification** est terminé : un utilisateur saisit son adresse,
-reçoit un lien magique, clique, et l'application affiche son identité.
+Les jalons **M0 — socle et authentification** et **M1 — événement, invitations,
+participants** sont terminés côté code : un utilisateur crée un événement, en fixe la date,
+invite par lien partageable ou par adresse e-mail ; l'invité s'authentifie, rejoint
+l'événement et répond, et chacun voit la liste des participants.
 
-Le jalon suivant est **M1 — événement, invitations, participants**. Le séquencement complet
-est en section 9 de `docs/conception.md`.
+**Reste dû sur M1, hors code :** le déploiement sur une URL publique HTTPS, livrable de
+`docs/conception.md` §9. La chaîne de livraison et l'accès au VPS ne sont pas tranchés.
+
+Le jalon suivant est **M2 — activités, vote, temps réel (SSE)**. C'est M2 qui introduit
+`api/src/lib/sse.ts` et la route `GET /events/:id/stream`. Le séquencement complet est en
+section 9 de `docs/conception.md`.
 
 ## Stack
 
@@ -120,10 +126,11 @@ lui-même. Le client s'instancie avec un adaptateur de pilote.
 commande Prisma lancée depuis la racine échoue sur « Connection url is empty ». Passe par les
 scripts npm, qui s'exécutent depuis `api/`. Correction propre en attente.
 
-**Biome n'analyse pas les gabarits Vue.** Toute liaison utilisée uniquement dans un
-`<template>` lui paraît morte. La règle `noUnusedVariables` est donc désactivée pour les seuls
-fichiers `.vue`, via `overrides`. **N'applique jamais sa correction automatique sur un `.vue`** :
-elle supprimerait du code utilisé.
+**Biome n'analyse pas les gabarits Vue.** Toute liaison — variable **ou import** — utilisée
+uniquement dans un `<template>` lui paraît morte. Les règles `noUnusedVariables` **et**
+`noUnusedImports` sont donc désactivées pour les seuls fichiers `.vue`, via `overrides`.
+**N'applique jamais sa correction automatique sur un `.vue`** : elle supprimerait du code
+utilisé.
 
 **`npm run <script> --workspaces` s'exécute en séquence.** Un script qui ne rend jamais la
 main empêche les suivants de démarrer. C'est pourquoi le script `dev` lance les deux serveurs
@@ -137,6 +144,28 @@ optionnelles de plateforme.
 
 **Ne monte jamais un dépôt dans un conteneur Linux sans exclure `node_modules`.** Un `npm ci`
 à l'intérieur remplacerait l'installation locale par sa version Linux. Travaille sur une copie.
+
+**Better Auth résout un `callbackURL` relatif contre sa propre `baseURL`, pas contre le
+front.** En développement les deux origines diffèrent : un chemin relatif renvoie donc sur
+l'API, où aucune page n'existe. Le front envoie une URL absolue bâtie sur
+`window.location.origin` ; `trustedOrigins` la valide côté API et refuse le reste par un 403.
+
+**`npm test` vide la base à chaque test.** Les comptes de `npm run db:seed` disparaissent
+donc dès qu'on lance la suite. Relancer le seed avant une démonstration.
+
+**`api/tests/helpers/db.ts` liste les tables à vider à la main.** Chaque jalon qui ajoute
+des tables doit étendre `TABLES`. `TRUNCATE ... CASCADE` rend l'ordre indifférent, mais une
+table oubliée laisse des lignes entre les tests et les rend dépendants de leur ordre.
+
+**Prisma refuse `migrate reset` et `migrate dev` lancés par un agent.** Pour retravailler
+une migration en développement : éditer le `.sql`, puis
+`docker exec onsort-db psql -U onsort -d onsort -c 'DROP SCHEMA public CASCADE; CREATE SCHEMA public;'`
+et `npm run db:migrate --workspace api` (qui appelle `migrate dev`) — ou demander à un
+humain de lancer `reset`. `migrate deploy` n'est pas bloqué.
+
+**Une contrainte `CHECK` ajoutée à une migration doit l'être avant sa première
+application.** Éditer un `.sql` déjà appliqué casse sa somme de contrôle. Reconstruire le
+schéma (ci-dessus) puis réappliquer.
 
 ## Règles métier à ne pas affaiblir
 

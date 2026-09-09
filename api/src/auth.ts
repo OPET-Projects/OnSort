@@ -3,6 +3,7 @@ import { prismaAdapter } from 'better-auth/adapters/prisma'
 import { magicLink } from 'better-auth/plugins'
 import { config } from './config.ts'
 import { prisma } from './db.ts'
+import { displayNameFromEmail } from './lib/identity.ts'
 import { mailer } from './lib/mailer.ts'
 
 export const auth = betterAuth({
@@ -12,6 +13,22 @@ export const auth = betterAuth({
   basePath: '/api/auth',
   database: prismaAdapter(prisma, { provider: 'postgresql' }),
   trustedOrigins: [config.appUrl],
+  databaseHooks: {
+    user: {
+      create: {
+        // Le greffon `magicLink` crée le compte sans nom : aucun formulaire d'inscription
+        // n'en collecte. On en dérive un depuis l'adresse, à la source, pour que tous les
+        // consommateurs — accueil, liste des participants — en héritent d'un seul coup.
+        async before(user) {
+          if (user.name.trim() !== '') {
+            return
+          }
+
+          return { data: { ...user, name: displayNameFromEmail(user.email) } }
+        },
+      },
+    },
+  },
   advanced: {
     defaultCookieAttributes: {
       sameSite: 'lax',

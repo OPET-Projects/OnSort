@@ -69,6 +69,12 @@ test négatif — la règle se déclenche toujours sur un `.ts`. *Coût si laiss
 avertissements permanents, donc une accoutumance au bruit qui masquerait le prochain
 signalement réel.*
 
+**M1 : étendre la même neutralisation à `noUnusedImports`.** Les vues de M1 importent des
+symboles utilisés seulement dans le `<template>` (`RouterLink`, un formateur de date). C'est
+la même cause — Biome ne lit pas le gabarit — et le même remède, sur une règle voisine que
+M0 n'avait pas rencontrée faute d'import de ce genre. *Coût si erroné : un import mort non
+signalé dans un `.vue` ; les `.ts` restent couverts.*
+
 ---
 
 ## Modélisation et règles métier
@@ -122,6 +128,74 @@ textes lus par un humain — erreurs, journaux, interface, documentation — en 
 
 ---
 
+## Jalon M1 — événement, invitations, participants
+
+**`GET /api/events` ajouté à la surface HTTP.** `conception.md` §5.1 ne listait pas de route
+de liste, mais le tableau de bord §6.1 (« événements à venir ») en exige une. La liste rend
+les événements où l'appelant est participant, triés par date. `conception.md` §5.1 a été
+corrigé dans le commit qui introduit la route. *Coût si erroné : une route à retirer.*
+
+**Aucune clé étrangère sur `invite_links.target_id` ni `invitations.target_id`.** Le modèle
+de `conception.md` §2.6 est polymorphe (`scope event|group`). Une FK vers `events` aurait
+cassé dès l'arrivée des invitations de groupe en M4. L'existence de la cible est vérifiée en
+couche service, et la contrainte de base `event_id` sur `event_participants` reste la
+dernière ligne. *Coût si erroné : une FK et une migration à ajouter.*
+
+**Le lien d'une invitation nominative porte l'`id` de l'invitation comme jeton.** La table
+`invitations` n'a pas de colonne jeton, par conception. `POST /api/invitations/:token/accept`
+résout `:token` d'abord contre le hachage d'un `invite_links`, puis contre l'`id` d'une
+`invitations` — l'identité de l'appelant (`invited_user_id` ou `invited_email`) étant alors
+revérifiée. *Coût si erroné : un schéma de route à revoir, pas de migration.*
+
+**La contrainte « une invitation vise un utilisateur ou une adresse » est un `CHECK` SQL
+ajouté à la main** dans la migration `m1_events`, Prisma ne modélisant pas les `CHECK`. La
+migration a été régénérée proprement (schéma reconstruit, `migrate deploy`) plutôt
+qu'éditée après application, pour que sa somme de contrôle reste juste. *Coût si erroné :
+une invitation vide acceptée en base ; le service la refuse déjà en amont.*
+
+**Le courriel d'invitation part depuis le handler HTTP,** comme le lien magique de M0. La
+file d'attente d'envoi reste une recommandation retirée (`decisions-techniques.md` §6). Un
+échec d'envoi est journalisé et n'interrompt pas l'invitation, ni ne révèle l'état du compte
+visé — la réponse est identique pour une adresse connue et inconnue (`conception.md` §4).
+*Coût si erroné : un envoi perdu sans relance, à corriger par un `outbox` au passage en
+production.*
+
+**La cible de retour du lien magique est absolutisée sur l'origine du front.** Better Auth
+résout un `callbackURL` relatif contre sa propre `baseURL` : en développement, front (5173)
+et API (3000) n'ayant pas la même origine, le lien magique atterrissait sur l'API, où aucune
+page n'existe. M0 le documentait comme normal — le cookie était posé et il suffisait de
+revenir sur le front. **M1 ne peut pas s'en contenter** : l'invité qui doit s'authentifier
+perdait son invitation en chemin, ce qui est précisément la démonstration du jalon. Le front
+envoie donc `new URL(chemin, window.location.origin)`. La cible reste vérifiée côté API
+contre `trustedOrigins`, qui refuse toute autre origine par un 403 avant même l'envoi —
+vérifié. En production, front et API partagent l'origine et le comportement est inchangé.
+*Coût si erroné : une cible de redirection à recalculer, aucune migration.*
+
+**Un compte créé par lien magique reçoit un nom dérivé de son adresse.** Le greffon
+`magicLink` crée l'utilisateur sans nom, et aucun formulaire d'inscription n'en collecte :
+tout compte non issu du jeu de données apparaissait donc comme une ligne vide dans la liste
+des participants, et l'accueil affichait « Bonjour ». Corrigé **à la source**, par un
+`databaseHooks.user.create.before`, plutôt que par un repli d'affichage dans chaque vue :
+une seule règle, dont héritent tous les consommateurs présents et futurs. C'est une poignée
+d'affichage, pas une identité déclarée ; un écran de profil la rendra modifiable.
+*Coût si erroné : une règle de dérivation à changer, sans effet sur les comptes existants.*
+
+**Rejoindre un événement passe par un `upsert`, pas par une lecture suivie d'une écriture.**
+La version initiale lisait « suis-je déjà participant ? » puis insérait. Deux acceptations
+simultanées — un double-clic — se croient alors toutes deux absentes, et la seconde
+insertion heurte la contrainte d'unicité : l'appelant reçoit un 500. La contrainte protégeait
+bien la donnée, mais pas l'utilisateur. Le test correspondant appelle le service directement
+et non par HTTP : la pile HTTP intercale assez d'attentes pour que la course ne se produise
+qu'au hasard, et un test qui n'échoue qu'une fois sur dix ne prouve rien. *Coût si erroné :
+une instruction à réécrire.*
+
+**`requireSession` lève `ApiError` au lieu de renvoyer un JSON en ligne,** et un
+gestionnaire `renderApiError` unique traduit `ApiError` comme les exceptions nues. Fait tant
+qu'une seule route divergeait, comme la forme d'erreur uniforme de M0. Sortie identique pour
+le client. *Coût si erroné : un intergiciel à réaligner.*
+
+---
+
 ## Points laissés ouverts
 
 - `api/prisma.config.ts` charge `../.env`, chemin relatif au **répertoire courant** et non au
@@ -132,3 +206,6 @@ textes lus par un humain — erreurs, journaux, interface, documentation — en 
   appel réseau ou une bibliothèque de simulation, tous deux exclus.
 - Le parcours cliqué dans un navigateur et l'ergonomie au pouce à 375 px n'ont pas été validés
   automatiquement — ils demandent un humain.
+- **Déploiement M1.** `conception.md` §9 et `decisions-techniques.md` §2.10 font du
+  déploiement (URL publique + HTTPS) un livrable de M1. Le code est prêt ; la chaîne de
+  livraison et l'accès au VPS restent à trancher.

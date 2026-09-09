@@ -164,9 +164,27 @@ Il n'y a pas de mot de passe : l'authentification se fait uniquement par lien ma
 2. Saisir `alice@example.test` et valider. Le message de confirmation est volontairement
    identique que le compte existe ou non.
 3. **Le lien magique s'affiche dans la console où tourne `npm run dev`.** Le copier.
-4. L'ouvrir dans le navigateur. Il aboutit sur le port de l'API, où aucune page n'existe :
-   c'est normal, le cookie de session vient d'être posé.
-5. Revenir sur http://localhost:5173 — l'application affiche l'identité connectée.
+4. L'ouvrir dans le navigateur. Il pose le cookie de session puis renvoie sur le front, à
+   l'endroit d'où la connexion est partie — le tableau de bord ici, l'invitation si on
+   arrive par un lien d'invitation.
+
+Un compte créé de cette façon n'a jamais saisi de nom : l'application en dérive un depuis
+l'adresse (`jean.dupont@…` devient « Jean Dupont »).
+
+### Créer et partager un événement
+
+1. Depuis le tableau de bord, **Nouvel événement** : un titre, une date de début, une date
+   de fin.
+2. Sur la page de l'événement, section **Inviter** : **Créer un lien partageable**, puis
+   **Copier**. Le lien a la forme `http://localhost:5173/invite/<jeton>`.
+3. Dans une fenêtre privée, ouvrir ce lien. L'application demande de se connecter, puis
+   revient sur l'invitation et fait rejoindre l'événement.
+4. L'invité répond **Je participe** / **Je ne peux pas** ; le créateur voit la réponse en
+   rafraîchissant la page.
+
+L'invitation par adresse e-mail suit le même chemin : le courriel (affiché en console sans
+clé Resend) contient un lien `…/invite/<id>`. La réponse est volontairement identique que
+l'adresse ait un compte ou non.
 
 ### Vérification
 
@@ -189,6 +207,8 @@ passer avant tout commit.
 | `Cannot find native binding` | Verrou npm incomplet pour cette plateforme | `rm -rf node_modules package-lock.json && npm install` |
 | Le front ne joint pas l'API | `PORT` changé sans `BETTER_AUTH_URL` | Changer les deux ensemble dans `.env` |
 | Aucun lien magique visible | `RESEND_API_KEY` renseignée | La vider pour revenir au repli console |
+| `alice@example.test` inconnue après un `npm test` | La suite de tests vide la base avant chaque test | Relancer `npm run db:seed` |
+| Le lien magique atterrit sur le port 3000 | Une cible de retour relative, résolue contre l'API | Passer par l'interface : elle envoie une cible absolue |
 
 ## Documentation
 

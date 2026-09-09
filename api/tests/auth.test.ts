@@ -22,6 +22,39 @@ it('ne renvoie pas de session sans cookie', async () => {
   expect(session).toBeNull()
 })
 
+it('donne un nom affichable au compte créé par lien magique', async () => {
+  const consoleInfoSpy = vi.spyOn(console, 'info').mockImplementation(() => {})
+
+  try {
+    // Un compte créé par lien magique n'a aucun formulaire d'inscription où saisir un nom.
+    // Sans valeur par défaut, il apparaîtrait sans nom dans la liste des participants d'un
+    // événement — exactement le tiers que la démonstration de M1 fait rejoindre.
+    await auth.handler(
+      new Request('http://localhost:3000/api/auth/sign-in/magic-link', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ email: 'jean.dupont@example.test' }),
+      }),
+    )
+
+    const logged = consoleInfoSpy.mock.calls.map((call) => call.join(' ')).join('\n')
+    const link = logged.match(/https?:\/\/\S+/)?.[0]
+
+    if (link === undefined) {
+      throw new Error(`Lien magique introuvable dans la sortie console :\n${logged}`)
+    }
+
+    await auth.handler(new Request(link))
+
+    const user = await prisma.user.findUniqueOrThrow({
+      where: { email: 'jean.dupont@example.test' },
+    })
+    expect(user.name).toBe('Jean Dupont')
+  } finally {
+    consoleInfoSpy.mockRestore()
+  }
+})
+
 it('mène une connexion complète, du lien magique à la session', async () => {
   const consoleInfoSpy = vi.spyOn(console, 'info')
 

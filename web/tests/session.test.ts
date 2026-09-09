@@ -42,6 +42,17 @@ it('retient l’utilisateur quand la session est valide', async () => {
   expect(store.user?.email).toBe('alice@example.test')
 })
 
+it('renvoie le lien magique vers l’origine du front, pas celle de l’API', async () => {
+  const fetchMock = vi.fn(async () => new Response(null, { status: 200 }))
+  vi.stubGlobal('fetch', fetchMock)
+
+  const store = useSessionStore()
+  await store.requestMagicLink('bob@example.test', '/invite/jeton')
+
+  const body = JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body))
+  expect(body.callbackURL).toBe(`${window.location.origin}/invite/jeton`)
+})
+
 it('passe en anonyme sans propager d’exception quand l’API est injoignable', async () => {
   vi.stubGlobal(
     'fetch',

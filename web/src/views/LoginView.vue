@@ -1,17 +1,24 @@
 <script setup lang="ts">
 import { ref } from 'vue'
+import { useRoute } from 'vue-router'
 import { useSessionStore } from '../stores/session'
 
 const session = useSessionStore()
+const route = useRoute()
 const email = ref('')
 const state = ref<'idle' | 'sending' | 'sent' | 'error'>('idle')
 const message = ref('')
+
+// La cible de reprise après connexion : le lien d'invitation qui a mené ici, sinon le
+// tableau de bord. Le jeton d'invitation survit ainsi à l'aller-retour du courriel
+// (conception §4).
+const redirect = typeof route.query.redirect === 'string' ? route.query.redirect : '/'
 
 async function submit(): Promise<void> {
   state.value = 'sending'
 
   try {
-    await session.requestMagicLink(email.value)
+    await session.requestMagicLink(email.value, redirect)
     state.value = 'sent'
   } catch (error) {
     state.value = 'error'

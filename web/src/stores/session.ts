@@ -31,12 +31,19 @@ export const useSessionStore = defineStore('session', () => {
     }
   }
 
-  async function requestMagicLink(email: string): Promise<void> {
+  async function requestMagicLink(email: string, path = '/'): Promise<void> {
+    // La cible est absolutisée sur l'origine du front. Better Auth résout un chemin relatif
+    // contre sa propre `baseURL` : en développement, front et API n'ayant pas le même port,
+    // le lien magique atterrissait sur l'API, où aucune page n'existe — l'invité ne
+    // revenait donc jamais sur son invitation. L'origine reste vérifiée côté API contre
+    // `trustedOrigins`, qui refuse toute autre cible par un 403.
+    const callbackURL = new URL(path, window.location.origin).toString()
+
     const response = await fetch('/api/auth/sign-in/magic-link', {
       method: 'POST',
       credentials: 'include',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ email, callbackURL: '/' }),
+      body: JSON.stringify({ email, callbackURL }),
     })
 
     if (!response.ok) {

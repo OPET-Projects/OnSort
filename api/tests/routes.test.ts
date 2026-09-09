@@ -1,6 +1,7 @@
 import { Hono } from 'hono'
 import { expect, it, vi } from 'vitest'
-import { app, handleServerError } from '../src/main.ts'
+import { renderApiError } from '../src/lib/http.ts'
+import { app } from '../src/main.ts'
 
 it('répond sur la sonde de santé', async () => {
   const response = await app.request('/api/health')
@@ -35,14 +36,14 @@ it('convertit une exception non gérée en 500 à forme uniforme, sans exposer d
 
   try {
     // Une instance Hono distincte, dédiée à ce test : `main.ts` ne doit exposer aucune
-    // route qui lève volontairement. Elle réutilise `handleServerError`, le même
+    // route qui lève volontairement. Elle réutilise `renderApiError`, le même
     // gestionnaire que celui monté sur `app`, pour vérifier son comportement réel plutôt
     // qu'une copie qui pourrait diverger.
     const failingApp = new Hono()
       .get('/boom', () => {
         throw new Error('secret interne — ne doit jamais atteindre le client')
       })
-      .onError(handleServerError)
+      .onError(renderApiError)
 
     const response = await failingApp.request('/boom')
 
