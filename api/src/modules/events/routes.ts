@@ -5,6 +5,8 @@ import { jsonBody } from '../../lib/validator.ts'
 import { requireSession, type SessionVariables } from '../../middleware/session.ts'
 import { createActivitySchema } from '../activities/schema.ts'
 import { createActivity, listActivities } from '../activities/service.ts'
+import { createExpenseSchema } from '../expenses/schema.ts'
+import { createExpense, listExpenses } from '../expenses/service.ts'
 import { createEventSchema, inviteSchema, rsvpSchema, updateEventSchema } from './schema.ts'
 import {
   createEvent,
@@ -51,6 +53,13 @@ export const eventsRoutes = new Hono<{ Variables: SessionVariables }>()
   })
   .get('/:id/activities', async (c) => {
     return c.json({ activities: await listActivities(c.get('user').id, c.req.param('id')) })
+  })
+  .post('/:id/expenses', jsonBody(createExpenseSchema), async (c) => {
+    const expense = await createExpense(c.get('user').id, c.req.param('id'), c.req.valid('json'))
+    return c.json({ id: expense.id, expense }, 201)
+  })
+  .get('/:id/expenses', async (c) => {
+    return c.json({ expenses: await listExpenses(c.get('user').id, c.req.param('id')) })
   })
   .get('/:id/stream', async (c) => {
     const eventId = c.req.param('id')
