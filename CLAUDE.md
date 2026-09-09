@@ -145,6 +145,14 @@ optionnelles de plateforme.
 **Ne monte jamais un dépôt dans un conteneur Linux sans exclure `node_modules`.** Un `npm ci`
 à l'intérieur remplacerait l'installation locale par sa version Linux. Travaille sur une copie.
 
+**Better Auth résout un `callbackURL` relatif contre sa propre `baseURL`, pas contre le
+front.** En développement les deux origines diffèrent : un chemin relatif renvoie donc sur
+l'API, où aucune page n'existe. Le front envoie une URL absolue bâtie sur
+`window.location.origin` ; `trustedOrigins` la valide côté API et refuse le reste par un 403.
+
+**`npm test` vide la base à chaque test.** Les comptes de `npm run db:seed` disparaissent
+donc dès qu'on lance la suite. Relancer le seed avant une démonstration.
+
 **`api/tests/helpers/db.ts` liste les tables à vider à la main.** Chaque jalon qui ajoute
 des tables doit étendre `TABLES`. `TRUNCATE ... CASCADE` rend l'ordre indifférent, mais une
 table oubliée laisse des lignes entre les tests et les rend dépendants de leur ordre.

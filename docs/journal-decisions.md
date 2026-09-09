@@ -160,6 +160,35 @@ visé — la réponse est identique pour une adresse connue et inconnue (`concep
 *Coût si erroné : un envoi perdu sans relance, à corriger par un `outbox` au passage en
 production.*
 
+**La cible de retour du lien magique est absolutisée sur l'origine du front.** Better Auth
+résout un `callbackURL` relatif contre sa propre `baseURL` : en développement, front (5173)
+et API (3000) n'ayant pas la même origine, le lien magique atterrissait sur l'API, où aucune
+page n'existe. M0 le documentait comme normal — le cookie était posé et il suffisait de
+revenir sur le front. **M1 ne peut pas s'en contenter** : l'invité qui doit s'authentifier
+perdait son invitation en chemin, ce qui est précisément la démonstration du jalon. Le front
+envoie donc `new URL(chemin, window.location.origin)`. La cible reste vérifiée côté API
+contre `trustedOrigins`, qui refuse toute autre origine par un 403 avant même l'envoi —
+vérifié. En production, front et API partagent l'origine et le comportement est inchangé.
+*Coût si erroné : une cible de redirection à recalculer, aucune migration.*
+
+**Un compte créé par lien magique reçoit un nom dérivé de son adresse.** Le greffon
+`magicLink` crée l'utilisateur sans nom, et aucun formulaire d'inscription n'en collecte :
+tout compte non issu du jeu de données apparaissait donc comme une ligne vide dans la liste
+des participants, et l'accueil affichait « Bonjour ». Corrigé **à la source**, par un
+`databaseHooks.user.create.before`, plutôt que par un repli d'affichage dans chaque vue :
+une seule règle, dont héritent tous les consommateurs présents et futurs. C'est une poignée
+d'affichage, pas une identité déclarée ; un écran de profil la rendra modifiable.
+*Coût si erroné : une règle de dérivation à changer, sans effet sur les comptes existants.*
+
+**Rejoindre un événement passe par un `upsert`, pas par une lecture suivie d'une écriture.**
+La version initiale lisait « suis-je déjà participant ? » puis insérait. Deux acceptations
+simultanées — un double-clic — se croient alors toutes deux absentes, et la seconde
+insertion heurte la contrainte d'unicité : l'appelant reçoit un 500. La contrainte protégeait
+bien la donnée, mais pas l'utilisateur. Le test correspondant appelle le service directement
+et non par HTTP : la pile HTTP intercale assez d'attentes pour que la course ne se produise
+qu'au hasard, et un test qui n'échoue qu'une fois sur dix ne prouve rien. *Coût si erroné :
+une instruction à réécrire.*
+
 **`requireSession` lève `ApiError` au lieu de renvoyer un JSON en ligne,** et un
 gestionnaire `renderApiError` unique traduit `ApiError` comme les exceptions nues. Fait tant
 qu'une seule route divergeait, comme la forme d'erreur uniforme de M0. Sortie identique pour
