@@ -86,7 +86,10 @@ export async function getEvent(userId: string, eventId: string) {
       rsvp: participant.rsvp,
       joinedAt: participant.joinedAt,
     })),
-    viewer: { role: viewer.role, rsvp: viewer.rsvp },
+    // `participantId` accompagne le rôle depuis M3 : soldes, virements et règlements sont
+    // tous indexés par participation, et l'interface doit savoir laquelle est la sienne
+    // pour n'offrir que les gestes qui lui reviennent.
+    viewer: { participantId: viewer.id, role: viewer.role, rsvp: viewer.rsvp },
   }
 }
 

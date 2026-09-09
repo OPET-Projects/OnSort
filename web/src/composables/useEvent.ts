@@ -19,7 +19,11 @@ export type EventDetail = {
   status: 'draft' | 'active' | 'closed'
   createdBy: string
   participants: Participant[]
-  viewer: { role: 'admin' | 'member'; rsvp: 'invited' | 'accepted' | 'declined' }
+  viewer: {
+    participantId: string
+    role: 'admin' | 'member'
+    rsvp: 'invited' | 'accepted' | 'declined'
+  }
 }
 
 export type EventPatch = Partial<

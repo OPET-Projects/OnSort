@@ -114,10 +114,14 @@ it('rend l’événement et ses participants à un participant', async () => {
   const response = await app.request(`/api/events/${id}`, { headers: alice })
   expect(response.status).toBe(200)
   const { event } = (await response.json()) as {
-    event: { participants: { email: string }[]; viewer: { role: string } }
+    event: {
+      participants: { email: string }[]
+      viewer: { participantId: string; role: string }
+    }
   }
   expect(event.participants[0]?.email).toBe('alice@example.test')
   expect(event.viewer.role).toBe('admin')
+  expect(event.viewer.participantId).toEqual(expect.any(String))
 })
 
 it('interdit la modification à un simple participant', async () => {
