@@ -1,10 +1,10 @@
 import { prisma } from '../../db.ts'
 import { ApiError } from '../../lib/http.ts'
-import { canProposeActivity, canVote } from '../../lib/permissions.ts'
+import { canDecideActivity, canProposeActivity, canVote } from '../../lib/permissions.ts'
 import { publish } from '../../lib/sse.ts'
 import { tally, type VoteValue } from '../../lib/vote.ts'
 import { loadParticipant } from '../events/service.ts'
-import type { CreateActivityInput } from './schema.ts'
+import type { CreateActivityInput, UpdateActivityInput } from './schema.ts'
 
 // Règles métier des activités (conception §2.7, §3.3). Ce fichier ne connaît pas Hono : il
 // reçoit l'identifiant de l'appelant en argument et lève des `ApiError`.
@@ -147,6 +147,68 @@ export async function castVote(userId: string, activityId: string, value: VoteVa
   })
 
   return counts
+}
+
+export async function decideActivity(
+  userId: string,
+  activityId: string,
+  status: 'proposed' | 'accepted' | 'rejected',
+) {
+  const activity = await loadActivity(activityId)
+  const participant = await loadParticipant(userId, activity.eventId)
+
+  if (!canDecideActivity(participant.role)) {
+    throw new ApiError('forbidden', 403, 'Seul un administrateur peut trancher une activité.')
+  }
+
+  // Sans échéance ni quorum, et sans être lié au décompte : l'administrateur peut retenir
+  // une activité minoritaire — le vote informe la décision, il ne la contraint pas (§3.3).
+  // Aucun état n'est absorbant : revenir à `proposed` rouvre le vote.
+  const updated = await prisma.activity.update({ where: { id: activityId }, data: { status } })
+
+  publish(activity.eventId, { type: 'activity.decided', id: activityId })
+
+  return updated
+}
+
+export async function updateActivity(
+  userId: string,
+  activityId: string,
+  input: UpdateActivityInput,
+) {
+  const activity = await loadActivity(activityId)
+  const participant = await loadParticipant(userId, activity.eventId)
+
+  // La matrice §3.8 ne tranche pas ce cas : retenu que le proposant corrige sa proposition
+  // et qu'un administrateur puisse corriger celle d'un autre.
+  const isProposer = activity.proposedBy === participant.id
+
+  if (!isProposer && !canDecideActivity(participant.role)) {
+    throw new ApiError(
+      'forbidden',
+      403,
+      'Seuls le proposant et un administrateur peuvent modifier cette activité.',
+    )
+  }
+
+  const startsAt = input.startsAt === undefined ? activity.startsAt : input.startsAt
+  const endsAt = input.endsAt === undefined ? activity.endsAt : input.endsAt
+  assertPeriod(startsAt, endsAt)
+
+  const updated = await prisma.activity.update({
+    where: { id: activityId },
+    data: {
+      title: input.title,
+      kind: input.kind,
+      address: input.address,
+      startsAt: input.startsAt,
+      endsAt: input.endsAt,
+    },
+  })
+
+  publish(activity.eventId, { type: 'activity.updated', id: activityId })
+
+  return updated
 }
 
 export { assertPeriod, loadAcceptedParticipant, loadActivity, tallyOf }

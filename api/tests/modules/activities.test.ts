@@ -253,3 +253,133 @@ it('diffuse le décompte sur le bus à chaque vote', async () => {
 
   expect(received).toEqual([{ type: 'activity.vote', activityId, for: 1, against: 0 }])
 })
+
+// --- décision et modification ----------------------------------------------------------
+
+const decide = (headers: Headers, activityId: string, status: string) =>
+  send('POST', `/api/activities/${activityId}/decision`, headers, { status })
+
+it('refuse la décision à un simple participant', async () => {
+  const alice = await signIn('alice@example.test')
+  const bob = await signIn('bob@example.test')
+  const eventId = await makeEvent(alice)
+  await addParticipant(bob, eventId, 'accepted')
+  const activityId = await makeActivity(alice, eventId)
+
+  const response = await decide(bob, activityId, 'accepted')
+
+  expect(response.status).toBe(403)
+  expect(await response.json()).toMatchObject({ code: 'forbidden' })
+})
+
+it('laisse l’administrateur retenir une activité minoritaire', async () => {
+  // Le vote informe la décision, il ne la contraint pas (conception §3.3) : deux voix
+  // contre une seule pour, et l'administrateur retient quand même.
+  const alice = await signIn('alice@example.test')
+  const bob = await signIn('bob@example.test')
+  const carla = await signIn('carla@example.test')
+  const eventId = await makeEvent(alice)
+  await addParticipant(bob, eventId, 'accepted')
+  await addParticipant(carla, eventId, 'accepted')
+  const activityId = await makeActivity(alice, eventId)
+
+  await vote(alice, activityId, 'for')
+  await vote(bob, activityId, 'against')
+  await vote(carla, activityId, 'against')
+
+  const response = await decide(alice, activityId, 'accepted')
+
+  expect(response.status).toBe(200)
+  const activity = await prisma.activity.findUniqueOrThrow({ where: { id: activityId } })
+  expect(activity.status).toBe('accepted')
+})
+
+it('permet de rouvrir le vote, aucun état n’étant absorbant', async () => {
+  const alice = await signIn('alice@example.test')
+  const eventId = await makeEvent(alice)
+  const activityId = await makeActivity(alice, eventId)
+
+  expect((await decide(alice, activityId, 'rejected')).status).toBe(200)
+  expect((await vote(alice, activityId, 'for')).status).toBe(409)
+
+  expect((await decide(alice, activityId, 'proposed')).status).toBe(200)
+  expect((await vote(alice, activityId, 'for')).status).toBe(200)
+})
+
+it('diffuse la décision sans son contenu', async () => {
+  const alice = await signIn('alice@example.test')
+  const eventId = await makeEvent(alice)
+  const activityId = await makeActivity(alice, eventId)
+
+  const received: ServerEvent[] = []
+  const unsubscribe = subscribe(eventId, (event) => received.push(event))
+
+  try {
+    await decide(alice, activityId, 'accepted')
+  } finally {
+    unsubscribe()
+  }
+
+  expect(received).toEqual([{ type: 'activity.decided', id: activityId }])
+})
+
+it('laisse le proposant modifier son activité', async () => {
+  const alice = await signIn('alice@example.test')
+  const bob = await signIn('bob@example.test')
+  const eventId = await makeEvent(alice)
+  await addParticipant(bob, eventId, 'accepted')
+  const response = await propose(bob, eventId)
+  const { id } = (await response.json()) as { id: string }
+
+  const patched = await send('PATCH', `/api/activities/${id}`, bob, { title: 'Musée d’Orsay' })
+
+  expect(patched.status).toBe(200)
+  const activity = await prisma.activity.findUniqueOrThrow({ where: { id } })
+  expect(activity.title).toBe('Musée d’Orsay')
+})
+
+it('laisse un administrateur modifier l’activité d’un autre', async () => {
+  const alice = await signIn('alice@example.test')
+  const bob = await signIn('bob@example.test')
+  const eventId = await makeEvent(alice)
+  await addParticipant(bob, eventId, 'accepted')
+  const response = await propose(bob, eventId)
+  const { id } = (await response.json()) as { id: string }
+
+  const patched = await send('PATCH', `/api/activities/${id}`, alice, { address: 'ailleurs' })
+
+  expect(patched.status).toBe(200)
+})
+
+it('refuse la modification à un tiers', async () => {
+  const alice = await signIn('alice@example.test')
+  const bob = await signIn('bob@example.test')
+  const carla = await signIn('carla@example.test')
+  const eventId = await makeEvent(alice)
+  await addParticipant(bob, eventId, 'accepted')
+  await addParticipant(carla, eventId, 'accepted')
+  const response = await propose(bob, eventId)
+  const { id } = (await response.json()) as { id: string }
+
+  const patched = await send('PATCH', `/api/activities/${id}`, carla, { title: 'Piraté' })
+
+  expect(patched.status).toBe(403)
+  expect(await patched.json()).toMatchObject({ code: 'forbidden' })
+})
+
+it('revérifie la période sur les valeurs résultantes d’une modification', async () => {
+  const alice = await signIn('alice@example.test')
+  const eventId = await makeEvent(alice)
+  const response = await propose(alice, eventId, {
+    startsAt: '2026-10-01T18:00:00.000Z',
+    endsAt: '2026-10-01T22:00:00.000Z',
+  })
+  const { id } = (await response.json()) as { id: string }
+
+  const patched = await send('PATCH', `/api/activities/${id}`, alice, {
+    startsAt: '2026-10-01T23:00:00.000Z',
+  })
+
+  expect(patched.status).toBe(400)
+  expect(await patched.json()).toMatchObject({ code: 'invalid_period' })
+})
