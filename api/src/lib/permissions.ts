@@ -27,3 +27,20 @@ export function canProposeActivity(rsvp: Rsvp): boolean {
 export function canVote(rsvp: Rsvp): boolean {
   return rsvp === 'accepted'
 }
+// « Saisir une dépense → participant **ayant accepté** ». Même raison que pour le vote : un
+// invité qui n'a pas répondu ne pèse pas sur des comptes qu'il ne partagera peut-être pas.
+export function canRecordExpense(rsvp: Rsvp): boolean {
+  return rsvp === 'accepted'
+}
+
+// « Déclarer un règlement envoyé → le débiteur ». Un administrateur n'y a pas droit :
+// personne ne peut affirmer à la place de quelqu'un d'autre qu'il a payé.
+export function canDeclareSettlement(viewerId: string, fromParticipantId: string): boolean {
+  return viewerId === fromParticipantId
+}
+
+// « Confirmer un règlement reçu → le créancier ». C'est la moitié de §3.6 qui protège du
+// litige : un état unique laisserait le débiteur seul juge de son propre paiement.
+export function canConfirmSettlement(viewerId: string, toParticipantId: string): boolean {
+  return viewerId === toParticipantId
+}
