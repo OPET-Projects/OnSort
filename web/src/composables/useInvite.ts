@@ -27,21 +27,21 @@ export function useInvite(token: string, nav: Navigation) {
     }
 
     try {
-      const { eventId } = await apiFetch<{ eventId: string }>(
-        `/api/invitations/${token}/accept`,
-        { method: 'POST' },
-      )
+      const { eventId } = await apiFetch<{ eventId: string }>(`/api/invitations/${token}/accept`, {
+        method: 'POST',
+      })
       nav.toEvent(eventId)
     } catch (cause) {
       state.value = 'error'
       if (cause instanceof ApiFetchError && cause.code === 'invitation_not_found') {
         message.value = "Cette invitation n'est plus valide."
       } else if (cause instanceof ApiFetchError && cause.code === 'invitation_not_yours') {
-        message.value = "Cette invitation est adressée à une autre personne."
+        message.value = 'Cette invitation est adressée à une autre personne.'
       } else if (cause instanceof ApiFetchError && cause.code.startsWith('invitation_link_')) {
         message.value = "Ce lien d'invitation n'est plus actif."
       } else {
-        message.value = cause instanceof Error ? cause.message : "L'invitation n'a pas pu être acceptée."
+        message.value =
+          cause instanceof Error ? cause.message : "L'invitation n'a pas pu être acceptée."
       }
     }
   }

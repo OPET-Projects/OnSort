@@ -15,7 +15,10 @@ const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } })
 
 it('renvoie vers la connexion quand la session est anonyme', async () => {
-  vi.stubGlobal('fetch', vi.fn(async () => json(null, 401)))
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async () => json(null, 401)),
+  )
   const toLogin = vi.fn()
   const toEvent = vi.fn()
 
@@ -27,8 +30,14 @@ it('renvoie vers la connexion quand la session est anonyme', async () => {
 })
 
 it('accepte l’invitation et redirige vers l’événement', async () => {
-  useSessionStore().$patch({ status: 'authenticated', user: { id: 'u1', email: 'a@b.c', name: 'A' } })
-  vi.stubGlobal('fetch', vi.fn(async () => json({ eventId: 'e1' })))
+  useSessionStore().$patch({
+    status: 'authenticated',
+    user: { id: 'u1', email: 'a@b.c', name: 'A' },
+  })
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async () => json({ eventId: 'e1' })),
+  )
   const toEvent = vi.fn()
 
   const { run } = useInvite('tok', { toLogin: vi.fn(), toEvent })
@@ -38,7 +47,10 @@ it('accepte l’invitation et redirige vers l’événement', async () => {
 })
 
 it('affiche un message quand l’invitation n’est plus valide', async () => {
-  useSessionStore().$patch({ status: 'authenticated', user: { id: 'u1', email: 'a@b.c', name: 'A' } })
+  useSessionStore().$patch({
+    status: 'authenticated',
+    user: { id: 'u1', email: 'a@b.c', name: 'A' },
+  })
   vi.stubGlobal(
     'fetch',
     vi.fn(async () => json({ code: 'invitation_not_found', message: 'x', details: {} }, 404)),

@@ -21,7 +21,10 @@ const detail = {
 }
 
 it('charge l’événement', async () => {
-  vi.stubGlobal('fetch', vi.fn(async () => json({ event: detail })))
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async () => json({ event: detail })),
+  )
 
   const { state, event, refresh } = useEvent('e1')
   await refresh()
