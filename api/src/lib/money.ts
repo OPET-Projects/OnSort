@@ -39,3 +39,55 @@ export function splitEqually(amountCents: number, participantIds: readonly strin
     amountCents: base + (index < remainder ? 1 : 0),
   }))
 }
+
+export type BalanceInput = {
+  participantIds: readonly string[]
+  expenses: readonly { paidBy: string; amountCents: number; shares: readonly Share[] }[]
+  settlements: readonly {
+    fromParticipantId: string
+    toParticipantId: string
+    amountCents: number
+  }[]
+}
+
+export type Balance = {
+  participantId: string
+  balanceCents: number
+}
+
+// Solde d'un participant = montants avancés − parts dues + transferts reçus − transferts
+// émis (§3.5). **Aucun solde n'est stocké** (§2.8 note 1) : cette fonction est la seule
+// source, appelée à chaque lecture.
+//
+// Elle ne connaît pas la distinction déclaré / confirmé : le filtrage des règlements se
+// fait en amont, dans la couche service, qui ne lui passe que les confirmés.
+export function computeBalances(input: BalanceInput): Balance[] {
+  const balanceOf = new Map<string, number>(input.participantIds.map((id) => [id, 0]))
+
+  // Une part peut viser un participant absent de la liste — il a quitté l'événement depuis.
+  // Sa part reste due : l'ignorer ferait disparaître des centimes et la somme des soldes
+  // cesserait d'être nulle.
+  const add = (participantId: string, delta: number): void => {
+    balanceOf.set(participantId, (balanceOf.get(participantId) ?? 0) + delta)
+  }
+
+  for (const expense of input.expenses) {
+    add(expense.paidBy, expense.amountCents)
+
+    for (const share of expense.shares) {
+      add(share.participantId, -share.amountCents)
+    }
+  }
+
+  // Attention au signe. Le débiteur `from` **envoie** : son solde négatif remonte vers zéro,
+  // donc `+`. Le créancier `to` **reçoit** : sa créance s'éteint, donc `−`. L'intuition
+  // inverse est la faute classique du domaine.
+  for (const settlement of input.settlements) {
+    add(settlement.fromParticipantId, settlement.amountCents)
+    add(settlement.toParticipantId, -settlement.amountCents)
+  }
+
+  return [...balanceOf.entries()]
+    .map(([participantId, balanceCents]) => ({ participantId, balanceCents }))
+    .sort((left, right) => left.participantId.localeCompare(right.participantId))
+}

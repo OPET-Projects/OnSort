@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest'
-import { splitEqually } from '../../src/lib/money.ts'
+import { computeBalances, splitEqually } from '../../src/lib/money.ts'
 
 it('partage un montant divisible', () => {
   expect(splitEqually(900, ['a', 'b', 'c'])).toEqual([
@@ -48,4 +48,113 @@ it('donne un centime aux premiers quand le montant est plus petit que le groupe'
     { participantId: 'b', amountCents: 1 },
     { participantId: 'c', amountCents: 0 },
   ])
+})
+
+it('crédite celui qui a avancé et débite ceux qui doivent', () => {
+  const balances = computeBalances({
+    participantIds: ['a', 'b'],
+    expenses: [
+      {
+        paidBy: 'a',
+        amountCents: 1000,
+        shares: [
+          { participantId: 'a', amountCents: 500 },
+          { participantId: 'b', amountCents: 500 },
+        ],
+      },
+    ],
+    settlements: [],
+  })
+
+  expect(balances).toEqual([
+    { participantId: 'a', balanceCents: 500 },
+    { participantId: 'b', balanceCents: -500 },
+  ])
+})
+
+it('éteint une dette par un règlement', () => {
+  const balances = computeBalances({
+    participantIds: ['a', 'b'],
+    expenses: [
+      {
+        paidBy: 'a',
+        amountCents: 1000,
+        shares: [
+          { participantId: 'a', amountCents: 500 },
+          { participantId: 'b', amountCents: 500 },
+        ],
+      },
+    ],
+    settlements: [{ fromParticipantId: 'b', toParticipantId: 'a', amountCents: 500 }],
+  })
+
+  expect(balances).toEqual([
+    { participantId: 'a', balanceCents: 0 },
+    { participantId: 'b', balanceCents: 0 },
+  ])
+})
+
+// §2.8 note 1 : un règlement est une ligne indépendante. Si la dépense change après coup,
+// le virement garde sa valeur et le delta réapparaît dans le solde.
+it('laisse reparaître le delta quand la dépense change après un règlement', () => {
+  const balances = computeBalances({
+    participantIds: ['a', 'b'],
+    expenses: [
+      {
+        paidBy: 'a',
+        amountCents: 2000,
+        shares: [
+          { participantId: 'a', amountCents: 1000 },
+          { participantId: 'b', amountCents: 1000 },
+        ],
+      },
+    ],
+    settlements: [{ fromParticipantId: 'b', toParticipantId: 'a', amountCents: 500 }],
+  })
+
+  expect(balances).toEqual([
+    { participantId: 'a', balanceCents: 500 },
+    { participantId: 'b', balanceCents: -500 },
+  ])
+})
+
+it('rend un solde nul pour un participant sans dépense ni part', () => {
+  expect(computeBalances({ participantIds: ['z'], expenses: [], settlements: [] })).toEqual([
+    { participantId: 'z', balanceCents: 0 },
+  ])
+})
+
+// La somme des soldes doit toujours être nulle : c'est l'invariant qui prouve qu'aucun
+// centime n'a été créé ni perdu.
+it('somme à zéro', () => {
+  const shares = splitEqually(1000, ['a', 'b', 'c'])
+  const balances = computeBalances({
+    participantIds: ['a', 'b', 'c'],
+    expenses: [{ paidBy: 'a', amountCents: 1000, shares }],
+    settlements: [{ fromParticipantId: 'b', toParticipantId: 'a', amountCents: 333 }],
+  })
+
+  expect(balances.reduce((sum, balance) => sum + balance.balanceCents, 0)).toBe(0)
+})
+
+// Une part peut viser quelqu'un qui a quitté l'événement depuis. Sa part reste due :
+// l'ignorer ferait disparaître des centimes et la somme cesserait d'être nulle.
+it('compte la part de celui qui ne figure plus parmi les participants', () => {
+  const balances = computeBalances({
+    participantIds: ['a'],
+    expenses: [
+      {
+        paidBy: 'a',
+        amountCents: 1000,
+        shares: [
+          { participantId: 'a', amountCents: 500 },
+          { participantId: 'parti', amountCents: 500 },
+        ],
+      },
+    ],
+    settlements: [],
+  })
+
+  expect(balances.reduce((sum, balance) => sum + balance.balanceCents, 0)).toBe(0)
+  expect(balances).toContainEqual({ participantId: 'parti', balanceCents: -500 })
 })
