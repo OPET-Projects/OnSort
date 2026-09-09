@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { RouterLink } from 'vue-router'
-import NotificationBell from '../components/NotificationBell.vue'
 import { useEvents } from '../composables/useEvents'
 import { formatPeriod } from '../lib/dates'
 import { useSessionStore } from '../stores/session'
@@ -28,15 +27,12 @@ const rsvpLabel: Record<string, string> = {
         <h1 class="text-2xl font-semibold">Bonjour {{ session.user?.name }}</h1>
         <p class="text-sm text-neutral-600">{{ session.user?.email }}</p>
       </div>
-      <div class="flex items-center gap-2">
-        <NotificationBell />
-        <RouterLink
-          to="/events/new"
-          class="rounded bg-neutral-900 px-4 py-2 text-sm text-white"
-        >
-          Nouvel événement
-        </RouterLink>
-      </div>
+      <RouterLink
+        to="/events/new"
+        class="rounded bg-neutral-900 px-4 py-2 text-sm text-white"
+      >
+        Nouvel événement
+      </RouterLink>
     </header>
 
     <!--

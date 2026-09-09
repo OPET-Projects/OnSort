@@ -561,6 +561,14 @@ rien** autant que qui reçoit.
 **`activity.proposed` ne part qu'à ceux qui ont accepté.** C'est « la notification tu dois
 voter » de §2.9 : les autres ne peuvent pas voter, la leur envoyer serait du bruit.
 
+**La cloche vit dans la coque, pas dans une vue.** Le plan la plaçait dans `HomeView`, ce qui
+contredisait sa propre justification : rendre le magasin global pour que les notifications
+suivent l'utilisateur, puis monter la cloche — et donc le flux personnel — avec le tableau de
+bord, c'était refaire l'erreur un étage plus haut. Rien n'arrivait en direct dès qu'on
+ouvrait un événement, c'est-à-dire là où l'on passe son temps et là où les votes et les
+dépenses arrivent. Trouvé en relisant le jalon, pas par un test : aucun test de composant ne
+dit sur quelles pages un composant est monté.
+
 ### Le défaut le plus coûteux du projet
 
 **PostgreSQL et JavaScript ne comparent pas les chaînes de la même façon.** La contrainte

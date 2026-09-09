@@ -31,7 +31,7 @@ async function follow(id: string, target: string | null): Promise<void> {
   <div class="relative">
     <button
       type="button"
-      class="relative rounded border border-neutral-300 px-3 py-2 text-sm"
+      class="relative rounded border border-neutral-300 bg-white px-3 py-2 text-sm shadow-sm"
       :aria-label="`Notifications, ${store.unread} non lues`"
       @click="open = !open"
     >
