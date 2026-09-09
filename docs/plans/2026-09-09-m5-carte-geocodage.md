@@ -24,8 +24,10 @@ la source des tuiles), §2.7 (BAN, Photon et Overpass écartés).
   restent inutilisés jusqu'ici : ce jalon est celui qui s'en sert.
 - **Une migration par jalon.** M5 ajoute exactement deux colonnes : `activities.lat` et
   `activities.lng`.
-- **Jamais `tile.openstreetmap.org`.** La fondation OSM interdit explicitement l'usage de ses
-  serveurs par une application tierce (`decisions-techniques` §2.6).
+- **`tile.openstreetmap.org` par défaut**, dans le respect de sa politique d'usage :
+  attribution visible, `Referer` envoyé, cache respecté, aucun pré-chargement. Aucune clé
+  n'est donc nécessaire. Voir `decisions-techniques` §2.6, corrigé à ce jalon — il affirmait
+  à tort que l'OSMF interdisait l'usage tiers.
 - Portes avant **chaque** commit, **chacune lancée seule** : `npx biome check --write .`,
   `npm run typecheck`, `npm test`.
 - **Ne jamais lancer la correction automatique de Biome sur un `.vue`.**
@@ -48,6 +50,7 @@ la source des tuiles), §2.7 (BAN, Photon et Overpass écartés).
 
 | Écarté | Motif |
 | --- | --- |
+| Une clé de fournisseur de tuiles | Inutile : les tuiles OSM suffisent à l'échelle du projet. La variable existe pour permettre la bascule, pas pour la démonstration |
 | Recherche de POI par nom | `decisions-techniques` §2.7 : Photon demande 8 à 16 Go de RAM, Overpass n'est pas un moteur de recherche. Le MVP a un champ « nom » libre et un champ « adresse » géocodé |
 | Itinéraires, calcul de distance | Ne figure nulle part dans la conception |
 | Géocodage des dépenses ou des groupes | §2.7 ne pose `lat`/`lng` que sur les activités |
@@ -57,11 +60,18 @@ la source des tuiles), §2.7 (BAN, Photon et Overpass écartés).
 
 ## Décisions de ce jalon à consigner
 
-1. **La configuration des tuiles vient de l'API, pas du build du front.** Une clé de tuiles
-   passée en `VITE_*` serait figée dans l'image au moment du `docker build` : la changer
-   demanderait de reconstruire et redéployer, et la clé devrait exister sur la machine de
-   construction. Une route `GET /api/map/config` la sert depuis l'environnement du serveur.
-   L'image reste générique, la rotation de clé ne coûte qu'un redémarrage.
+1. **La configuration des tuiles vient de l'API, pas du build du front.** Une URL — et
+   l'éventuelle clé qu'elle porte — passée en `VITE_*` serait figée dans l'image au moment du
+   `docker build` : en changer demanderait de reconstruire et redéployer. Une route
+   `GET /api/map/config` la sert depuis l'environnement du serveur. L'image reste générique,
+   et changer de fournisseur ne coûte qu'un redémarrage.
+
+   Corollaire à porter sur la branche de déploiement : la façade pose
+   `Referrer-Policy: same-origin`, ce qui **supprime** l'en-tête `Referer` vers un autre
+   domaine — donc vers le serveur de tuiles, qui s'en sert pour identifier l'application
+   comme le demande sa politique d'usage. `strict-origin-when-cross-origin` envoie l'origine
+   sans le chemin : l'application est identifiée, et les jetons d'invitation qui voyagent
+   dans les chemins ne fuient pas davantage.
 2. **`GET /api/places` et `GET /api/map/config` ajoutées à §5.1**, qui ne les prévoit pas.
 3. **Le géocodage ne bloque jamais l'enregistrement.** La BAN peut être lente, indisponible,
    ou ne rien trouver. Une activité sans coordonnées est une activité valide — elle n'apparaît
@@ -70,8 +80,10 @@ la source des tuiles), §2.7 (BAN, Photon et Overpass écartés).
 4. **Un score de confiance minimal est exigé.** La BAN rend toujours un résultat, même très
    mauvais. En dessous du seuil, on n'enregistre pas de coordonnées : un pin au mauvais
    endroit est pire qu'un pin absent, parce qu'il se croit vrai.
-5. **Sans clé de tuiles configurée, la carte est masquée** et l'onglet dit pourquoi. Afficher
-   une carte grise sans explication ferait passer une configuration manquante pour un bogue.
+5. **La source de tuiles a un défaut fonctionnel**, `tile.openstreetmap.org`. L'application
+   marche sans configuration ; `MAP_TILES_URL` ne sert qu'à basculer vers un fournisseur si la
+   fiabilité devient un enjeu. L'attribution, elle, est **obligatoire** et n'est pas
+   configurable : la masquer violerait la politique d'usage.
 
 ---
 
@@ -198,10 +210,9 @@ export const geocoder: PlaceSearch
   - `GET /api/places?q=...` exige une session — sinon le service devient un mandataire de
     géocodage gratuit pour n'importe qui ;
   - une requête trop courte rend `{ places: [] }` sans appeler la BAN ;
-  - `GET /api/map/config` rend `{ tilesUrl, attribution }`, et `tilesUrl` vaut `null` quand
-    aucune clé n'est configurée ;
-  - **la clé de tuiles n'apparaît jamais telle quelle** : elle est déjà substituée dans
-    l'URL, et rien d'autre ne sort.
+  - `GET /api/map/config` rend `{ tilesUrl, attribution }`, avec les valeurs OSM par défaut ;
+  - une `MAP_TILES_URL` configurée remplace le défaut, et **l'attribution suit** — servir les
+    tuiles d'un fournisseur sous l'attribution d'un autre serait faux.
 
 - [ ] **Configuration.** Deux variables : `MAP_TILES_URL` (avec un éventuel `{clé}` déjà
       inclus par l'exploitant) et `MAP_TILES_ATTRIBUTION`. À porter dans `.env.example`,
@@ -226,7 +237,8 @@ export const geocoder: PlaceSearch
 
 - [ ] **Onglet Carte** dans `EventView.vue`, à côté de Programme, Participants et Dépenses.
       Masqué proprement quand aucune activité n'a de coordonnées, avec un mot d'explication ;
-      masqué aussi, avec un mot différent, quand aucune clé de tuiles n'est configurée.
+      **L'attribution est rendue en clair et jamais masquée** : c'est une condition de la
+      politique d'usage des tuiles, pas un ornement.
 - [ ] Portes, commit.
 
 ---

@@ -182,10 +182,33 @@ La carte est isolée dans un composant `MapView` recevant une liste de points. U
 MapLibre, si le besoin de vectoriel apparaissait, se limiterait à l'intérieur de ce composant.
 
 **Source des tuiles.** Le choix de la bibliothèque ne règle pas cette question : Leaflet est
-un moteur de rendu, pas un fournisseur de tuiles. Les serveurs de la fondation OpenStreetMap
-(`tile.openstreetmap.org`) interdisent explicitement l'usage par une application tierce.
+un moteur de rendu, pas un fournisseur de tuiles.
 
-Retenu : tuiles raster de MapTiler ou Stadia Maps, en offre gratuite, avec une clé d'API.
+> **Correction, jalon M5.** Ce paragraphe affirmait que les serveurs de la fondation
+> OpenStreetMap « interdisent explicitement l'usage par une application tierce ». **C'est
+> faux.** La politique d'usage des tuiles de l'OSMF dit le contraire — « We welcome creative
+> uses and do not require you to use a specific API » — et pose un usage **conditionnel**,
+> non une interdiction. La confusion venait probablement des conditions de Google Maps, qui
+> interdisent bel et bien l'usage des tuiles hors de leurs propres API.
+
+Retenu : **`tile.openstreetmap.org` par défaut**, dans le respect de sa politique d'usage :
+
+- une **attribution visible** sur la carte, jamais masquée derrière un repli ;
+- un **`Referer` valide** envoyé depuis la page, ce qui identifie l'application — d'où la
+  politique de référent `strict-origin-when-cross-origin` et non `same-origin` dans la
+  façade, la seconde supprimant l'en-tête vers un autre domaine ;
+- la **mise en cache** respectée : aucun en-tête `no-cache` ajouté aux requêtes de tuiles ;
+- **aucun pré-chargement** de zones ou de niveaux de zoom.
+
+L'OSMF se réserve le droit de bloquer un usage qui dégraderait le service. À l'échelle d'un
+projet de cours — quelques utilisateurs, quelques dizaines de tuiles par consultation — le
+risque est nul, et la contrepartie est qu'aucune clé d'API n'est nécessaire.
+
+**Un fournisseur reste substituable sans reconstruire l'application.** La configuration des
+tuiles est servie par `GET /api/map/config` depuis l'environnement du serveur : basculer vers
+MapTiler ou Stadia Maps, si la fiabilité devenait un enjeu, ne demande qu'une variable et un
+redémarrage. C'est la raison pour laquelle cette configuration n'est pas figée dans le front
+au moment du build.
 
 Écarté pour l'instant : héberger un fichier `.pmtiles` (Protomaps) sur du stockage objet.
 C'est la seule option qui reste gratuite à grande échelle, mais elle demande une préparation
