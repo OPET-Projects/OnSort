@@ -43,7 +43,13 @@
 
 	header {
 		X-Content-Type-Options "nosniff"
-		Referrer-Policy "same-origin"
+
+		# `strict-origin-when-cross-origin` et non `same-origin` : le second supprime
+		# l'en-tête `Referer` vers un autre domaine, or les serveurs de tuiles s'en servent
+		# pour identifier l'application, comme le demande la politique d'usage d'OSM. Celui-ci
+		# envoie l'origine **sans le chemin** : l'application est identifiée, et les jetons
+		# d'invitation qui voyagent dans les chemins ne fuient pas davantage.
+		Referrer-Policy "strict-origin-when-cross-origin"
 		-Server
 	}
 
