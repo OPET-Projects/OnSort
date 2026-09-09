@@ -8,11 +8,11 @@ export type SessionUser = {
   name: string
 }
 
-type Variables = {
+export type SessionVariables = {
   user: SessionUser
 }
 
-export const requireSession = createMiddleware<{ Variables: Variables }>(async (c, next) => {
+export const requireSession = createMiddleware<{ Variables: SessionVariables }>(async (c, next) => {
   const session = await auth.api.getSession({ headers: c.req.raw.headers })
 
   if (!session) {
