@@ -335,6 +335,86 @@ codes de sortie.
 et remettre celle qui garde un reste fait du cas vide la condition d'arrêt de la boucle,
 plutôt qu'un fait à réaffirmer au vérificateur.
 
+## Ouvrir une invitation ne fait plus rejoindre
+
+Jusqu'ici, cliquer un lien d'invitation créait la participation à l'insu de l'invité : la vue
+appelait `accept` au montage, et rejoindre un événement était la conséquence silencieuse d'un
+clic sur un lien reçu. L'invité découvrait l'événement **après** y être entré.
+
+Désormais la page de l'événement s'affiche floutée derrière une popup, et rien n'est écrit
+tant que l'invité n'a pas répondu.
+
+**Nouvelle route `GET /api/invitations/:token`, ajoutée à §5.1.** Elle rend le titre, la
+période, le prénom de l'organisateur et le nombre de participants — rien d'autre. La lecture
+de l'événement, elle, reste refusée à un non-participant.
+
+**L'aperçu est volontairement pauvre, et c'est une décision de sécurité.** Un lien
+partageable circule sans contrôle. Rendre l'événement complet au porteur du jeton aurait
+exposé `getEvent`, qui porte l'**adresse électronique** de chaque participant : n'importe qui
+recevant le lien aurait lu les adresses de tout le groupe sans jamais rejoindre. *Coût si
+erroné : des champs à ajouter, ce qui est le sens facile à corriger.*
+
+**« Non merci » n'écrit rien.** Le lien reste utilisable, et l'invité qui change d'avis le
+rouvre. Marquer l'invitation `declined` aurait été plus expressif, mais le service traite
+ensuite une invitation refusée comme invalide : le refus serait devenu définitif, donc un
+cul-de-sac — ce que les règles du projet interdisent. Tracer le refus supposerait d'abord de
+rendre cet état réversible. *Coût si erroné : le refus n'est pas mesurable.*
+
+**La popup pose la question une fois, avec les trois réponses du modèle.** *Je participe*,
+*je ne sais pas encore*, *je ne peux pas* — les trois valeurs de `rsvp`. « Je ne sais pas »
+n'est pas une absence de réponse : c'est l'état `invited`, qui dit à l'organisateur que la
+question a été vue. Les trois font entrer dans l'événement, refus compris, faute de quoi un
+refus serait indistinguable d'un lien jamais ouvert. Refuser renvoie toutefois à l'accueil :
+ouvrir l'événement qu'on vient de décliner serait contradictoire, et le tableau de bord
+suffit à y revenir. *Coût si erroné : une redirection à changer.*
+
+**Une invitation nominative ne se clôt que sur un oui.** Sur « je ne sais pas » ou sur un
+refus, elle reste `pending`. La passer à `declined` la rendrait invalide aux yeux du service,
+et son destinataire ne pourrait plus jamais la rouvrir — un cul-de-sac. La réponse vit dans
+la participation, pas dans l'invitation.
+
+**Rejoindre porte la réponse, et §3.2 a été corrigée en conséquence.** La participation était
+créée au statut `invited`, l'invité devant ensuite cliquer « Je participe » dans l'onglet
+Participants. Cette seconde étape n'avait de sens que parce que le lien faisait entrer sans
+rien demander : elle était le seul moment où quelqu'un consentait vraiment. La popup ayant
+pris ce rôle, la garder revenait à poser deux fois la même question, et le bouton « Je
+participe » n'avait plus rien à trancher — c'est le constat qui a déclenché ce changement.
+Le RSVP garde tout son sens ensuite : changer d'avis dans un sens ou dans l'autre. *Coût si
+erroné : une valeur par défaut à remettre.*
+
+**`POST /events/:id/rsvp` accepte désormais `invited`.** Il ne connaissait que `accepted` et
+`declined` : on pouvait quitter « à confirmer », jamais y revenir. C'était un état absorbant
+à l'envers, contraire à la garantie de §3.1.
+
+**Une invitation nominative apparaît « à confirmer », un lien partageable non.** La demande
+initiale était que l'invité figure dans la liste dès l'invitation. Créer une participation à ce
+moment-là était impossible dans un cas et interdit dans l'autre : impossible pour une adresse
+sans compte, `EventParticipant` référençant un `user` ; interdit pour une adresse qui en a
+un, car la liste aurait alors dit à l'organisateur quelles adresses sont inscrites — l'oracle
+d'énumération que §4 proscrit.
+
+La sortie retenue affiche l'**invitation** et non une participation. L'adresse vient de ce
+que l'organisateur a tapé, elle s'affiche pareil dans les deux cas, et la liste est réservée
+aux administrateurs — les autres participants n'ont pas à lire l'adresse de quelqu'un qui
+n'est pas encore là. *Coût si erroné : un bloc d'interface à retirer.*
+
+Le filtre porte sur la **participation** et non sur le statut de l'invitation : celle-ci
+reste `pending` après un « je ne sais pas », si bien que trier par statut aurait affiché
+l'invité deux fois, avec deux réponses contradictoires.
+
+**Copier le lien d'invitation le dit.** Le geste ne produisait aucun retour visible : il
+réussissait ou échouait dans le même silence. Un bandeau l'annonce en haut de l'écran, et la
+copie elle-même passe par un repli — `navigator.clipboard` n'existe qu'en contexte sécurisé
+et lève quand la permission est refusée, ce que le code précédent ne rattrapait pas.
+
+**`alreadyMember` court-circuite la popup.** Rouvrir son propre lien une fois entré ouvre
+directement l'événement : reposer la question ferait de la popup une porte à pousser chaque
+jour.
+
+**Le flou est décoratif, jamais une protection.** Le serveur n'envoie que le nécessaire ;
+aucune donnée cachée ne se lit en désactivant un style. Le décor porte `aria-hidden`, un
+arrière-plan illisible n'ayant aucun sens pour un lecteur d'écran.
+
 ## Points laissés ouverts
 
 - `api/prisma.config.ts` charge `../.env`, chemin relatif au **répertoire courant** et non au

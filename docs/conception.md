@@ -262,8 +262,24 @@ garantie qu'un événement ne peut pas se retrouver bloqué.
 ### 3.2 Participation
 
 Rejoindre un événement passe toujours par une authentification, puis par la consommation
-d'un lien ou d'une invitation. Un participant qui décline conserve sa ligne : il peut
-changer d'avis, et l'administrateur voit qui a répondu quoi.
+d'un lien ou d'une invitation. **La réponse est donnée en rejoignant** : le lien n'est plus
+consommé au simple chargement de la page, il l'est sur une réponse explicite, prise parmi
+les trois valeurs du RSVP — *je participe*, *je ne sais pas encore*, *je ne peux pas*. Le
+participant entre donc avec la réponse qu'il vient de donner, et non avec un statut par
+défaut qu'il faudrait confirmer ailleurs.
+
+Décliner fait entrer quand même. Un participant qui décline conserve sa ligne : il peut
+changer d'avis, et l'administrateur voit qui a répondu quoi. Sans cette ligne, un refus
+serait indistinguable d'un lien jamais ouvert.
+
+Aucune de ces trois réponses n'est absorbante : le RSVP de l'onglet Participants permet de
+passer de n'importe laquelle à n'importe quelle autre, `invited` compris.
+
+**Invitations en attente.** Une invitation nominative émise depuis l'application apparaît
+« à confirmer » sous la liste des participants, **pour l'administrateur seul**, tant que son
+destinataire n'a pas répondu. L'adresse affichée est celle qu'il a saisie ; elle se présente
+à l'identique que le compte existe ou non, la liste ne devant jamais dire qui est inscrit
+(§4). Un lien partageable n'a pas de destinataire et n'en produit aucune.
 
 **Rejoindre tardivement n'a aucun effet rétroactif.** Les dépenses déjà saisies conservent
 leurs parts.
@@ -396,6 +412,7 @@ GET    /events                     événements de l'appelant, triés par date
 POST   /events                     GET    /events/:id
 PATCH  /events/:id
 POST   /events/:id/invitations     lien ou adresse e-mail
+GET    /invitations/:token         aperçu avant de rejoindre
 POST   /invitations/:token/accept
 POST   /events/:id/rsvp
 GET    /events/:id/stream          SSE

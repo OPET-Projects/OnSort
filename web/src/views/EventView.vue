@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, onUnmounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import ActivityCard from '../components/ActivityCard.vue'
 import BalanceSheet from '../components/BalanceSheet.vue'
@@ -8,6 +8,7 @@ import { useActivities } from '../composables/useActivities'
 import { useEvent } from '../composables/useEvent'
 import { useEventStream } from '../composables/useEventStream'
 import { useExpenses } from '../composables/useExpenses'
+import { copyToClipboard } from '../lib/clipboard'
 import { formatPeriod } from '../lib/dates'
 import { formatCents, parseEurosToCents } from '../lib/money'
 
@@ -124,7 +125,7 @@ const rsvpLabel: Record<string, string> = {
 }
 
 const rsvpBusy = ref(false)
-async function reply(value: 'accepted' | 'declined'): Promise<void> {
+async function reply(value: 'accepted' | 'invited' | 'declined'): Promise<void> {
   rsvpBusy.value = true
   try {
     await setRsvp(value)
@@ -144,8 +145,31 @@ const inviteUrl = ref('')
 async function generateLink(): Promise<void> {
   inviteUrl.value = await createInviteLink()
 }
+// Bandeau de confirmation, en haut de l'écran. Sans lui, copier un lien ne produit aucun
+// retour visible : le geste réussit ou échoue dans le même silence.
+const snackbar = ref<{ tone: 'ok' | 'error'; text: string } | null>(null)
+let snackbarTimer: ReturnType<typeof setTimeout> | undefined
+
+function notify(tone: 'ok' | 'error', text: string): void {
+  snackbar.value = { tone, text }
+  clearTimeout(snackbarTimer)
+  snackbarTimer = setTimeout(() => {
+    snackbar.value = null
+  }, 3000)
+}
+
+// Le compteur est annulé au démontage : sans cela, une navigation juste après une copie
+// écrirait dans une `ref` dont le composant n'existe plus.
+onUnmounted(() => clearTimeout(snackbarTimer))
+
 async function copyLink(): Promise<void> {
-  await navigator.clipboard.writeText(inviteUrl.value)
+  const copied = await copyToClipboard(inviteUrl.value)
+
+  if (copied) {
+    notify('ok', 'Lien copié dans le presse-papiers.')
+  } else {
+    notify('error', 'La copie a échoué. Sélectionnez le lien et copiez-le à la main.')
+  }
 }
 
 const inviteEmail = ref('')
@@ -158,6 +182,27 @@ async function sendEmailInvite(): Promise<void> {
 </script>
 
 <template>
+  <!--
+    `role="status"` et `aria-live="polite"` : le message est annoncé sans interrompre ce que
+    l'utilisateur est en train de faire. `aria-hidden` sur le conteneur vide éviterait
+    l'annonce d'un bandeau absent, mais Vue le retire du DOM, ce qui suffit.
+  -->
+  <div
+    v-if="snackbar"
+    role="status"
+    aria-live="polite"
+    class="fixed inset-x-0 top-0 z-10 flex justify-center p-4"
+  >
+    <p
+      class="rounded px-4 py-2 text-sm shadow-lg"
+      :class="
+        snackbar.tone === 'ok' ? 'bg-neutral-900 text-white' : 'bg-red-700 text-white'
+      "
+    >
+      {{ snackbar.text }}
+    </p>
+  </div>
+
   <main class="mx-auto max-w-2xl p-6 md:p-10">
     <p v-if="state === 'loading'" class="text-sm text-neutral-500">Chargement…</p>
 
@@ -367,6 +412,19 @@ async function sendEmailInvite(): Promise<void> {
             :disabled="rsvpBusy"
             class="rounded px-3 py-1 text-sm"
             :class="
+              event.viewer.rsvp === 'invited'
+                ? 'bg-neutral-900 text-white'
+                : 'border border-neutral-300'
+            "
+            @click="reply('invited')"
+          >
+            Je ne sais pas
+          </button>
+          <button
+            type="button"
+            :disabled="rsvpBusy"
+            class="rounded px-3 py-1 text-sm"
+            :class="
               event.viewer.rsvp === 'declined'
                 ? 'bg-neutral-900 text-white'
                 : 'border border-neutral-300'
@@ -391,7 +449,29 @@ async function sendEmailInvite(): Promise<void> {
             </span>
             <span class="text-xs text-neutral-500">{{ rsvpLabel[participant.rsvp] }}</span>
           </li>
+
+          <!--
+            Invitations nominatives sans réponse, visibles du seul organisateur. Elles
+            répondent à « qui ai-je invité qui n'a rien dit ? ». Un lien partageable n'a pas
+            de destinataire et n'en produit aucune.
+          -->
+          <li
+            v-for="invitation in event.pendingInvitations"
+            :key="invitation.id"
+            class="flex items-center justify-between gap-3 py-2 text-neutral-500"
+          >
+            <span class="min-w-0 truncate italic">{{ invitation.email }}</span>
+            <span class="shrink-0 text-xs">À confirmer</span>
+          </li>
         </ul>
+
+        <p
+          v-if="isAdmin && event.pendingInvitations.length > 0"
+          class="mt-2 text-xs text-neutral-500"
+        >
+          Ces personnes ont reçu une invitation et n'ont pas encore répondu. Vous seul voyez
+          cette liste.
+        </p>
       </section>
 
       <section v-if="isAdmin" class="mt-8 rounded border border-neutral-200 p-4">
