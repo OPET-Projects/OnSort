@@ -1,6 +1,11 @@
 import { prisma } from '../../db.ts'
 import { ApiError } from '../../lib/http.ts'
-import { canDecideActivity, canProposeActivity, canVote } from '../../lib/permissions.ts'
+import {
+  canDecideActivity,
+  canManageEvent,
+  canProposeActivity,
+  canVote,
+} from '../../lib/permissions.ts'
 import { publish } from '../../lib/sse.ts'
 import { tally, type VoteValue } from '../../lib/vote.ts'
 import { loadParticipant } from '../events/service.ts'
@@ -195,6 +200,17 @@ export async function updateActivity(
     )
   }
 
+  // Changer `attendance_mode` est une prérogative d'administrateur (§3.8), là où corriger
+  // le titre reste ouvert au proposant : les deux passent par la même route, pas par la
+  // même permission.
+  if (input.attendanceMode !== undefined && !canManageEvent(participant.role)) {
+    throw new ApiError(
+      'forbidden',
+      403,
+      "Seul un administrateur peut changer le mode de présence d'une activité.",
+    )
+  }
+
   const startsAt = input.startsAt === undefined ? activity.startsAt : input.startsAt
   const endsAt = input.endsAt === undefined ? activity.endsAt : input.endsAt
   assertPeriod(startsAt, endsAt)
@@ -207,12 +223,83 @@ export async function updateActivity(
       address: input.address,
       startsAt: input.startsAt,
       endsAt: input.endsAt,
+      attendanceMode: input.attendanceMode,
     },
   })
 
   publish(activity.eventId, { type: 'activity.updated', id: activityId })
 
   return updated
+}
+
+// Présence à une activité (§3.4). **L'absence est la ligne, la présence est l'absence de
+// ligne** : les présents sont les participants ayant accepté, moins ceux inscrits dans
+// `activity_absences`.
+export async function setAttendance(userId: string, activityId: string, present: boolean) {
+  const activity = await loadActivity(activityId)
+  const participant = await loadAcceptedParticipant(userId, activity.eventId)
+
+  // En mode `all`, l'absence n'aurait aucun effet sur le partage d'une dépense : l'accepter
+  // en silence laisserait croire le contraire.
+  if (activity.attendanceMode === 'all' && !present) {
+    throw new ApiError(
+      'attendance_not_optional',
+      409,
+      "La présence à cette activité n'est pas optionnelle.",
+      { attendanceMode: activity.attendanceMode },
+    )
+  }
+
+  // `deleteMany` et `upsert` plutôt que `delete` et `create` : se déclarer deux fois absent,
+  // ou présent sans l'avoir jamais quittée, est une situation normale — deux clics sur un
+  // réseau lent — et non une faute à signaler.
+  if (present) {
+    await prisma.activityAbsence.deleteMany({
+      where: { activityId, participantId: participant.id },
+    })
+  } else {
+    await prisma.activityAbsence.upsert({
+      where: { activityId_participantId: { activityId, participantId: participant.id } },
+      create: { activityId, participantId: participant.id },
+      update: {},
+    })
+  }
+
+  publish(activity.eventId, { type: 'activity.updated', id: activityId })
+
+  return { present }
+}
+
+// Liste des présents. Elle **pré-remplit** le formulaire de dépense sans le piloter (§3.4) :
+// la dépense fige ensuite ses propres parts.
+export async function listPresent(userId: string, activityId: string) {
+  const activity = await loadActivity(activityId)
+  await loadParticipant(userId, activity.eventId)
+
+  const accepted = await prisma.eventParticipant.findMany({
+    where: { eventId: activity.eventId, rsvp: 'accepted' },
+    include: { user: true },
+    orderBy: { joinedAt: 'asc' },
+  })
+
+  if (activity.attendanceMode === 'all') {
+    return accepted.map(toPresent)
+  }
+
+  const absent = new Set(
+    (
+      await prisma.activityAbsence.findMany({
+        where: { activityId },
+        select: { participantId: true },
+      })
+    ).map((row) => row.participantId),
+  )
+
+  return accepted.filter((participant) => !absent.has(participant.id)).map(toPresent)
+}
+
+function toPresent(participant: { id: string; user: { name: string } }) {
+  return { participantId: participant.id, name: participant.user.name }
 }
 
 export { assertPeriod, loadAcceptedParticipant, loadActivity, tallyOf }
