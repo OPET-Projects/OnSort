@@ -1,6 +1,7 @@
 import { prisma } from '../../db.ts'
 import { ApiError } from '../../lib/http.ts'
-import type { CreateEventInput } from './schema.ts'
+import { canManageEvent } from '../../lib/permissions.ts'
+import type { CreateEventInput, UpdateEventInput } from './schema.ts'
 
 // Règles métier des événements (conception §2.5, §3.1, §3.2). Ce fichier ne connaît pas
 // Hono : il reçoit l'identifiant de l'appelant en argument et lève des `ApiError`.
@@ -83,6 +84,43 @@ export async function getEvent(userId: string, eventId: string) {
     })),
     viewer: { role: viewer.role, rsvp: viewer.rsvp },
   }
+}
+
+export async function updateEvent(userId: string, eventId: string, input: UpdateEventInput) {
+  const participant = await loadParticipant(userId, eventId)
+
+  if (!canManageEvent(participant.role)) {
+    throw new ApiError('forbidden', 403, "Seul un administrateur peut modifier l'événement.")
+  }
+
+  const current = await prisma.event.findUniqueOrThrow({ where: { id: eventId } })
+  const startsAt = input.startsAt ?? current.startsAt
+  const endsAt = input.endsAt ?? current.endsAt
+  assertPeriod(startsAt, endsAt)
+
+  // Aucun état n'est absorbant (conception §3.1) : tout `status` valide est accepté depuis
+  // n'importe quel état, y compris un retour en arrière.
+  return prisma.event.update({
+    where: { id: eventId },
+    data: {
+      title: input.title,
+      description: input.description,
+      startsAt: input.startsAt,
+      endsAt: input.endsAt,
+      status: input.status,
+    },
+  })
+}
+
+export async function setRsvp(userId: string, eventId: string, rsvp: 'accepted' | 'declined') {
+  await loadParticipant(userId, eventId)
+
+  // Un participant qui décline conserve sa ligne (conception §3.2) : mise à jour, jamais
+  // suppression.
+  await prisma.eventParticipant.update({
+    where: { eventId_userId: { eventId, userId } },
+    data: { rsvp },
+  })
 }
 
 // Charge la ligne de participation de l'appelant, ou lève : 404 si l'événement n'existe

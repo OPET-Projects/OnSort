@@ -1,8 +1,8 @@
 import { Hono } from 'hono'
 import { jsonBody } from '../../lib/validator.ts'
 import { requireSession, type SessionVariables } from '../../middleware/session.ts'
-import { createEventSchema } from './schema.ts'
-import { createEvent, getEvent, listEvents } from './service.ts'
+import { createEventSchema, rsvpSchema, updateEventSchema } from './schema.ts'
+import { createEvent, getEvent, listEvents, setRsvp, updateEvent } from './service.ts'
 
 export const eventsRoutes = new Hono<{ Variables: SessionVariables }>()
   .use('*', requireSession)
@@ -15,4 +15,12 @@ export const eventsRoutes = new Hono<{ Variables: SessionVariables }>()
   })
   .get('/:id', async (c) => {
     return c.json({ event: await getEvent(c.get('user').id, c.req.param('id')) })
+  })
+  .patch('/:id', jsonBody(updateEventSchema), async (c) => {
+    const event = await updateEvent(c.get('user').id, c.req.param('id'), c.req.valid('json'))
+    return c.json({ event })
+  })
+  .post('/:id/rsvp', jsonBody(rsvpSchema), async (c) => {
+    await setRsvp(c.get('user').id, c.req.param('id'), c.req.valid('json').rsvp)
+    return c.json({ ok: true })
   })

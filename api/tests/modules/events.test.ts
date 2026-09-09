@@ -8,12 +8,23 @@ const period = {
   endsAt: '2026-10-01T22:00:00.000Z',
 }
 
-async function post(path: string, headers: Headers, body: unknown) {
+async function send(method: string, path: string, headers: Headers, body: unknown) {
   return app.request(path, {
-    method: 'POST',
+    method,
     headers: new Headers([...headers, ['content-type', 'application/json']]),
     body: JSON.stringify(body),
   })
+}
+
+async function post(path: string, headers: Headers, body: unknown) {
+  return send('POST', path, headers, body)
+}
+
+async function addMember(headers: Headers, eventId: string) {
+  const me = await app.request('/api/me', { headers })
+  const { user } = (await me.json()) as { user: { id: string } }
+  await prisma.eventParticipant.create({ data: { eventId, userId: user.id } })
+  return user.id
 }
 
 async function createEvent(headers: Headers, overrides: Record<string, unknown> = {}) {
@@ -102,4 +113,70 @@ it('rend l’événement et ses participants à un participant', async () => {
   }
   expect(event.participants[0]?.email).toBe('alice@example.test')
   expect(event.viewer.role).toBe('admin')
+})
+
+it('interdit la modification à un simple participant', async () => {
+  const alice = await signIn('alice@example.test')
+  const bob = await signIn('bob@example.test')
+  const { id } = (await (await createEvent(alice)).json()) as { id: string }
+  await addMember(bob, id)
+
+  const response = await send('PATCH', `/api/events/${id}`, bob, { title: 'Piraté' })
+  expect(response.status).toBe(403)
+  expect(await response.json()).toMatchObject({ code: 'forbidden' })
+})
+
+it('laisse l’administrateur changer le titre', async () => {
+  const alice = await signIn('alice@example.test')
+  const { id } = (await (await createEvent(alice)).json()) as { id: string }
+
+  const response = await send('PATCH', `/api/events/${id}`, alice, { title: 'Nouveau titre' })
+  expect(response.status).toBe(200)
+  const event = await prisma.event.findUniqueOrThrow({ where: { id } })
+  expect(event.title).toBe('Nouveau titre')
+})
+
+it('rejette une modification qui inverse la période', async () => {
+  const alice = await signIn('alice@example.test')
+  const { id } = (await (await createEvent(alice)).json()) as { id: string }
+
+  const response = await send('PATCH', `/api/events/${id}`, alice, {
+    startsAt: '2026-10-02T23:00:00.000Z',
+  })
+  expect(response.status).toBe(400)
+  expect(await response.json()).toMatchObject({ code: 'invalid_period' })
+})
+
+it('autorise le retour à un état antérieur (aucun état absorbant)', async () => {
+  const alice = await signIn('alice@example.test')
+  const { id } = (await (await createEvent(alice)).json()) as { id: string }
+
+  expect((await send('PATCH', `/api/events/${id}`, alice, { status: 'closed' })).status).toBe(200)
+  expect((await send('PATCH', `/api/events/${id}`, alice, { status: 'draft' })).status).toBe(200)
+  const event = await prisma.event.findUniqueOrThrow({ where: { id } })
+  expect(event.status).toBe('draft')
+})
+
+it('enregistre un refus sans supprimer la ligne de participation', async () => {
+  const alice = await signIn('alice@example.test')
+  const bob = await signIn('bob@example.test')
+  const { id } = (await (await createEvent(alice)).json()) as { id: string }
+  await addMember(bob, id)
+
+  const response = await post(`/api/events/${id}/rsvp`, bob, { rsvp: 'declined' })
+  expect(response.status).toBe(200)
+
+  const rows = await prisma.eventParticipant.findMany({ where: { eventId: id } })
+  expect(rows).toHaveLength(2)
+  expect(rows.find((r) => r.userId !== null && r.role === 'member')?.rsvp).toBe('declined')
+})
+
+it('refuse le RSVP d’un non-participant', async () => {
+  const alice = await signIn('alice@example.test')
+  const bob = await signIn('bob@example.test')
+  const { id } = (await (await createEvent(alice)).json()) as { id: string }
+
+  const response = await post(`/api/events/${id}/rsvp`, bob, { rsvp: 'accepted' })
+  expect(response.status).toBe(403)
+  expect(await response.json()).toMatchObject({ code: 'not_a_participant' })
 })
