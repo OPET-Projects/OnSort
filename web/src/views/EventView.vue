@@ -164,7 +164,7 @@ async function sendEmailInvite(): Promise<void> {
               <input
                 :value="inviteUrl"
                 readonly
-                class="flex-1 rounded border border-neutral-200 px-2 py-1 text-xs"
+                class="min-w-0 flex-1 rounded border border-neutral-200 px-2 py-1 text-xs"
               />
               <button
                 type="button"
@@ -184,7 +184,7 @@ async function sendEmailInvite(): Promise<void> {
                 v-model="inviteEmail"
                 type="email"
                 required
-                class="flex-1 rounded border border-neutral-300 px-2 py-1 text-sm"
+                class="min-w-0 flex-1 rounded border border-neutral-300 px-2 py-1 text-sm"
               />
               <button type="submit" class="rounded bg-neutral-900 px-3 py-1 text-sm text-white">
                 Envoyer
