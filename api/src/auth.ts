@@ -35,6 +35,19 @@ export const auth = betterAuth({
       secure: config.isProduction,
       httpOnly: true,
     },
+    ipAddress: {
+      // Better Auth limite `/sign-in/*` à trois requêtes par dix secondes en production,
+      // **par adresse IP**. Derrière un mandataire, il ne voit que celle du mandataire :
+      // sans cette ligne il n'en résout aucune et retombe sur « un seul seau partagé par
+      // chemin » — trois demandes de lien magique dans le monde entier, et plus personne ne
+      // se connecte pendant dix secondes.
+      //
+      // `x-real-ip` plutôt que `x-forwarded-for` : nginx **écrase** le premier avec
+      // `$remote_addr`, alors que le second est une liste à laquelle le client peut
+      // préfixer ce qu'il veut. Faire confiance à une valeur que l'appelant contrôle
+      // rendrait la limite contournable en une en-tête.
+      ipAddressHeaders: ['x-real-ip'],
+    },
   },
   plugins: [
     magicLink({

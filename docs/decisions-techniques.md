@@ -241,20 +241,47 @@ PostgreSQL en conteneur pour le développement. Deux précautions :
   refuse de démarrer sur un répertoire de données existant ;
 - `docker compose down -v` supprime le volume de données.
 
-### 2.10 Déploiement — non défini
+### 2.10 Déploiement — Docker Compose derrière le nginx du VPS
 
-Un VPS est disponible. Le choix de la chaîne de livraison (Docker Compose et Caddy, Kamal,
-ou un PaaS auto-hébergé type Coolify) est reporté.
+**Retenu : Docker Compose**, la pile étant relayée par le **nginx déjà installé** sur la
+machine, qui termine le TLS. Trois conteneurs — la base, l'API, et une façade interne qui
+sert le front bâti et route `/api` — plus un service de migration à durée de vie unique.
 
-**Vercel a été écarté.** À l'époque du back Deno, la plateforme ne le supportait pas comme
-runtime de première classe ; ce motif est caduc depuis le retour à Node. Deux raisons
-subsistent : l'offre Hobby limite les tâches planifiées à deux exécutions quotidiennes et
-interdit l'usage commercial, et une plateforme sans serveur persistant exclut d'héberger
-Photon, ce qui supprimerait silencieusement une option décidée ailleurs.
+Le mode d'emploi complet est dans [`deploiement.md`](deploiement.md).
 
-**Le déploiement devient un livrable du jalon M1.** Sa démonstration — un tiers rejoint un
-événement depuis son téléphone — suppose une URL publique et HTTPS. Il ne peut donc pas être
-reporté en fin de projet.
+**Pourquoi une façade interne plutôt que de laisser nginx tout faire.** Le front et l'API
+doivent être servis sur la **même origine** : `EventSource` ne permet pas d'envoyer
+d'en-têtes, l'authentification du flux SSE passe donc par le cookie de session (§5.2).
+Confier cette règle à une configuration nginx vivant hors du dépôt, c'est la rendre
+invisible à la relecture et fragile au premier serveur reconstruit. La façade la tient dans
+l'image, et nginx n'a qu'une seule cible à connaître.
+
+**Kamal a été écarté.** Sa bascule sans coupure et son registre d'images sont une machinerie
+que l'échelle du projet ne rembourse pas : une interruption de quelques secondes au
+redéploiement est sans conséquence ici.
+
+**Coolify a été écarté.** Un PaaS auto-hébergé s'administre lui-même, consomme une part du
+VPS, et déplacerait la configuration de déploiement hors du dépôt — là encore invisible à la
+relecture.
+
+**Vercel a été écarté** de longue date. À l'époque du back Deno, la plateforme ne le
+supportait pas comme runtime de première classe ; ce motif est caduc depuis le retour à Node.
+Deux raisons subsistent : l'offre Hobby limite les tâches planifiées à deux exécutions
+quotidiennes et interdit l'usage commercial, et une plateforme sans serveur persistant exclut
+d'héberger Photon, ce qui supprimerait silencieusement une option décidée ailleurs.
+
+**Le TLS doit être terminé quelque part.** Les cookies de session sont posés en `secure` dès
+que `NODE_ENV` vaut `production` : un navigateur ne les renvoie pas sur du HTTP en clair.
+Servir l'application sans HTTPS produirait une connexion qui semble réussir jusqu'au
+rechargement suivant, où la session aurait disparu.
+
+**La mise en tampon de nginx doit être coupée.** `proxy_buffering off` sur l'emplacement
+relayé. Un flux SSE ne se ferme jamais, donc un tampon ne se vide jamais : le décompte des
+votes et les soldes n'arriveraient qu'après un rechargement à la main, et les démonstrations
+de M2 et M3 seraient perdues sans qu'aucune erreur n'apparaisse.
+
+**Le déploiement reste un livrable du jalon M1.** Sa démonstration — un tiers rejoint un
+événement depuis son téléphone — suppose une URL publique et HTTPS.
 
 ### 2.11 Temps réel — SSE
 

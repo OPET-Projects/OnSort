@@ -23,7 +23,8 @@ Quand deux documents se contredisent, l'ordre de préséance est le suivant :
 | 3 | `docs/versions.md` | Versions exactes et contraintes qui les déterminent |
 | 4 | `docs/workflow.md` | Comment on travaille : méthode, conventions, jalons |
 | 5 | `docs/journal-decisions.md` | Arbitrages pris en cours de route, avec leur motif |
-| 6 | `docs/plans/` | Plans d'implémentation, un par jalon |
+| 6 | `docs/deploiement.md` | Mise en service : pile de production, nginx, secrets |
+| 7 | `docs/plans/` | Plans d'implémentation, un par jalon |
 
 Si tu prends une décision qui contredit l'un de ces documents, **corrige le document dans le
 même commit que le code**. Un document qui ment est pire que pas de document.
@@ -40,8 +41,9 @@ les indisponibilités de ses membres et fait apparaître les créneaux qui convi
 **M3 était le point de coupe** de `docs/conception.md` §9 : le produit se défend désormais
 seul.
 
-**Reste dû, hors code :** le déploiement sur une URL publique HTTPS, livrable de M1. La
-chaîne de livraison et l'accès au VPS ne sont pas tranchés.
+**Reste dû, hors code :** la mise en service. La chaîne est tranchée et outillée — Docker
+Compose derrière le nginx du VPS, voir `docs/deploiement.md` — mais l'application ne tourne
+encore nulle part publiquement.
 
 Le jalon suivant est **M5 — carte Leaflet, géocodage BAN, pins ordonnés**. Le séquencement
 complet est en section 9 de `docs/conception.md`.
@@ -76,6 +78,8 @@ npm run lint           # Biome
 npm run typecheck      # tsc et vue-tsc
 npm test               # Vitest sur les deux espaces
 npm run build
+
+docker compose -f docker-compose.prod.yml --env-file .env.production up -d --build  # production
 ```
 
 ## Portes de vérification — obligatoires
@@ -151,6 +155,16 @@ optionnelles de plateforme.
 
 **Ne monte jamais un dépôt dans un conteneur Linux sans exclure `node_modules`.** Un `npm ci`
 à l'intérieur remplacerait l'installation locale par sa version Linux. Travaille sur une copie.
+C'est aussi pourquoi `.dockerignore` exclut `node_modules` : sans lui, le contexte de
+construction emporterait les binaires natifs de macOS dans une image Linux.
+
+**En production, la mise en tampon du mandataire tue le temps réel.** `proxy_buffering off`
+côté nginx, `flush_interval -1` côté Caddy. Un flux SSE ne se ferme jamais, donc un tampon ne
+se vide jamais : le décompte des votes n'arrive plus, et aucune erreur n'apparaît nulle part.
+
+**Les cookies de session sont `secure` dès que `NODE_ENV=production`.** Servir l'application
+sans HTTPS produit une connexion qui semble réussir, puis une session disparue au
+rechargement suivant.
 
 **Better Auth résout un `callbackURL` relatif contre sa propre `baseURL`, pas contre le
 front.** En développement les deux origines diffèrent : un chemin relatif renvoie donc sur
