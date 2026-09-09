@@ -58,7 +58,7 @@ Monorepo `npm workspaces`, deux espaces : `api/` et `web/`.
 | Authentification | Better Auth, greffon `magicLink` seul, **compte obligatoire** |
 | Front | Vue 3 + Vite, SPA, Pinia, Vue Router, Tailwind |
 | Types partagés | Hono RPC — `web` importe `AppType` et `SessionUser` depuis le paquet `api` |
-| Carte | Leaflet, à partir du jalon M5 |
+| Carte | Leaflet, tuiles OpenStreetMap, géocodage Base Adresse Nationale — sans clé |
 | Courriel | Resend, avec repli console quand aucune clé n'est configurée |
 | Qualité | Biome, Vitest, GitHub Actions |
 

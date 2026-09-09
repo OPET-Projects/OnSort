@@ -49,6 +49,18 @@ règlement en deux temps), notifications internes.
 Le séquencement retenu place des points de coupe explicites : à l'issue du jalon M3, le
 produit est cohérent et se défend seul. Voir la section 9 de la conception.
 
+### Où en est le projet
+
+**Les jalons M0 à M5 sont livrés** : comptes et connexion par lien magique, événements et
+invitations, activités avec vote et décompte en temps réel, dépenses et règlements, groupes
+et calendrier partagé, carte et géocodage.
+
+**Restent M6** — amis et notifications — **et M7** — partage en pourcentage et en montant
+fixe, réordonnancement des activités, annulation. Le paragraphe ci-dessus décrit le MVP
+**visé**, pas l'état actuel : ces fonctionnalités n'existent pas encore.
+
+Reste également dû, hors code : le déploiement sur une URL publique, livrable du jalon M1.
+
 ### Reporté en V2
 
 Itinéraire routé entre les activités, notifications push navigateur, relance automatique des

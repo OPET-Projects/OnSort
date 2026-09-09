@@ -97,8 +97,9 @@ enum Rsvp {
   declined
 }
 
-// `group` reste inutilisé jusqu'à M4 ; il est déclaré maintenant pour que le modèle
-// polymorphe de conception.md §2.6 soit complet dès sa première migration.
+// Déclaré dès M1 « pour que le modèle polymorphe de conception.md §2.6 soit complet dès sa
+// première migration », et employé depuis M4 : une invitation de groupe emprunte exactement
+// le même chemin qu'une invitation d'événement.
 enum InviteScope {
   event
   group
