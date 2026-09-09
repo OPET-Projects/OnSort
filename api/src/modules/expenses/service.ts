@@ -1,10 +1,10 @@
 import { prisma } from '../../db.ts'
 import { ApiError } from '../../lib/http.ts'
 import { splitEqually } from '../../lib/money.ts'
-import { canRecordExpense } from '../../lib/permissions.ts'
+import { canManageEvent, canRecordExpense } from '../../lib/permissions.ts'
 import { publish } from '../../lib/sse.ts'
 import { loadParticipant } from '../events/service.ts'
-import type { CreateExpenseInput } from './schema.ts'
+import type { CreateExpenseInput, UpdateExpenseInput } from './schema.ts'
 
 // Règles métier des dépenses (conception §2.8, §3.5, §3.8). Ce fichier ne connaît pas Hono :
 // il reçoit l'identifiant de l'appelant en argument et lève des `ApiError`.
@@ -123,6 +123,62 @@ export async function loadExpense(expenseId: string) {
   }
 
   return expense
+}
+
+export async function updateExpense(userId: string, expenseId: string, input: UpdateExpenseInput) {
+  const expense = await loadExpense(expenseId)
+  const participant = await loadParticipant(userId, expense.eventId)
+
+  // §3.8 dit qui *saisit* une dépense, pas qui la corrige. Aligné sur le précédent des
+  // activités en M2 : l'auteur, et un administrateur — pour qu'une faute de frappe se
+  // répare sans mobiliser personne, et que celle de quelqu'un qui a quitté la conversation
+  // reste réparable.
+  const isAuthor = expense.createdBy === participant.id
+
+  if (!isAuthor && !canManageEvent(participant.role)) {
+    throw new ApiError(
+      'forbidden',
+      403,
+      "Seuls l'auteur de la dépense et un administrateur peuvent la modifier.",
+    )
+  }
+
+  const amountCents = input.amountCents ?? expense.amountCents
+  const beneficiaries =
+    input.beneficiaryIds === undefined
+      ? (
+          await prisma.expenseShare.findMany({
+            where: { expenseId },
+            select: { participantId: true },
+          })
+        ).map((share) => share.participantId)
+      : await resolveBeneficiaries(expense.eventId, input.beneficiaryIds)
+
+  // §2.8 note 2 fige les parts contre les changements de **présence** — pas contre la
+  // correction de la dépense elle-même. Laisser les anciennes parts sur un nouveau montant
+  // casserait l'invariant `SUM(parts) = montant`, donc on les réécrit.
+  const shares = splitEqually(amountCents, beneficiaries)
+
+  // Suppression et réécriture dans la même transaction : sans elle, un incident entre les
+  // deux laisserait une dépense sans aucune part, donc un solde faux.
+  const updated = await prisma.$transaction(async (tx) => {
+    await tx.expenseShare.deleteMany({ where: { expenseId } })
+
+    return tx.expense.update({
+      where: { id: expenseId },
+      data: {
+        label: input.label,
+        amountCents,
+        activityId: input.activityId,
+        shares: { create: shares },
+      },
+      include: { shares: true },
+    })
+  })
+
+  publish(expense.eventId, { type: 'expense.updated', id: expenseId })
+
+  return updated
 }
 
 export { loadRecordingParticipant, resolveBeneficiaries }

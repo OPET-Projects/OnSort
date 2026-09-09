@@ -188,3 +188,84 @@ it('diffuse expense.created', async () => {
 
   expect(received).toEqual([{ type: 'expense.created', id }])
 })
+
+const patchExpense = (headers: Headers, expenseId: string, body: Record<string, unknown>) =>
+  send('PATCH', `/api/expenses/${expenseId}`, headers, body)
+
+async function recordedExpense(headers: Headers, eventId: string): Promise<string> {
+  const response = await record(headers, eventId)
+  return ((await response.json()) as { id: string }).id
+}
+
+// Figer les parts protège une dépense passée d'un changement de présence, pas de la
+// correction de la dépense elle-même : laisser les anciennes parts sur un nouveau montant
+// casserait SUM(parts) = montant.
+it("recalcule les parts quand le montant change et tient l'invariant", async () => {
+  const alice = await signIn('alice@example.test')
+  const bob = await signIn('bob@example.test')
+  const eventId = await makeEvent(alice)
+  await addParticipant(bob, eventId, 'accepted')
+  const expenseId = await recordedExpense(alice, eventId)
+
+  const response = await patchExpense(alice, expenseId, { amountCents: 1001 })
+
+  expect(response.status).toBe(200)
+
+  const { expense } = (await response.json()) as {
+    expense: { amountCents: number; shares: { amountCents: number }[] }
+  }
+
+  expect(expense.amountCents).toBe(1001)
+  expect(expense.shares).toHaveLength(2)
+  expect(expense.shares.reduce((sum, share) => sum + share.amountCents, 0)).toBe(1001)
+})
+
+it('laisse un administrateur corriger la dépense de quelqu’un d’autre', async () => {
+  const alice = await signIn('alice@example.test')
+  const bob = await signIn('bob@example.test')
+  const eventId = await makeEvent(alice)
+  await addParticipant(bob, eventId, 'accepted')
+  const expenseId = await recordedExpense(bob, eventId)
+
+  expect((await patchExpense(alice, expenseId, { label: 'Taxi partagé' })).status).toBe(200)
+})
+
+it("refuse la correction à un participant qui n'en est ni l'auteur ni administrateur", async () => {
+  const alice = await signIn('alice@example.test')
+  const bob = await signIn('bob@example.test')
+  const eventId = await makeEvent(alice)
+  await addParticipant(bob, eventId, 'accepted')
+  const expenseId = await recordedExpense(alice, eventId)
+
+  const response = await patchExpense(bob, expenseId, { label: 'Autre' })
+
+  expect(response.status).toBe(403)
+  expect(await response.json()).toMatchObject({ code: 'forbidden' })
+})
+
+it('rend 404 sur une dépense inconnue', async () => {
+  const alice = await signIn('alice@example.test')
+  await makeEvent(alice)
+
+  const response = await patchExpense(alice, '00000000-0000-4000-8000-000000000000', {
+    label: 'Fantôme',
+  })
+
+  expect(response.status).toBe(404)
+  expect(await response.json()).toMatchObject({ code: 'expense_not_found' })
+})
+
+it('diffuse expense.updated', async () => {
+  const alice = await signIn('alice@example.test')
+  const eventId = await makeEvent(alice)
+  const expenseId = await recordedExpense(alice, eventId)
+
+  const received: ServerEvent[] = []
+  const unsubscribe = subscribe(eventId, (event) => received.push(event))
+
+  await patchExpense(alice, expenseId, { label: 'Taxi partagé' })
+
+  unsubscribe()
+
+  expect(received).toEqual([{ type: 'expense.updated', id: expenseId }])
+})
