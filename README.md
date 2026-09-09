@@ -168,6 +168,21 @@ Il n'y a pas de mot de passe : l'authentification se fait uniquement par lien ma
    c'est normal, le cookie de session vient d'être posé.
 5. Revenir sur http://localhost:5173 — l'application affiche l'identité connectée.
 
+### Créer et partager un événement
+
+1. Depuis le tableau de bord, **Nouvel événement** : un titre, une date de début, une date
+   de fin.
+2. Sur la page de l'événement, section **Inviter** : **Créer un lien partageable**, puis
+   **Copier**. Le lien a la forme `http://localhost:5173/invite/<jeton>`.
+3. Dans une fenêtre privée, ouvrir ce lien. L'application demande de se connecter, puis
+   revient sur l'invitation et fait rejoindre l'événement.
+4. L'invité répond **Je participe** / **Je ne peux pas** ; le créateur voit la réponse en
+   rafraîchissant la page.
+
+L'invitation par adresse e-mail suit le même chemin : le courriel (affiché en console sans
+clé Resend) contient un lien `…/invite/<id>`. La réponse est volontairement identique que
+l'adresse ait un compte ou non.
+
 ### Vérification
 
 ```sh

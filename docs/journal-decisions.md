@@ -122,6 +122,45 @@ textes lus par un humain — erreurs, journaux, interface, documentation — en 
 
 ---
 
+## Jalon M1 — événement, invitations, participants
+
+**`GET /api/events` ajouté à la surface HTTP.** `conception.md` §5.1 ne listait pas de route
+de liste, mais le tableau de bord §6.1 (« événements à venir ») en exige une. La liste rend
+les événements où l'appelant est participant, triés par date. `conception.md` §5.1 a été
+corrigé dans le commit qui introduit la route. *Coût si erroné : une route à retirer.*
+
+**Aucune clé étrangère sur `invite_links.target_id` ni `invitations.target_id`.** Le modèle
+de `conception.md` §2.6 est polymorphe (`scope event|group`). Une FK vers `events` aurait
+cassé dès l'arrivée des invitations de groupe en M4. L'existence de la cible est vérifiée en
+couche service, et la contrainte de base `event_id` sur `event_participants` reste la
+dernière ligne. *Coût si erroné : une FK et une migration à ajouter.*
+
+**Le lien d'une invitation nominative porte l'`id` de l'invitation comme jeton.** La table
+`invitations` n'a pas de colonne jeton, par conception. `POST /api/invitations/:token/accept`
+résout `:token` d'abord contre le hachage d'un `invite_links`, puis contre l'`id` d'une
+`invitations` — l'identité de l'appelant (`invited_user_id` ou `invited_email`) étant alors
+revérifiée. *Coût si erroné : un schéma de route à revoir, pas de migration.*
+
+**La contrainte « une invitation vise un utilisateur ou une adresse » est un `CHECK` SQL
+ajouté à la main** dans la migration `m1_events`, Prisma ne modélisant pas les `CHECK`. La
+migration a été régénérée proprement (schéma reconstruit, `migrate deploy`) plutôt
+qu'éditée après application, pour que sa somme de contrôle reste juste. *Coût si erroné :
+une invitation vide acceptée en base ; le service la refuse déjà en amont.*
+
+**Le courriel d'invitation part depuis le handler HTTP,** comme le lien magique de M0. La
+file d'attente d'envoi reste une recommandation retirée (`decisions-techniques.md` §6). Un
+échec d'envoi est journalisé et n'interrompt pas l'invitation, ni ne révèle l'état du compte
+visé — la réponse est identique pour une adresse connue et inconnue (`conception.md` §4).
+*Coût si erroné : un envoi perdu sans relance, à corriger par un `outbox` au passage en
+production.*
+
+**`requireSession` lève `ApiError` au lieu de renvoyer un JSON en ligne,** et un
+gestionnaire `renderApiError` unique traduit `ApiError` comme les exceptions nues. Fait tant
+qu'une seule route divergeait, comme la forme d'erreur uniforme de M0. Sortie identique pour
+le client. *Coût si erroné : un intergiciel à réaligner.*
+
+---
+
 ## Points laissés ouverts
 
 - `api/prisma.config.ts` charge `../.env`, chemin relatif au **répertoire courant** et non au
@@ -132,3 +171,6 @@ textes lus par un humain — erreurs, journaux, interface, documentation — en 
   appel réseau ou une bibliothèque de simulation, tous deux exclus.
 - Le parcours cliqué dans un navigateur et l'ergonomie au pouce à 375 px n'ont pas été validés
   automatiquement — ils demandent un humain.
+- **Déploiement M1.** `conception.md` §9 et `decisions-techniques.md` §2.10 font du
+  déploiement (URL publique + HTTPS) un livrable de M1. Le code est prêt ; la chaîne de
+  livraison et l'accès au VPS restent à trancher.
