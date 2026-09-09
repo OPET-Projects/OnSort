@@ -247,6 +247,27 @@ fait passer devant la carte.
 Le motif d'une indisponibilité ne franchit jamais la route du calendrier partagé : un test
 échoue si un libellé apparaît dans la réponse.
 
+### Le programme sur une carte
+
+C'est la démonstration du jalon M5.
+
+1. Onglet **Programme**, proposer une activité et renseigner le champ « où ? ». Des adresses
+   sont proposées **à la frappe** : les retenir plutôt que de taper librement donne au
+   géocodage un libellé qu'il sait replacer.
+2. Onglet **Carte** : les activités dont l'adresse a été reconnue portent un pin **numéroté
+   dans l'ordre du programme**, et la carte se cadre sur l'ensemble des points.
+3. Une activité sans adresse, ou dont l'adresse n'a pas été reconnue, n'apparaît pas — elle
+   reste parfaitement valide, elle n'a simplement pas de lieu à montrer.
+
+**La Base Adresse Nationale géocode des adresses, pas des lieux.** « tour eiffel » seul ne
+marque que 0,38 de confiance et ne produit aucun pin : c'est l'autocomplétion qui rend le
+service utilisable, en proposant « Avenue Gustave Eiffel 75007 Paris ». La recherche de point
+d'intérêt par son nom est explicitement écartée du MVP — voir `decisions-techniques.md` §2.7.
+
+Ni clé ni compte : les tuiles viennent d'OpenStreetMap et le géocodage de la Base Adresse
+Nationale, tous deux gratuits. L'attribution affichée en bas de carte est une **condition**
+de la politique d'usage des tuiles, pas un ornement.
+
 ### Vérification
 
 ```sh

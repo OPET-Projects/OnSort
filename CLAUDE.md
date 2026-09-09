@@ -30,9 +30,9 @@ même commit que le code**. Un document qui ment est pire que pas de document.
 
 ## État actuel
 
-Les jalons **M0 à M4** sont terminés côté code : socle et authentification, événement et
-invitations, activités et vote en temps réel, dépenses et règlements, puis groupes et
-calendrier partagé. Un utilisateur crée un événement, invite, chacun répond, propose des
+Les jalons **M0 à M5** sont terminés côté code : socle et authentification, événement et
+invitations, activités et vote en temps réel, dépenses et règlements, groupes et calendrier
+partagé, puis carte et géocodage. Un utilisateur crée un événement, invite, chacun répond, propose des
 activités et vote ; les dépenses se saisissent, les soldes s'en dérivent, et l'application
 propose le plus petit jeu de virements qui remet tout le monde à zéro. Un groupe superpose
 les indisponibilités de ses membres et fait apparaître les créneaux qui conviennent à tous.
@@ -43,8 +43,8 @@ seul.
 **Reste dû, hors code :** le déploiement sur une URL publique HTTPS, livrable de M1. La
 chaîne de livraison et l'accès au VPS ne sont pas tranchés.
 
-Le jalon suivant est **M5 — carte Leaflet, géocodage BAN, pins ordonnés**. Le séquencement
-complet est en section 9 de `docs/conception.md`.
+Le jalon suivant est **M6 — amis et notifications complètes**. Le séquencement complet est en
+section 9 de `docs/conception.md`.
 
 ## Stack
 
@@ -108,7 +108,8 @@ Lancer `npm test` sans `npm run typecheck` ne prouve rien.
 - **Aucun secret dans le dépôt.** Toute variable nouvelle va dans `.env.example` avec une
   valeur d'exemple inoffensive. `.env` n'est jamais versionné.
 - **TDD.** Écrire le test, le voir échouer, écrire le minimum, le voir passer, commiter.
-- **Argent en centimes entiers.** Aucun flottant dans le domaine financier, jamais.
+- **Argent en centimes entiers.** Aucun flottant dans le domaine financier, jamais. Les
+  coordonnées géographiques sont la seule exception : une mesure, pas une somme.
 - **Intervalles semi-ouverts** pour tout ce qui touche au temps : début inclus, fin exclue.
   Le test de chevauchement s'écrit `startsAt < :fin AND endsAt > :début`. Un `<=` glissé
   quelque part fabrique des conflits qui n'existent pas.

@@ -432,6 +432,9 @@ GET    /events/:id/balances        soldes et virements minimisés
 POST   /events/:id/settlements     POST   /settlements/:id/confirm
 DELETE /settlements/:id            retrait d'une déclaration non confirmée
 
+GET    /places                    recherche d'adresse, q et limit
+GET    /map/config                source des tuiles et attribution
+
 GET    /notifications              POST   /notifications/:id/read
 GET    /me/stream                  SSE
 ```
