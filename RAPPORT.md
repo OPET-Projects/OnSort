@@ -17,7 +17,7 @@ Version du 8 septembre 2026 — document tenu à jour au fil du projet.
 6. [Revirements : ce que nous avons changé et pourquoi](#6-revirements--ce-que-nous-avons-changé-et-pourquoi)
 7. [Concepts informatiques mobilisés](#7-concepts-informatiques-mobilisés)
 8. [Conception retenue](#8-conception-retenue)
-9. [Bilan intermédiaire](#9-bilan-intermédiaire)
+9. [Bilan du jalon M0](#9-bilan-du-jalon-m0)
 10. [Journal des révisions](#10-journal-des-révisions)
 
 ---
@@ -285,9 +285,16 @@ nous avons prise, puis défaite.
 | 10  | Deno 2                      | Node 24 LTS                | Bénéfice asymétrique du runtime             |
 | 11  | Contrainte `EXCLUDE`        | Invariant applicatif       | Aucun ORM ne l'exprime                      |
 | 12  | Drizzle                     | Prisma 7                   | Le critère qui l'avait écarté a disparu     |
+| 13  | Contrôle du schéma par outil | Preuve empirique          | L'outil de contrôle n'existe pas            |
+| 14  | Rattrapage d'erreur local   | Gestionnaire global        | Chaque route future aurait divergé          |
+| 15  | Vite 8 → Vite 7             | **Retour à Vite 8**        | Le diagnostic était faux                    |
 
 Trois d'entre eux — les numéros 1, 2 et 4 — portent sur des configurations qui **n'existent
-tout simplement pas**. Les autres sont des arbitrages.
+tout simplement pas**. Le numéro 13 aussi. Les autres sont des arbitrages.
+
+Les numéros 1 à 12 datent du cadrage, avant toute ligne de code. Les numéros 13 à 15 sont nés
+de l'implémentation, et le dernier est le plus instructif du document : c'est un revirement de
+revirement, une décision que nous avons prise, puis reconnue fausse, puis annulée.
 
 ### 6.1 Go → Deno *(incompatibilités en cascade)*
 
@@ -487,6 +494,67 @@ contredites sur quatre points, dont aucun n'était lisible dans les métadonnée
 **Enseignement** : la compatibilité déclarée n'est pas la compatibilité constatée. Une pile ne
 se valide pas sur un tableau de versions, mais en l'installant.
 
+### 6.12 Contrôle par outil → preuve empirique *(l'outil n'existait pas)*
+
+Le modèle de données d'authentification avait été rédigé de mémoire. Pour le valider, le plan
+prévoyait de le confronter à la sortie de l'outil en ligne de commande de la bibliothèque
+d'authentification, dans la version que nous avions installée.
+
+**Cette version de l'outil n'existe pas.** L'outil plafonne plusieurs versions en arrière de la
+bibliothèque principale, et cette dernière n'embarque aucun binaire. Le garde-fou censé
+rattraper une erreur de mémoire n'existait donc pas non plus.
+
+Nous l'avons remplacé par une preuve empirique : un test qui mène une connexion complète —
+demande du lien, consommation de l'adresse réellement émise, puis vérification qu'un
+utilisateur et une session sont bien créés en base de données. Le test précédent ne créait
+qu'une demande de vérification : il ne prouvait rien sur les tables écrites au moment où le
+lien est consommé.
+
+**Enseignement** : une preuve construite à partir du comportement réel du système vaut mieux
+qu'un écart calculé par un outil, et elle reste ensuite comme test de non-régression. La
+faiblesse d'un contrôle n'apparaît que lorsqu'on essaie de l'exécuter.
+
+### 6.13 Rattrapage local → gestionnaire global *(portée d'une correction)*
+
+La lecture de session n'était entourée d'aucun rattrapage d'erreur : une panne de base de
+données aurait produit une réponse générique, hors du format uniforme que la conception impose
+à toute l'API.
+
+La correction évidente était un rattrapage local autour de l'appel fautif. Nous avons imposé un
+**gestionnaire d'erreur global** sur l'application. Motif : un rattrapage local n'aurait protégé
+que cette route, et chacune des routes des jalons suivants aurait recommencé à diverger, une à
+une, jusqu'à ce que le format uniforme ne soit plus qu'une intention.
+
+**Enseignement** : à correction équivalente, préférer celle dont la portée couvre les cas qui
+n'existent pas encore. Une règle que chaque nouveau cas doit réappliquer à la main n'est pas une
+règle, c'est une consigne.
+
+### 6.14 Vite 8 → Vite 7 → Vite 8 *(un contournement n'est pas un diagnostic)*
+
+C'est le revirement le plus instructif du projet, parce que c'est celui où **nous avons eu
+tort**.
+
+L'intégration continue échouait sous Linux : un binaire natif manquant. Diagnostic posé : la
+version 8 de l'outil de construction dépend d'un compilateur qui embarque un binaire par
+plateforme, et le fichier de verrouillage n'enregistrait que celui de notre machine. Trois
+contournements ont été essayés, tous ont échoué. Nous avons alors rétrogradé d'une version
+majeure, vers une version qui n'a pas de binaire natif. L'intégration continue est passée au
+vert.
+
+**Le symptôme avait disparu, la cause était intacte.** Un test ultérieur, mené sur une copie du
+dépôt, a montré qu'une réinstallation réellement propre — en supprimant à la fois le dossier des
+dépendances **et** le fichier de verrouillage — enregistre les quinze variantes de plateforme,
+Linux comprise. Notre test initial avait conservé le dossier des dépendances, et l'option que
+nous avions employée ne re-résout pas les dépendances optionnelles de plateforme.
+
+La cause n'était pas la version de l'outil, mais un fichier de verrouillage construit par
+ajouts successifs et jamais régénéré. La rétrogradation a été annulée.
+
+**Enseignement** : un contournement qui fait disparaître le symptôme ne prouve pas que le
+diagnostic était juste. Ici, la correction fonctionnait pour une raison que nous n'avions pas
+comprise — et elle nous aurait fait traîner une version en retard pendant tout le projet, en
+croyant l'avoir choisie.
+
 ---
 
 ## 7. Concepts informatiques mobilisés
@@ -581,6 +649,39 @@ Trois exemples relevés dans ce projet :
 
 Aucune de ces contraintes n'appartient à la couche où elle produit son effet.
 
+### 7.7 Une vérification qui ne vérifie pas ce qu'elle croit
+
+Trois défauts de ce projet ont survécu longtemps parce qu'un contrôle existait, passait, et ne
+portait pas sur ce qu'on croyait.
+
+- La vérification des types du dépôt était cassée pendant **cinq tâches consécutives**. Personne
+  ne l'a vu : la commande de test passait, et c'est elle qu'on lançait. L'intégration continue
+  aurait été rouge à sa première exécution — qui n'a eu lieu qu'au tout dernier jalon.
+- L'analyseur de code était activé mais **sans aucune règle**, séquelle d'une migration
+  automatique de configuration. L'étape « format et analyse » ne contrôlait que la mise en forme.
+- La correction du port du mandataire avait été validée en exportant la variable dans le
+  terminal — c'est-à-dire dans des conditions qui n'étaient pas celles de son usage réel, où la
+  variable vient d'un fichier. La correction ne fonctionnait pas dans le flux documenté.
+
+Le point commun est le même dans les trois cas : **un contrôle vert a été pris pour une preuve
+sans qu'on vérifie ce qu'il exerçait**. Un test qui n'a jamais échoué, une règle qui n'existe
+pas, une vérification menée dans les mauvaises conditions produisent la même chose — une
+confiance sans fondement, qui est pire que pas de contrôle du tout, parce qu'elle dispense de
+regarder.
+
+### 7.8 Consigner le coût d'une erreur, pas seulement la décision
+
+Chaque décision prise pendant l'implémentation a été consignée avec trois éléments : ce qui a
+été décidé, pourquoi, et **ce que ça coûte si la décision est mauvaise**.
+
+Ce troisième élément s'est révélé le plus utile, pour deux raisons. Il oblige à mesurer l'enjeu
+avant de trancher, ce qui change la décision elle-même : on ne délibère pas de la même façon
+sur « une ligne à réécrire » et sur « une migration de base de données ». Et il permet de
+rouvrir une décision sans rejouer tout le raisonnement — ce qui est exactement ce qui s'est
+passé pour le revirement 15, revenu sur la table parce que son coût annoncé était faible.
+
+Vingt-quatre décisions ont ainsi été consignées, dont une s'est révélée fausse.
+
 ---
 
 ## 8. Conception retenue
@@ -627,27 +728,81 @@ Utilisateur ──► amis, indisponibilités personnelles
 
 ---
 
-## 9. Bilan intermédiaire
+## 9. Bilan du jalon M0
 
-À ce stade, aucune fonctionnalité n'est écrite. Le dépôt contient quatre documents versionnés,
-l'espace de travail, l'intégration continue et une chaîne de vérification complète au vert.
+### 9.1 Ce qui est livré
 
-La phase de cadrage a permis d'identifier, avant toute implémentation :
+Le premier jalon est terminé et fusionné. Sa promesse — *un utilisateur saisit son adresse,
+reçoit un lien magique, clique, et l'application affiche son identité* — est tenue, et prouvée
+par un test qui mène le parcours complet jusqu'à la vérification en base de données qu'un
+utilisateur et une session existent.
+
+| | |
+|---|---|
+| Tâches planifiées et livrées | 10 sur 10 |
+| Commits | 35 |
+| Tests | 18, tous au vert |
+| Décisions consignées | 24 |
+| Intégration continue | verte |
+
+Aucune fonctionnalité métier n'est encore écrite : ni groupes, ni événements, ni dépenses.
+C'est délibéré, et c'est la règle que nous nous sommes donnée — **une migration par jalon**, pas
+de table créée avant le code qui l'écrit.
+
+### 9.2 Ce que la phase de cadrage avait rattrapé
+
+Avant toute ligne de code, elle avait permis d'identifier :
 
 - **trois incompatibilités bloquantes** — Prisma avec Go, Better Auth avec Go, Deno avec
   Vercel — dont chacune aurait coûté une réécriture ;
 - **une erreur de catégorie** sur l'outil de recherche de lieux ;
-- **quatre incompatibilités de versions** que seule une installation réelle a révélées
-  (section 6.11) ;
+- **quatre incompatibilités de versions** que seule une installation réelle a révélées ;
 - **cinq cas limites** de modélisation dont le traitement ne coûte rien s'il est prévu, et cher
   s'il est découvert après coup.
 
-Le coût de cette phase est réel : douze revirements, dont plusieurs auraient été évités par une
-veille plus complète en amont — les concurrents directs et l'incompatibilité de Prisma avec Go
-étaient l'un comme l'autre trouvables en quelques minutes.
+### 9.3 Ce que l'implémentation a rattrapé, et que le cadrage n'avait pas vu
 
-Le rapport sera complété au fil de l'implémentation : écarts entre la conception et le code
-produit, décisions prises en cours de route, et bilan final.
+C'est le résultat le plus intéressant du jalon : **cinq défauts, dont quatre provenaient de
+notre propre plan** — celui-là même qui avait été rédigé pour les éviter.
+
+| Défaut | Comment il a survécu |
+|---|---|
+| Vérification des types cassée pendant cinq tâches | Seuls les tests étaient lancés |
+| L'analyseur de code n'appliquait aucune règle | Configuration activée mais vide |
+| La commande de lancement ne démarrait pas l'interface | Personne ne l'avait tapée en entier |
+| Le garde-fou du modèle de données n'existait pas | L'outil prévu n'a jamais été exécuté |
+| Fichier de verrouillage incomplet | Première exécution de l'intégration continue au dernier jalon |
+
+Un fil relie ces cinq lignes : **rien de ce qui n'est pas exécuté n'est vérifié**. Un plan bien
+écrit ne protège pas de ce qu'il ne fait pas exécuter, et la colonne de droite ne contient que
+des choses qu'on croyait faites.
+
+### 9.4 Ce que nous avons eu tort de décider
+
+Une décision consignée s'est révélée fausse : la rétrogradation de l'outil de construction
+(section 6.14). Elle a été annulée, et elle est conservée dans ce rapport plutôt qu'effacée,
+parce qu'elle documente une erreur de raisonnement plus utile que n'importe quelle réussite —
+avoir pris un contournement efficace pour un diagnostic juste.
+
+### 9.5 Coût de la méthode
+
+Quinze revirements au total, dont trois pendant l'implémentation. Plusieurs auraient été évités
+par une veille plus complète en amont : les concurrents directs et l'incompatibilité de Prisma
+avec Go étaient l'un comme l'autre trouvables en quelques minutes.
+
+En regard, la relecture systématique de chaque tâche a déclenché **six rondes de correction**
+sur des constats jugés bloquants, corrigés avant de passer à la tâche suivante, et consigné
+**dix défauts mineurs** triés en fin de jalon — aucun n'étant jugé bloquant pour la fusion.
+
+La quasi-totalité de ces constats échappait à l'exécution des tests : ils portaient sur la
+portée d'une correction, la forme d'une réponse d'erreur, un test qui vérifiait le mauvais
+scénario, ou une protection affaiblie par inadvertance.
+
+### 9.6 Suite
+
+Le jalon M1 — événement, invitations, participants — reprend la même méthode : un plan écrit
+avant le code, une migration, une démonstration à l'arrivée. Le déploiement en devient un
+livrable, sa démonstration supposant une adresse publique.
 
 ---
 
@@ -658,3 +813,6 @@ produit, décisions prises en cours de route, et bilan final.
 | 8 septembre 2026 | Version initiale : veille, démarche, choix, revirements, conception                            |
 | 8 septembre 2026 | Retour à Node, passage à Prisma 7, abandon de la contrainte `EXCLUDE` ; revirements 10 à 12    |
 | 8 septembre 2026 | Section 6.11 : ce que l'installation réelle a démenti. Calendrier partagé avancé en M4         |
+| 9 septembre 2026 | Jalon M0 livré et fusionné. Revirements 13 à 15, dont un revirement de revirement              |
+| 9 septembre 2026 | Sections 7.7 et 7.8 : la vérification qui ne vérifie pas, le coût consigné d'une erreur        |
+| 9 septembre 2026 | Section 9 réécrite : bilan du jalon M0 remplaçant le bilan intermédiaire de cadrage            |
