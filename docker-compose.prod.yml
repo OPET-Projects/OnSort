@@ -1,0 +1,81 @@
+# Pile de production. Se lance sur le VPS avec :
+#   docker compose -f docker-compose.prod.yml --env-file .env.production up -d --build
+#
+# Le `docker-compose.yml` de la racine reste le fichier de **développement** : il n'expose
+# qu'une base sur le port 5433. Les deux ne se mélangent pas.
+
+name: onsort
+
+services:
+  db:
+    image: postgres:17
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: onsort
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?le mot de passe de la base est obligatoire}
+      POSTGRES_DB: onsort
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    # Aucun port publié : la base n'est jointe que depuis le réseau interne de la pile. La
+    # publier exposerait PostgreSQL à l'internet pour le seul confort d'un client local.
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U onsort -d onsort']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # Service à durée de vie unique : il applique les migrations puis s'arrête. L'API attend
+  # qu'il ait réussi. Migrer au démarrage de l'API ferait tourner la migration autant de
+  # fois qu'il y a d'instances, et masquerait un échec derrière un redémarrage en boucle.
+  migrate:
+    build:
+      context: .
+      target: api
+    restart: 'no'
+    environment:
+      DATABASE_URL: postgresql://onsort:${POSTGRES_PASSWORD}@db:5432/onsort?schema=public
+    depends_on:
+      db:
+        condition: service_healthy
+    command: ['npx', 'prisma', 'migrate', 'deploy']
+
+  api:
+    build:
+      context: .
+      target: api
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      DATABASE_URL: postgresql://onsort:${POSTGRES_PASSWORD}@db:5432/onsort?schema=public
+      # L'URL **publique**, celle que le navigateur voit — donc celle que nginx expose, en
+      # HTTPS. Elle sert de base aux liens magiques et aux liens d'invitation, et elle est
+      # la seule origine de confiance de Better Auth.
+      #
+      # Front et API la partagent : le flux SSE s'authentifie par cookie, et `EventSource`
+      # ne permet pas d'envoyer d'en-têtes (conception §5.2).
+      APP_URL: ${APP_PUBLIC_URL:?l URL publique est obligatoire}
+      BETTER_AUTH_URL: ${APP_PUBLIC_URL}
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?le secret d authentification est obligatoire}
+      RESEND_API_KEY: ${RESEND_API_KEY:-}
+      MAIL_FROM: ${MAIL_FROM:?l adresse d expedition est obligatoire}
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    # Aucun port publié : seule la façade parle à l'API.
+
+  web:
+    build:
+      context: .
+      target: web
+    restart: unless-stopped
+    ports:
+      # **Boucle locale uniquement.** Le TLS est terminé par le nginx de la machine, qui
+      # relaie vers ce port ; publier sur 0.0.0.0 exposerait l'application en clair à
+      # l'internet, court-circuitant le proxy et ses certificats.
+      - '127.0.0.1:${HTTP_PORT:-8080}:8080'
+    depends_on:
+      - api
+
+volumes:
+  pgdata:
