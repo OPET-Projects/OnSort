@@ -26,6 +26,11 @@ model User {
   createdGroups       Group[]            @relation("GroupCreator")
   groupMemberships    GroupMember[]
   unavailability      Unavailability[]
+  friendRequestsSent  FriendRequest[]    @relation("FriendRequestFrom")
+  friendRequestsGot   FriendRequest[]    @relation("FriendRequestTo")
+  friendshipsAsA      Friendship[]       @relation("FriendshipA")
+  friendshipsAsB      Friendship[]       @relation("FriendshipB")
+  notifications       Notification[]
 
   @@map("user")
 }
@@ -402,4 +407,60 @@ model Unavailability {
 
   @@index([userId, startsAt])
   @@map("unavailability")
+}
+
+// --- M6 : amis et notifications ----------------------------------------------------------
+// Modèle : conception.md §2.2 et §2.9.
+
+enum FriendRequestStatus {
+  pending
+  accepted
+  declined
+}
+
+// La demande inverse reste possible et n'est pas un doublon : c'est elle qui vaut
+// acceptation quand deux personnes se demandent mutuellement.
+model FriendRequest {
+  id         String              @id @default(uuid())
+  fromUserId String              @map("from_user_id")
+  fromUser   User                @relation("FriendRequestFrom", fields: [fromUserId], references: [id], onDelete: Cascade)
+  toUserId   String              @map("to_user_id")
+  toUser     User                @relation("FriendRequestTo", fields: [toUserId], references: [id], onDelete: Cascade)
+  status     FriendRequestStatus @default(pending)
+  createdAt  DateTime            @default(now()) @map("created_at")
+
+  @@unique([fromUserId, toUserId])
+  @@index([toUserId, status])
+  @@map("friend_requests")
+}
+
+// Le couple est **normalisé** par la contrainte `user_a_id < user_b_id` posée en migration :
+// une amitié occupe une seule ligne, et « sommes-nous amis » est une lecture directe, sans
+// disjonction (§2.2).
+model Friendship {
+  userAId   String   @map("user_a_id")
+  userA     User     @relation("FriendshipA", fields: [userAId], references: [id], onDelete: Cascade)
+  userBId   String   @map("user_b_id")
+  userB     User     @relation("FriendshipB", fields: [userBId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@id([userAId, userBId])
+  @@index([userBId])
+  @@map("friendships")
+}
+
+// `payload` porte de quoi afficher une ligne, et rien de plus : un titre, un prénom. Une
+// notification voyage vers un flux qu'on ne relit pas au moment de la produire.
+model Notification {
+  id        String    @id @default(uuid())
+  userId    String    @map("user_id")
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  eventId   String?   @map("event_id")
+  type      String
+  payload   Json      @default("{}")
+  readAt    DateTime? @map("read_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  @@index([userId, createdAt])
+  @@map("notifications")
 }
