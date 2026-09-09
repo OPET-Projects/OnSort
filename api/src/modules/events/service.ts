@@ -1,7 +1,10 @@
+import { config } from '../../config.ts'
 import { prisma } from '../../db.ts'
 import { ApiError } from '../../lib/http.ts'
+import { mailer } from '../../lib/mailer.ts'
 import { canManageEvent } from '../../lib/permissions.ts'
-import type { CreateEventInput, UpdateEventInput } from './schema.ts'
+import { generateInviteToken, hashInviteToken } from '../../lib/tokens.ts'
+import type { CreateEventInput, InviteInput, UpdateEventInput } from './schema.ts'
 
 // Règles métier des événements (conception §2.5, §3.1, §3.2). Ce fichier ne connaît pas
 // Hono : il reçoit l'identifiant de l'appelant en argument et lève des `ApiError`.
@@ -87,11 +90,7 @@ export async function getEvent(userId: string, eventId: string) {
 }
 
 export async function updateEvent(userId: string, eventId: string, input: UpdateEventInput) {
-  const participant = await loadParticipant(userId, eventId)
-
-  if (!canManageEvent(participant.role)) {
-    throw new ApiError('forbidden', 403, "Seul un administrateur peut modifier l'événement.")
-  }
+  await assertCanManage(userId, eventId)
 
   const current = await prisma.event.findUniqueOrThrow({ where: { id: eventId } })
   const startsAt = input.startsAt ?? current.startsAt
@@ -110,6 +109,82 @@ export async function updateEvent(userId: string, eventId: string, input: Update
       status: input.status,
     },
   })
+}
+
+async function assertCanManage(userId: string, eventId: string): Promise<void> {
+  const participant = await loadParticipant(userId, eventId)
+
+  if (!canManageEvent(participant.role)) {
+    throw new ApiError('forbidden', 403, "Seul un administrateur peut administrer l'événement.")
+  }
+}
+
+function inviteUrl(token: string): string {
+  return `${config.appUrl}/invite/${token}`
+}
+
+// Émet une invitation, par lien partageable ou par adresse e-mail (conception §2.6).
+// Sur l'adresse e-mail, la réponse est identique que le compte existe ou non
+// (anti-énumération, conception §4).
+export async function createInvitation(userId: string, eventId: string, input: InviteInput) {
+  await assertCanManage(userId, eventId)
+
+  if (input.kind === 'link') {
+    const token = generateInviteToken()
+    const expiresAt =
+      input.expiresInHours === undefined
+        ? null
+        : new Date(Date.now() + input.expiresInHours * 3_600_000)
+
+    await prisma.inviteLink.create({
+      data: {
+        scope: 'event',
+        targetId: eventId,
+        tokenHash: hashInviteToken(token),
+        expiresAt,
+        createdBy: userId,
+      },
+    })
+
+    return { url: inviteUrl(token) }
+  }
+
+  // Correspondance stricte sur l'adresse, jamais partielle (conception §4).
+  const invited = await prisma.user.findUnique({ where: { email: input.email } })
+
+  const invitation = await prisma.invitation.create({
+    data: {
+      scope: 'event',
+      targetId: eventId,
+      invitedUserId: invited?.id ?? null,
+      invitedEmail: invited === null ? input.email : null,
+      invitedBy: userId,
+    },
+  })
+
+  const event = await prisma.event.findUniqueOrThrow({ where: { id: eventId } })
+
+  // Envoi depuis le handler, comme le lien magique de M0 ; la file d'attente reste une
+  // recommandation retirée (decisions-techniques §6). Un échec d'envoi est journalisé et
+  // n'interrompt pas l'invitation, ni ne révèle l'état du compte visé.
+  await mailer
+    .send({
+      to: input.email,
+      subject: `Invitation à « ${event.title} » sur On Sort ?`,
+      text: [
+        'Bonjour,',
+        '',
+        `Vous êtes invité·e à rejoindre « ${event.title} ». Ouvrez ce lien pour répondre :`,
+        inviteUrl(invitation.id),
+        '',
+        "Si vous n'attendiez pas cette invitation, ignorez ce message.",
+      ].join('\n'),
+    })
+    .catch((error: unknown) => {
+      console.error(`Envoi de l'invitation ${invitation.id} échoué :`, error)
+    })
+
+  return { status: 'sent' as const }
 }
 
 export async function setRsvp(userId: string, eventId: string, rsvp: 'accepted' | 'declined') {

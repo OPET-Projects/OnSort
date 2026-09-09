@@ -1,8 +1,15 @@
 import { Hono } from 'hono'
 import { jsonBody } from '../../lib/validator.ts'
 import { requireSession, type SessionVariables } from '../../middleware/session.ts'
-import { createEventSchema, rsvpSchema, updateEventSchema } from './schema.ts'
-import { createEvent, getEvent, listEvents, setRsvp, updateEvent } from './service.ts'
+import { createEventSchema, inviteSchema, rsvpSchema, updateEventSchema } from './schema.ts'
+import {
+  createEvent,
+  createInvitation,
+  getEvent,
+  listEvents,
+  setRsvp,
+  updateEvent,
+} from './service.ts'
 
 export const eventsRoutes = new Hono<{ Variables: SessionVariables }>()
   .use('*', requireSession)
@@ -23,4 +30,8 @@ export const eventsRoutes = new Hono<{ Variables: SessionVariables }>()
   .post('/:id/rsvp', jsonBody(rsvpSchema), async (c) => {
     await setRsvp(c.get('user').id, c.req.param('id'), c.req.valid('json').rsvp)
     return c.json({ ok: true })
+  })
+  .post('/:id/invitations', jsonBody(inviteSchema), async (c) => {
+    const result = await createInvitation(c.get('user').id, c.req.param('id'), c.req.valid('json'))
+    return c.json(result)
   })

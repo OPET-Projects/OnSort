@@ -1,5 +1,6 @@
-import { expect, it } from 'vitest'
+import { expect, it, vi } from 'vitest'
 import { prisma } from '../../src/db.ts'
+import { hashInviteToken } from '../../src/lib/tokens.ts'
 import { app } from '../../src/main.ts'
 import { signIn } from '../helpers/auth.ts'
 
@@ -179,4 +180,75 @@ it('refuse le RSVP d’un non-participant', async () => {
   const response = await post(`/api/events/${id}/rsvp`, bob, { rsvp: 'accepted' })
   expect(response.status).toBe(403)
   expect(await response.json()).toMatchObject({ code: 'not_a_participant' })
+})
+
+it('interdit l’émission d’une invitation à un simple participant', async () => {
+  const alice = await signIn('alice@example.test')
+  const bob = await signIn('bob@example.test')
+  const { id } = (await (await createEvent(alice)).json()) as { id: string }
+  await addMember(bob, id)
+
+  const response = await post(`/api/events/${id}/invitations`, bob, { kind: 'link' })
+  expect(response.status).toBe(403)
+})
+
+it('crée un lien partageable dont seul le hachage est stocké', async () => {
+  const alice = await signIn('alice@example.test')
+  const { id } = (await (await createEvent(alice)).json()) as { id: string }
+
+  const response = await post(`/api/events/${id}/invitations`, alice, { kind: 'link' })
+  expect(response.status).toBe(200)
+  const { url } = (await response.json()) as { url: string }
+  const token = url.split('/invite/')[1] ?? ''
+
+  const link = await prisma.inviteLink.findFirstOrThrow({ where: { targetId: id } })
+  expect(link.tokenHash).toBe(hashInviteToken(token))
+  expect(link.expiresAt).toBeNull()
+})
+
+it('applique une expiration au lien quand elle est demandée', async () => {
+  const alice = await signIn('alice@example.test')
+  const { id } = (await (await createEvent(alice)).json()) as { id: string }
+
+  await post(`/api/events/${id}/invitations`, alice, { kind: 'link', expiresInHours: 48 })
+  const link = await prisma.inviteLink.findFirstOrThrow({ where: { targetId: id } })
+
+  const hours = (link.expiresAt!.getTime() - Date.now()) / 3_600_000
+  expect(hours).toBeGreaterThan(47)
+  expect(hours).toBeLessThan(49)
+})
+
+it('répond à l’identique pour une adresse connue et une adresse inconnue', async () => {
+  const alice = await signIn('alice@example.test')
+  await signIn('known@example.test')
+  const { id } = (await (await createEvent(alice)).json()) as { id: string }
+
+  const infoSpy = vi.spyOn(console, 'info').mockImplementation(() => {})
+  try {
+    const known = await post(`/api/events/${id}/invitations`, alice, {
+      kind: 'email',
+      email: 'known@example.test',
+    })
+    const unknown = await post(`/api/events/${id}/invitations`, alice, {
+      kind: 'email',
+      email: 'nobody@example.test',
+    })
+
+    expect(known.status).toBe(unknown.status)
+    expect(await known.json()).toEqual(await unknown.json())
+
+    const invitations = await prisma.invitation.findMany({
+      where: { targetId: id },
+      orderBy: { createdAt: 'asc' },
+    })
+    expect(invitations[0]?.invitedUserId).not.toBeNull()
+    expect(invitations[0]?.invitedEmail).toBeNull()
+    expect(invitations[1]?.invitedUserId).toBeNull()
+    expect(invitations[1]?.invitedEmail).toBe('nobody@example.test')
+
+    const logged = infoSpy.mock.calls.map((call) => call.join(' ')).join('\n')
+    expect(logged).toContain('/invite/')
+  } finally {
+    infoSpy.mockRestore()
+  }
 })
