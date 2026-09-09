@@ -23,6 +23,9 @@ model User {
   accounts            Account[]
   createdEvents       Event[]            @relation("EventCreator")
   eventParticipations EventParticipant[]
+  createdGroups       Group[]            @relation("GroupCreator")
+  groupMemberships    GroupMember[]
+  unavailability      Unavailability[]
 
   @@map("user")
 }
@@ -337,4 +340,59 @@ model ActivityAbsence {
 
   @@id([activityId, participantId])
   @@map("activity_absences")
+}
+
+// --- M4 : groupes et calendrier partagé --------------------------------------------------
+// Modèle : conception.md §2.3 et §2.4.
+
+enum GroupRole {
+  admin
+  member
+}
+
+model Group {
+  id        String        @id @default(uuid())
+  name      String
+  createdBy String        @map("created_by")
+  creator   User          @relation("GroupCreator", fields: [createdBy], references: [id])
+  createdAt DateTime      @default(now()) @map("created_at")
+  members   GroupMember[]
+
+  @@map("groups")
+}
+
+model GroupMember {
+  groupId  String    @map("group_id")
+  group    Group     @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  userId   String    @map("user_id")
+  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role     GroupRole @default(member)
+  joinedAt DateTime  @default(now()) @map("joined_at")
+
+  @@id([groupId, userId])
+  @@index([userId])
+  @@map("group_members")
+}
+
+// Indisponibilité personnelle. `label` est **privé** : il ne franchit jamais une réponse de
+// groupe, qui ne dit que « occupé », jamais la raison (§2.4).
+//
+// Bornes **semi-ouvertes** : `starts_at` inclus, `ends_at` exclu. Deux créneaux adjacents ne
+// se chevauchent donc pas, et tout test de chevauchement s'écrit
+// `starts_at < :fin AND ends_at > :début`.
+//
+// La non-superposition n'est pas garantie par la base : la contrainte `EXCLUDE USING gist`
+// qui l'aurait assurée a été écartée faute de support ORM (decisions-techniques §2.3). Elle
+// est tenue en couche service, par fusion à l'écriture.
+model Unavailability {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  startsAt  DateTime @map("starts_at")
+  endsAt    DateTime @map("ends_at")
+  label     String?
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([userId, startsAt])
+  @@map("unavailability")
 }
