@@ -1,4 +1,6 @@
 import { Hono } from 'hono'
+import { streamSSE } from 'hono/streaming'
+import { type ServerEvent, subscribe } from '../../lib/sse.ts'
 import { jsonBody } from '../../lib/validator.ts'
 import { requireSession, type SessionVariables } from '../../middleware/session.ts'
 import { createActivitySchema } from '../activities/schema.ts'
@@ -9,9 +11,15 @@ import {
   createInvitation,
   getEvent,
   listEvents,
+  loadParticipant,
   setRsvp,
   updateEvent,
 } from './service.ts'
+
+// Battement de cœur : sans trafic, un mandataire ou un pare-feu ferme une connexion
+// inactive (conception §5.2). Un commentaire SSE suffit et ne déclenche aucun `message`
+// côté client.
+const HEARTBEAT_MS = 30_000
 
 export const eventsRoutes = new Hono<{ Variables: SessionVariables }>()
   .use('*', requireSession)
@@ -43,4 +51,53 @@ export const eventsRoutes = new Hono<{ Variables: SessionVariables }>()
   })
   .get('/:id/activities', async (c) => {
     return c.json({ activities: await listActivities(c.get('user').id, c.req.param('id')) })
+  })
+  .get('/:id/stream', async (c) => {
+    const eventId = c.req.param('id')
+
+    // La permission est vérifiée **avant** d'ouvrir le flux : une fois les en-têtes SSE
+    // émis, on ne peut plus répondre par un code d'erreur.
+    await loadParticipant(c.get('user').id, eventId)
+
+    c.header('Cache-Control', 'no-cache')
+    c.header('X-Accel-Buffering', 'no')
+
+    return streamSSE(c, async (stream) => {
+      const pending: ServerEvent[] = []
+      let notify: (() => void) | null = null
+
+      const unsubscribe = subscribe(eventId, (event) => {
+        pending.push(event)
+        notify?.()
+      })
+
+      const heartbeat = setInterval(() => {
+        void stream.writeSSE({ data: '', event: 'ping' })
+      }, HEARTBEAT_MS)
+
+      // `EventSource` ne permet pas d'envoyer d'en-têtes : l'authentification passe par le
+      // cookie de session, déjà validé ci-dessus.
+      stream.onAbort(() => {
+        clearInterval(heartbeat)
+        unsubscribe()
+        notify?.()
+      })
+
+      while (!stream.aborted && !stream.closed) {
+        const event = pending.shift()
+
+        if (event === undefined) {
+          await new Promise<void>((resolve) => {
+            notify = resolve
+          })
+          notify = null
+          continue
+        }
+
+        await stream.writeSSE({ event: event.type, data: JSON.stringify(event) })
+      }
+
+      clearInterval(heartbeat)
+      unsubscribe()
+    })
   })
