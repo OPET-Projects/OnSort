@@ -1,14 +1,56 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { useRoute } from 'vue-router'
+import ActivityCard from '../components/ActivityCard.vue'
+import { useActivities } from '../composables/useActivities'
 import { useEvent } from '../composables/useEvent'
+import { useEventStream } from '../composables/useEventStream'
 import { formatPeriod } from '../lib/dates'
 
 const route = useRoute()
 const id = String(route.params.id)
 const { state, event, error, setRsvp, patch, createInviteLink, inviteByEmail } = useEvent(id)
+// Destructuré comme `useEvent` ci-dessus : laissé sous forme d'objet, `programme.state`
+// serait une `Ref` dans le gabarit, et `programme.state === 'ready'` serait silencieusement
+// toujours faux.
+const {
+  state: programmeState,
+  activities,
+  error: programmeError,
+  reload: reloadProgramme,
+  applyTally,
+  propose,
+  vote,
+  decide,
+} = useActivities(id)
 
 const isAdmin = computed(() => event.value?.viewer.role === 'admin')
+// Proposer et voter supposent d'avoir accepté l'événement (conception §3.8). L'interface
+// applique la même règle que l'API, pour que le refus ne survienne pas après le clic.
+const hasAccepted = computed(() => event.value?.viewer.rsvp === 'accepted')
+
+// Le décompte est appliqué directement ; tout le reste provoque un rechargement ciblé
+// (conception §6.4).
+useEventStream(id, {
+  onTally: applyTally,
+  onChange: () => {
+    void reloadProgramme()
+  },
+})
+
+const tab = ref<'programme' | 'participants'>('programme')
+
+const proposal = ref({ title: '', address: '' })
+const proposalError = ref('')
+async function submitProposal(): Promise<void> {
+  proposalError.value = ''
+  try {
+    await propose({ title: proposal.value.title, address: proposal.value.address })
+    proposal.value = { title: '', address: '' }
+  } catch (cause) {
+    proposalError.value = cause instanceof Error ? cause.message : 'La proposition a échoué.'
+  }
+}
 
 const statusLabel: Record<string, string> = {
   draft: 'Brouillon',
@@ -76,12 +118,92 @@ async function sendEmailInvite(): Promise<void> {
       </header>
 
       <nav class="mt-6 flex gap-4 border-b border-neutral-200 text-sm">
-        <span class="border-b-2 border-neutral-900 pb-2 font-medium">Participants</span>
-        <span class="pb-2 text-neutral-400">Programme · à venir</span>
+        <button
+          type="button"
+          class="pb-2"
+          :class="
+            tab === 'programme' ? 'border-b-2 border-neutral-900 font-medium' : 'text-neutral-500'
+          "
+          @click="tab = 'programme'"
+        >
+          Programme
+        </button>
+        <button
+          type="button"
+          class="pb-2"
+          :class="
+            tab === 'participants'
+              ? 'border-b-2 border-neutral-900 font-medium'
+              : 'text-neutral-500'
+          "
+          @click="tab = 'participants'"
+        >
+          Participants
+        </button>
         <span class="pb-2 text-neutral-400">Dépenses · à venir</span>
       </nav>
 
-      <section class="mt-6">
+      <section v-if="tab === 'programme'" class="mt-6">
+        <p v-if="programmeState === 'loading'" class="text-sm text-neutral-500">
+          Chargement du programme…
+        </p>
+
+        <div v-else-if="programmeState === 'error'" class="text-sm text-red-700">
+          <p>{{ programmeError }}</p>
+          <button type="button" class="mt-2 underline" @click="reloadProgramme()">
+            Réessayer
+          </button>
+        </div>
+
+        <p v-else-if="programmeState === 'empty'" class="text-sm text-neutral-600">
+          Aucune activité proposée. Lancez le programme en proposant la première.
+        </p>
+
+        <div v-else class="flex flex-col gap-3">
+          <ActivityCard
+            v-for="activity in activities"
+            :key="activity.id"
+            :activity="activity"
+            :can-vote="hasAccepted"
+            :is-admin="isAdmin"
+            @vote="vote"
+            @decide="decide"
+          />
+        </div>
+
+        <form
+          v-if="hasAccepted"
+          class="mt-6 flex flex-col gap-2 border-t border-neutral-100 pt-4"
+          @submit.prevent="submitProposal"
+        >
+          <h2 class="text-sm font-medium">Proposer une activité</h2>
+          <input
+            v-model="proposal.title"
+            type="text"
+            required
+            maxlength="200"
+            placeholder="Musée, restaurant, balade…"
+            class="rounded border border-neutral-300 px-3 py-2 text-base"
+          />
+          <input
+            v-model="proposal.address"
+            type="text"
+            maxlength="500"
+            placeholder="Où ? (facultatif)"
+            class="rounded border border-neutral-300 px-3 py-2 text-base"
+          />
+          <button type="submit" class="rounded bg-neutral-900 px-4 py-2 text-sm text-white">
+            Proposer
+          </button>
+          <p v-if="proposalError" class="text-sm text-red-700">{{ proposalError }}</p>
+        </form>
+
+        <p v-else class="mt-6 border-t border-neutral-100 pt-4 text-sm text-neutral-500">
+          Acceptez l'événement pour proposer une activité et voter.
+        </p>
+      </section>
+
+      <section v-if="tab === 'participants'" class="mt-6">
         <div class="flex items-center gap-2">
           <span class="text-sm">Votre réponse :</span>
           <button
