@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest'
-import { computeBalances, splitEqually } from '../../src/lib/money.ts'
+import { computeBalances, minimizeTransfers, splitEqually } from '../../src/lib/money.ts'
 
 it('partage un montant divisible', () => {
   expect(splitEqually(900, ['a', 'b', 'c'])).toEqual([
@@ -157,4 +157,81 @@ it('compte la part de celui qui ne figure plus parmi les participants', () => {
 
   expect(balances.reduce((sum, balance) => sum + balance.balanceCents, 0)).toBe(0)
   expect(balances).toContainEqual({ participantId: 'parti', balanceCents: -500 })
+})
+
+it('ne propose rien quand tout est à zéro', () => {
+  expect(minimizeTransfers([{ participantId: 'a', balanceCents: 0 }])).toEqual([])
+})
+
+it('apparie un débiteur et un créancier', () => {
+  expect(
+    minimizeTransfers([
+      { participantId: 'a', balanceCents: 500 },
+      { participantId: 'b', balanceCents: -500 },
+    ]),
+  ).toEqual([{ fromParticipantId: 'b', toParticipantId: 'a', amountCents: 500 }])
+})
+
+// La démonstration du jalon : quatre virements au lieu de dix (§9). Cinq personnes qui se
+// remboursent deux à deux en feraient jusqu'à dix ; l'appariement glouton en rend N−1.
+it('rend au plus N−1 virements', () => {
+  const balances = [
+    { participantId: 'a', balanceCents: 3000 },
+    { participantId: 'b', balanceCents: 1000 },
+    { participantId: 'c', balanceCents: -500 },
+    { participantId: 'd', balanceCents: -1500 },
+    { participantId: 'e', balanceCents: -2000 },
+  ]
+
+  expect(minimizeTransfers(balances).length).toBeLessThanOrEqual(balances.length - 1)
+})
+
+it('éteint exactement tous les soldes', () => {
+  const balances = [
+    { participantId: 'a', balanceCents: 3000 },
+    { participantId: 'b', balanceCents: 1000 },
+    { participantId: 'c', balanceCents: -500 },
+    { participantId: 'd', balanceCents: -1500 },
+    { participantId: 'e', balanceCents: -2000 },
+  ]
+
+  const applied = new Map(balances.map((balance) => [balance.participantId, balance.balanceCents]))
+
+  for (const transfer of minimizeTransfers(balances)) {
+    expect(transfer.amountCents).toBeGreaterThan(0)
+    applied.set(
+      transfer.fromParticipantId,
+      (applied.get(transfer.fromParticipantId) as number) + transfer.amountCents,
+    )
+    applied.set(
+      transfer.toParticipantId,
+      (applied.get(transfer.toParticipantId) as number) - transfer.amountCents,
+    )
+  }
+
+  for (const remaining of applied.values()) {
+    expect(remaining).toBe(0)
+  }
+})
+
+it('ignore les soldes nuls', () => {
+  expect(
+    minimizeTransfers([
+      { participantId: 'a', balanceCents: 100 },
+      { participantId: 'b', balanceCents: 0 },
+      { participantId: 'c', balanceCents: -100 },
+    ]),
+  ).toEqual([{ fromParticipantId: 'c', toParticipantId: 'a', amountCents: 100 }])
+})
+
+// Sans départage par identifiant, deux chargements de la même page proposeraient des
+// virements différents et personne ne saurait lequel exécuter.
+it('est déterministe à égalité de solde', () => {
+  const balances = [
+    { participantId: 'b', balanceCents: -100 },
+    { participantId: 'a', balanceCents: -100 },
+    { participantId: 'c', balanceCents: 200 },
+  ]
+
+  expect(minimizeTransfers(balances)).toEqual(minimizeTransfers([...balances].reverse()))
 })

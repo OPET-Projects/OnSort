@@ -91,3 +91,65 @@ export function computeBalances(input: BalanceInput): Balance[] {
     .map(([participantId, balanceCents]) => ({ participantId, balanceCents }))
     .sort((left, right) => left.participantId.localeCompare(right.participantId))
 }
+
+export type Transfer = {
+  fromParticipantId: string
+  toParticipantId: string
+  amountCents: number
+}
+
+// Minimisation des virements (§3.5) : algorithme glouton appariant le plus gros créancier
+// au plus gros débiteur. Le problème est théoriquement NP-difficile ; l'heuristique est
+// optimale en pratique pour N ≤ 20, ce qui couvre largement une sortie entre amis.
+//
+// Elle rend **au plus N−1 virements** : chaque appariement porte au moins un des deux
+// soldes à zéro, donc retire au moins une personne de la liste à chaque tour.
+//
+// Le départage par identifiant à solde égal n'est pas cosmétique : sans lui, deux
+// chargements de la même page proposeraient des virements différents, et personne ne
+// saurait lequel exécuter.
+export function minimizeTransfers(balances: readonly Balance[]): Transfer[] {
+  const creditors = balances
+    .filter((balance) => balance.balanceCents > 0)
+    .map((balance) => ({ ...balance }))
+    .sort(byAmountThenId)
+
+  const debtors = balances
+    .filter((balance) => balance.balanceCents < 0)
+    .map((balance) => ({
+      participantId: balance.participantId,
+      balanceCents: -balance.balanceCents,
+    }))
+    .sort(byAmountThenId)
+
+  const transfers: Transfer[] = []
+
+  while (creditors.length > 0 && debtors.length > 0) {
+    const creditor = creditors[0]
+    const debtor = debtors[0]
+    const amountCents = Math.min(creditor.balanceCents, debtor.balanceCents)
+
+    transfers.push({
+      fromParticipantId: debtor.participantId,
+      toParticipantId: creditor.participantId,
+      amountCents,
+    })
+
+    creditor.balanceCents -= amountCents
+    debtor.balanceCents -= amountCents
+
+    if (creditor.balanceCents === 0) creditors.shift()
+    if (debtor.balanceCents === 0) debtors.shift()
+
+    creditors.sort(byAmountThenId)
+    debtors.sort(byAmountThenId)
+  }
+
+  return transfers
+}
+
+function byAmountThenId(left: Balance, right: Balance): number {
+  return (
+    right.balanceCents - left.balanceCents || left.participantId.localeCompare(right.participantId)
+  )
+}
