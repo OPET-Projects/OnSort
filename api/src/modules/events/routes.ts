@@ -6,7 +6,7 @@ import { requireSession, type SessionVariables } from '../../middleware/session.
 import { createActivitySchema } from '../activities/schema.ts'
 import { createActivity, listActivities } from '../activities/service.ts'
 import { createExpenseSchema, declareSettlementSchema } from '../expenses/schema.ts'
-import { createExpense, declareSettlement, listExpenses } from '../expenses/service.ts'
+import { createExpense, declareSettlement, getBalances, listExpenses } from '../expenses/service.ts'
 import { createEventSchema, inviteSchema, rsvpSchema, updateEventSchema } from './schema.ts'
 import {
   createEvent,
@@ -60,6 +60,9 @@ export const eventsRoutes = new Hono<{ Variables: SessionVariables }>()
   })
   .get('/:id/expenses', async (c) => {
     return c.json({ expenses: await listExpenses(c.get('user').id, c.req.param('id')) })
+  })
+  .get('/:id/balances', async (c) => {
+    return c.json(await getBalances(c.get('user').id, c.req.param('id')))
   })
   .post('/:id/settlements', jsonBody(declareSettlementSchema), async (c) => {
     const settlement = await declareSettlement(

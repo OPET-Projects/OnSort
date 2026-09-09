@@ -1,6 +1,6 @@
 import { prisma } from '../../db.ts'
 import { ApiError } from '../../lib/http.ts'
-import { splitEqually } from '../../lib/money.ts'
+import { computeBalances, minimizeTransfers, splitEqually } from '../../lib/money.ts'
 import {
   canConfirmSettlement,
   canDeclareSettlement,
@@ -184,6 +184,74 @@ export async function updateExpense(userId: string, expenseId: string, input: Up
   publish(expense.eventId, { type: 'expense.updated', id: expenseId })
 
   return updated
+}
+
+// **Aucun solde n'est stocké** (§2.8 note 1) : tout est recalculé à chaque lecture depuis
+// `expense_shares` et `settlements`. C'est une poignée de lignes par événement, sur des
+// volumes de sortie entre amis ; aucun cache n'est justifié avant d'avoir mesuré.
+export async function getBalances(userId: string, eventId: string) {
+  const viewer = await loadParticipant(userId, eventId)
+
+  const [participants, expenses, settlements] = await Promise.all([
+    prisma.eventParticipant.findMany({
+      where: { eventId },
+      include: { user: true },
+      orderBy: { joinedAt: 'asc' },
+    }),
+    prisma.expense.findMany({ where: { eventId }, include: { shares: true } }),
+    prisma.settlement.findMany({ where: { eventId }, orderBy: { declaredAt: 'asc' } }),
+  ])
+
+  // Seuls les règlements **confirmés** entrent dans le solde. Compter une déclaration
+  // donnerait au débiteur le pouvoir d'effacer sa dette seul — exactement ce que les deux
+  // états de §3.6 existent pour empêcher.
+  const confirmed = settlements.filter((settlement) => settlement.confirmedAt !== null)
+
+  const raw = computeBalances({
+    participantIds: participants.map((participant) => participant.id),
+    expenses: expenses.map((expense) => ({
+      paidBy: expense.paidBy,
+      amountCents: expense.amountCents,
+      shares: expense.shares.map((share) => ({
+        participantId: share.participantId,
+        amountCents: share.amountCents,
+      })),
+    })),
+    settlements: confirmed,
+  })
+
+  // Un solde peut viser quelqu'un qui a quitté l'événement : sa part reste due, mais son
+  // nom n'est plus dans la liste des participants.
+  const nameOf = new Map(participants.map((participant) => [participant.id, participant.user.name]))
+  const nameOrGone = (participantId: string) => nameOf.get(participantId) ?? 'Participant retiré'
+
+  return {
+    balances: raw.map((balance) => ({
+      participantId: balance.participantId,
+      name: nameOrGone(balance.participantId),
+      balanceCents: balance.balanceCents,
+      you: balance.participantId === viewer.id,
+    })),
+    transfers: minimizeTransfers(raw).map((transfer) => ({
+      ...transfer,
+      fromName: nameOrGone(transfer.fromParticipantId),
+      toName: nameOrGone(transfer.toParticipantId),
+    })),
+    // Les déclarations en attente ne bougent aucun solde, mais l'écran doit les montrer :
+    // sans elles, le débiteur qui vient de déclarer verrait sa dette intacte et croirait
+    // que son geste n'a pas été enregistré.
+    pendingSettlements: settlements
+      .filter((settlement) => settlement.confirmedAt === null)
+      .map((settlement) => ({
+        id: settlement.id,
+        fromParticipantId: settlement.fromParticipantId,
+        toParticipantId: settlement.toParticipantId,
+        fromName: nameOrGone(settlement.fromParticipantId),
+        toName: nameOrGone(settlement.toParticipantId),
+        amountCents: settlement.amountCents,
+        declaredAt: settlement.declaredAt,
+      })),
+  }
 }
 
 // Un règlement est une **ligne indépendante** (§2.8 note 1) : il ne modifie aucune dépense
