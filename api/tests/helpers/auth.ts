@@ -28,7 +28,7 @@ export async function signIn(email: string): Promise<Headers> {
     const setCookie = verifyResponse.headers.get('set-cookie')
 
     if (setCookie === null) {
-      throw new Error("Aucun cookie de session renvoyé à la vérification du lien magique")
+      throw new Error('Aucun cookie de session renvoyé à la vérification du lien magique')
     }
 
     const headers = new Headers()

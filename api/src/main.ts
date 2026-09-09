@@ -5,12 +5,14 @@ import { config } from './config.ts'
 import { renderApiError } from './lib/http.ts'
 import { requireSession } from './middleware/session.ts'
 import { eventsRoutes } from './modules/events/routes.ts'
+import { invitationsRoutes } from './modules/invitations/routes.ts'
 
 export const app = new Hono()
   .get('/api/health', (c) => c.json({ status: 'ok' }))
   .on(['GET', 'POST'], '/api/auth/*', (c) => auth.handler(c.req.raw))
   .get('/api/me', requireSession, (c) => c.json({ user: c.get('user') }))
   .route('/api/events', eventsRoutes)
+  .route('/api/invitations', invitationsRoutes)
   .onError(renderApiError)
 
 export type AppType = typeof app

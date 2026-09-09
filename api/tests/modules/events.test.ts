@@ -213,7 +213,10 @@ it('applique une expiration au lien quand elle est demandée', async () => {
   await post(`/api/events/${id}/invitations`, alice, { kind: 'link', expiresInHours: 48 })
   const link = await prisma.inviteLink.findFirstOrThrow({ where: { targetId: id } })
 
-  const hours = (link.expiresAt!.getTime() - Date.now()) / 3_600_000
+  if (link.expiresAt === null) {
+    throw new Error('Le lien devrait porter une date d’expiration.')
+  }
+  const hours = (link.expiresAt.getTime() - Date.now()) / 3_600_000
   expect(hours).toBeGreaterThan(47)
   expect(hours).toBeLessThan(49)
 })
