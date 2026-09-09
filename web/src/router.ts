@@ -23,6 +23,24 @@ export const router = createRouter({
       meta: { requiresAuth: true },
     },
     {
+      path: '/me/calendar',
+      name: 'calendar',
+      component: () => import('./views/CalendarView.vue'),
+      meta: { requiresAuth: true },
+    },
+    {
+      path: '/groups',
+      name: 'groups',
+      component: () => import('./views/GroupsView.vue'),
+      meta: { requiresAuth: true },
+    },
+    {
+      path: '/groups/:id',
+      name: 'group',
+      component: () => import('./views/GroupView.vue'),
+      meta: { requiresAuth: true },
+    },
+    {
       // Pas de `requiresAuth` : la vue résout elle-même l'authentification puis la reprise.
       path: '/invite/:token',
       name: 'invite',
