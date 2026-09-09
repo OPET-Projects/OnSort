@@ -1,0 +1,84 @@
+name: Déploiement
+
+# Le déploiement suit l'intégration : jamais en parallèle, jamais sur une branche. Il n'est
+# pas déclenché par un `push` seul — `workflow_run` attend que la CI de `main` soit verte,
+# pour qu'un typage cassé ne parte pas en production.
+on:
+  workflow_run:
+    workflows: [CI]
+    branches: [main]
+    types: [completed]
+  # Le déclenchement à la main sert au premier déploiement, et à rejouer après une panne.
+  workflow_dispatch:
+
+# Un seul déploiement à la fois. Deux `docker compose up` concurrents sur la même machine
+# se marcheraient dessus, et `cancel-in-progress` couperait celui qui écrit.
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Déployer sur le VPS
+    runs-on: ubuntu-latest
+    # Deux gardes.
+    #
+    # `vars.APP_PUBLIC_URL` absent signifie que le déploiement n'est pas configuré : le job
+    # est alors **ignoré**, et non échoué. Un dépôt rouge pour une raison qui n'est pas un
+    # défaut est un signal qu'on apprend vite à ne plus lire — et quiconque clone ce dépôt
+    # sans VPS ne doit pas hériter d'une CI en échec.
+    #
+    # `workflow_run` se déclenche aussi quand la CI échoue : sans le second garde, une
+    # branche rouge partirait en production.
+    if: >-
+      vars.APP_PUBLIC_URL != '' && (
+        github.event_name == 'workflow_dispatch' ||
+        github.event.workflow_run.conclusion == 'success'
+      )
+
+    environment:
+      name: production
+      url: ${{ vars.APP_PUBLIC_URL }}
+
+    steps:
+      - name: Ouvrir la connexion SSH
+        uses: webfactory/ssh-agent@v0.9.1
+        with:
+          ssh-private-key: ${{ secrets.DEPLOY_SSH_KEY }}
+
+      - name: Reconnaître l'hôte
+        # Sans cette empreinte, la connexion demanderait une confirmation interactive et
+        # resterait bloquée. La lire ici plutôt que de désactiver la vérification garde la
+        # protection contre un intercepteur.
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -H "${{ secrets.DEPLOY_HOST }}" >> ~/.ssh/known_hosts
+
+      - name: Mettre à jour et relancer la pile
+        # Le dépôt est cloné une fois à la main sur le VPS ; le déploiement n'en fait que la
+        # mise à jour. `.env.production` vit sur la machine et n'est jamais transmis d'ici :
+        # aucun secret d'exécution ne transite par GitHub Actions.
+        run: |
+          ssh -o BatchMode=yes \
+            "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}" \
+            "set -euo pipefail
+             cd '${{ secrets.DEPLOY_PATH }}'
+             git fetch --prune origin
+             git reset --hard origin/main
+             docker compose -f docker-compose.prod.yml --env-file .env.production up -d --build
+             docker image prune -f"
+
+      - name: Vérifier que l'application répond
+        # Un déploiement qui ne répond pas est un déploiement échoué, même si compose n'a
+        # rien dit. La vérification passe par l'URL **publique** : elle éprouve donc aussi
+        # le relais nginx, pas seulement le conteneur.
+        run: |
+          for attempt in $(seq 1 20); do
+            if curl -fsS "${{ vars.APP_PUBLIC_URL }}/api/health" > /dev/null; then
+              echo "L'application répond après ${attempt} tentative(s)."
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "L'application n'a pas répondu dans les cent secondes."
+          exit 1

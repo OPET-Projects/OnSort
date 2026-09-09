@@ -773,9 +773,11 @@ et restent utilisables au clavier et au doigt. *Coût si erroné : un confort en
   appel réseau ou une bibliothèque de simulation, tous deux exclus.
 - Le parcours cliqué dans un navigateur et l'ergonomie au pouce à 375 px n'ont pas été validés
   automatiquement — ils demandent un humain.
-- **Déploiement M1.** `conception.md` §9 et `decisions-techniques.md` §2.10 font du
-  déploiement (URL publique + HTTPS) un livrable de M1. Le code est prêt ; la chaîne de
-  livraison et l'accès au VPS restent à trancher.
+- **Déploiement M1 — chaîne tranchée, mise en service à faire.** `decisions-techniques.md`
+  §2.10 retient Docker Compose derrière le nginx du VPS ; les images, la pile, le workflow et
+  le mode d'emploi sont écrits et éprouvés en local. Reste à cloner le dépôt sur la machine,
+  y compléter `.env.production`, ajouter le bloc nginx et créer les secrets GitHub — des
+  gestes qui demandent les accès, pas du code.
 - **Aucun moyen de retirer un ami ni de bloquer quelqu'un.** §2.2 ne décrit ni l'un ni
   l'autre. Une amitié est aujourd'hui définitive.
 - **Les notifications ne s'effacent pas.** Elles se marquent lues, la liste est bornée à

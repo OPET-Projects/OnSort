@@ -297,6 +297,26 @@ La réponse à une demande d'ami est identique que l'adresse ait un compte ou no
 même règle anti-énumération que pour les invitations : l'application n'est jamais un oracle
 qui dit qui est inscrit.
 
+### Déploiement
+
+L'application se déploie sur un VPS avec Docker Compose, derrière le nginx qui y termine le
+TLS. Le mode d'emploi — huit étapes, tableau des secrets, ce que Better Auth applique en
+production — est dans [`docs/deploiement.md`](docs/deploiement.md), et le bloc nginx est
+versionné dans [`deploy/nginx/`](deploy/nginx/).
+
+```sh
+docker compose -f docker-compose.prod.yml --env-file .env.production up -d --build
+```
+
+Deux points qu'on ne devine pas et qui coûtent une soirée :
+
+- **`proxy_buffering off`** sur l'emplacement relayé par nginx. Un flux SSE ne se ferme
+  jamais, donc un tampon ne se vide jamais : le temps réel disparaît sans qu'aucune erreur
+  n'apparaisse.
+- **Le TLS doit être terminé quelque part.** Les cookies de session sont `secure` en
+  production ; sur du HTTP en clair, la connexion semble réussir puis la session disparaît au
+  rechargement.
+
 ### Vérification
 
 ```sh
@@ -335,7 +355,8 @@ Pour reprendre le projet, lire dans cet ordre :
 5. [Versions et compatibilité](docs/versions.md) — versions exactes et contraintes.
 6. [Journal des décisions](docs/journal-decisions.md) — arbitrages pris en cours de route,
    avec leur coût en cas d'erreur.
-7. [Plans d'implémentation](docs/plans/) — un par jalon.
+7. [Déploiement](docs/deploiement.md) — mise en service sur le VPS, secrets, nginx.
+8. [Plans d'implémentation](docs/plans/) — un par jalon.
 8. [Rapport de projet](RAPPORT.md) — veille et revirements, pour le cours *Culture des concepts
    informatiques*.
 

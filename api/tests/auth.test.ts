@@ -98,3 +98,10 @@ it('mène une connexion complète, du lien magique à la session', async () => {
     consoleInfoSpy.mockRestore()
   }
 })
+
+// La limite de débit de Better Auth est par adresse IP. Derrière nginx, l'API ne voit que
+// l'adresse du mandataire : sans en-tête de confiance déclarée, la bibliothèque n'en résout
+// aucune et retombe sur un seau unique partagé par tous les visiteurs.
+it("résout l'adresse du client depuis l'en-tête posé par le mandataire", () => {
+  expect(auth.options.advanced?.ipAddress?.ipAddressHeaders).toEqual(['x-real-ip'])
+})

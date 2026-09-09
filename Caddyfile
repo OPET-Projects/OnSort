@@ -1,0 +1,59 @@
+# Façade **interne**, en HTTP seul. Le TLS est terminé par le nginx déjà présent sur la
+# machine, qui relaie vers le port publié sur la boucle locale.
+#
+# Pourquoi un serveur ici plutôt que de laisser nginx tout faire : le front et l'API doivent
+# être servis sur la **même origine** — `EventSource` ne permet pas d'envoyer d'en-têtes,
+# l'authentification du flux SSE passe donc par le cookie de session (conception §5.2). Ce
+# bloc garantit cette règle dans l'image elle-même, et nginx n'a plus qu'une seule cible à
+# connaître au lieu d'avoir à router `/api` de son côté.
+
+:8080 {
+	# `auto_https off` est implicite sur une adresse sans nom d'hôte ; on ne demande donc
+	# aucun certificat, et le port 443 reste libre pour nginx.
+
+	# L'API d'abord : `handle` s'arrête au premier bloc qui correspond, le front attrape le
+	# reste.
+	handle /api/* {
+		reverse_proxy api:3000 {
+			# `X-Real-IP` traverse tel quel : nginx l'a posé depuis `$remote_addr`, et c'est
+			# lui que Better Auth lit pour limiter le débit des connexions. Le retirer du
+			# bloc nginx ferait retomber la limite sur un seau unique partagé par tous.
+			header_up X-Real-IP {http.request.header.X-Real-IP}
+
+			# Le flux SSE doit partir octet par octet. Sans cette ligne, Caddy accumule la
+			# réponse dans un tampon et le décompte des votes n'arrive qu'à la fermeture de
+			# la connexion — c'est-à-dire jamais, un flux SSE restant ouvert.
+			flush_interval -1
+		}
+	}
+
+	handle {
+		# La compression reste **hors** du bloc de l'API : compresser un flux SSE le rendrait
+		# tributaire du remplissage du tampon de l'algorithme, et rouvrirait le problème que
+		# `flush_interval` vient de fermer.
+		encode zstd gzip
+
+		root * /srv
+
+		# Application monopage : toute route inconnue rend `index.html`, et c'est le routeur
+		# de Vue qui décide. Sans cela, recharger `/groups/xxx` rendrait un 404.
+		try_files {path} /index.html
+		file_server
+	}
+
+	header {
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "same-origin"
+		-Server
+	}
+
+	# HSTS n'est **pas** posé ici : c'est nginx qui termine le TLS, c'est donc à lui de
+	# décider. Un en-tête émis sur du HTTP interne serait au mieux ignoré, au pire dupliqué.
+
+	log {
+		# Les journaux d'accès portent des URL contenant des jetons d'invitation : ils restent
+		# dans le conteneur et ne sortent pas de la machine.
+		output stderr
+		format console
+	}
+}
