@@ -4,10 +4,13 @@ import { useRoute } from 'vue-router'
 import ActivityCard from '../components/ActivityCard.vue'
 import BalanceSheet from '../components/BalanceSheet.vue'
 import ExpenseCard from '../components/ExpenseCard.vue'
+import MapView from '../components/MapView.vue'
 import { useActivities } from '../composables/useActivities'
 import { useEvent } from '../composables/useEvent'
 import { useEventStream } from '../composables/useEventStream'
 import { useExpenses } from '../composables/useExpenses'
+import { useMapConfig } from '../composables/useMapConfig'
+import { usePlaces } from '../composables/usePlaces'
 import { copyToClipboard } from '../lib/clipboard'
 import { formatPeriod } from '../lib/dates'
 import { formatCents, parseEurosToCents } from '../lib/money'
@@ -45,6 +48,22 @@ const {
   withdraw,
 } = useExpenses(id)
 
+const { config: mapConfig, error: mapError } = useMapConfig()
+
+// Seules les activités dont l'adresse a été reconnue portent un point. Les autres ne sont
+// pas des erreurs : elles n'ont simplement pas de lieu à montrer.
+const mapPoints = computed(() =>
+  activities.value
+    .filter((activity) => activity.lat !== null && activity.lng !== null)
+    .map((activity, index) => ({
+      id: activity.id,
+      title: activity.title,
+      lat: activity.lat as number,
+      lng: activity.lng as number,
+      position: index + 1,
+    })),
+)
+
 const viewerId = computed(() => event.value?.viewer.participantId ?? '')
 const isAdmin = computed(() => event.value?.viewer.role === 'admin')
 // Proposer et voter supposent d'avoir accepté l'événement (conception §3.8). L'interface
@@ -68,10 +87,20 @@ useEventStream(id, {
   },
 })
 
-const tab = ref<'programme' | 'participants' | 'depenses'>('programme')
+const tab = ref<'programme' | 'participants' | 'depenses' | 'carte'>('programme')
 
 const proposal = ref({ title: '', address: '' })
 const proposalError = ref('')
+
+// Autocomplétion de l'adresse. Choisir une proposition remplit le champ avec le libellé
+// normalisé de la BAN, ce qui donne au géocodage côté serveur exactement la chaîne qu'il
+// saura replacer.
+const { suggestions, search: searchPlaces, clear: clearPlaces } = usePlaces()
+
+function pickPlace(label: string): void {
+  proposal.value.address = label
+  clearPlaces()
+}
 async function submitProposal(): Promise<void> {
   proposalError.value = ''
   try {
@@ -255,6 +284,16 @@ async function sendEmailInvite(): Promise<void> {
         >
           Dépenses
         </button>
+        <button
+          type="button"
+          class="pb-2"
+          :class="
+            tab === 'carte' ? 'border-b-2 border-neutral-900 font-medium' : 'text-neutral-500'
+          "
+          @click="tab = 'carte'"
+        >
+          Carte
+        </button>
       </nav>
 
       <section v-if="tab === 'programme'" class="mt-6">
@@ -299,13 +338,37 @@ async function sendEmailInvite(): Promise<void> {
             placeholder="Musée, restaurant, balade…"
             class="rounded border border-neutral-300 px-3 py-2 text-base"
           />
-          <input
-            v-model="proposal.address"
-            type="text"
-            maxlength="500"
-            placeholder="Où ? (facultatif)"
-            class="rounded border border-neutral-300 px-3 py-2 text-base"
-          />
+          <div class="relative">
+            <input
+              v-model="proposal.address"
+              type="text"
+              maxlength="500"
+              autocomplete="off"
+              placeholder="Où ? (facultatif)"
+              class="w-full rounded border border-neutral-300 px-3 py-2 text-base"
+              @input="searchPlaces(proposal.address)"
+            />
+
+            <!--
+              Les propositions viennent de la Base Adresse Nationale. Retenir le libellé
+              normalisé plutôt que la frappe brute donne au géocodage la chaîne qu'il saura
+              replacer.
+            -->
+            <ul
+              v-if="suggestions.length > 0"
+              class="absolute z-10 mt-1 w-full overflow-hidden rounded border border-neutral-200 bg-white shadow-lg"
+            >
+              <li v-for="place in suggestions" :key="place.label">
+                <button
+                  type="button"
+                  class="block w-full px-3 py-2 text-left text-sm hover:bg-neutral-100"
+                  @click="pickPlace(place.label)"
+                >
+                  {{ place.label }}
+                </button>
+              </li>
+            </ul>
+          </div>
           <button type="submit" class="rounded bg-neutral-900 px-4 py-2 text-sm text-white">
             Proposer
           </button>
@@ -388,6 +451,38 @@ async function sendEmailInvite(): Promise<void> {
             />
             <p v-if="settlementError" class="mt-2 text-sm text-red-700">{{ settlementError }}</p>
           </div>
+        </template>
+      </section>
+
+      <section v-if="tab === 'carte'" class="mt-6">
+        <p v-if="mapError" class="text-sm text-red-700">{{ mapError }}</p>
+
+        <p v-else-if="mapPoints.length === 0" class="text-sm text-neutral-600">
+          Aucune activité n'a d'adresse reconnue. Renseignez le champ « où ? » d'une activité
+          dans l'onglet Programme, et elle apparaîtra ici.
+        </p>
+
+        <template v-else-if="mapConfig">
+          <MapView
+            :points="mapPoints"
+            :tiles-url="mapConfig.tilesUrl"
+            :attribution="mapConfig.attribution"
+          />
+
+          <ol class="mt-4 flex flex-col gap-2">
+            <li
+              v-for="point in mapPoints"
+              :key="point.id"
+              class="flex items-baseline gap-3 text-sm"
+            >
+              <span
+                class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-neutral-900 text-xs text-white"
+              >
+                {{ point.position }}
+              </span>
+              <span>{{ point.title }}</span>
+            </li>
+          </ol>
         </template>
       </section>
 
