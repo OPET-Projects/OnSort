@@ -2,6 +2,10 @@ import { ref } from 'vue'
 import { ApiFetchError, apiFetch } from '../lib/http'
 import { useSessionStore } from '../stores/session'
 
+// Les trois réponses possibles à une invitation (conception §2.5). « Je ne sais pas
+// encore » en est une : elle dit à l'organisateur que la question a été vue.
+export type Rsvp = 'accepted' | 'invited' | 'declined'
+
 export type InvitePreview = {
   eventId: string
   title: string
@@ -73,24 +77,32 @@ export function useInvite(token: string, nav: Navigation) {
     }
   }
 
-  async function accept(): Promise<void> {
+  // Les trois réponses passent par le même chemin : répondre fait entrer dans l'événement,
+  // y compris sur un refus. La ligne conserve la trace de la réponse, et son auteur peut
+  // revenir dessus depuis l'onglet Participants (§3.2). Sans cela, décliner serait
+  // indistinguable de n'avoir jamais ouvert le lien.
+  async function respond(rsvp: Rsvp): Promise<void> {
     state.value = 'joining'
 
     try {
       const { eventId } = await apiFetch<{ eventId: string }>(`/api/invitations/${token}/accept`, {
         method: 'POST',
+        body: JSON.stringify({ rsvp }),
       })
+
+      // Refuser puis atterrir sur l'événement serait contradictoire : on renvoie à
+      // l'accueil. La participation existe malgré tout, si bien que l'événement reste
+      // atteignable depuis le tableau de bord pour qui change d'avis.
+      if (rsvp === 'declined') {
+        nav.toHome()
+        return
+      }
+
       nav.toEvent(eventId)
     } catch (cause) {
       explain(cause)
     }
   }
 
-  // Refuser n'écrit rien. Le lien reste utilisable : l'invité qui change d'avis le rouvre,
-  // et aucun état de cette application n'a le droit d'être un cul-de-sac.
-  function decline(): void {
-    nav.toHome()
-  }
-
-  return { state, preview, message, load, accept, decline }
+  return { state, preview, message, load, respond }
 }

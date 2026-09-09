@@ -262,15 +262,18 @@ garantie qu'un événement ne peut pas se retrouver bloqué.
 ### 3.2 Participation
 
 Rejoindre un événement passe toujours par une authentification, puis par la consommation
-d'un lien ou d'une invitation. **Rejoindre vaut acceptation** : le lien n'est plus consommé
-au simple chargement de la page, il l'est sur une réponse explicite, et le participant entre
-donc avec `rsvp = accepted`. Le RSVP sert ensuite à se décommander ou à revenir. Un
-participant qui décline conserve sa ligne : il peut changer d'avis, et l'administrateur voit
-qui a répondu quoi.
+d'un lien ou d'une invitation. **La réponse est donnée en rejoignant** : le lien n'est plus
+consommé au simple chargement de la page, il l'est sur une réponse explicite, prise parmi
+les trois valeurs du RSVP — *je participe*, *je ne sais pas encore*, *je ne peux pas*. Le
+participant entre donc avec la réponse qu'il vient de donner, et non avec un statut par
+défaut qu'il faudrait confirmer ailleurs.
 
-`rsvp = invited` reste un état atteignable du modèle, mais plus aucun chemin d'invitation ne
-le produit : redemander « participez-vous ? » à quelqu'un qui vient de répondre oui ferait
-répondre deux fois à la même question.
+Décliner fait entrer quand même. Un participant qui décline conserve sa ligne : il peut
+changer d'avis, et l'administrateur voit qui a répondu quoi. Sans cette ligne, un refus
+serait indistinguable d'un lien jamais ouvert.
+
+Aucune de ces trois réponses n'est absorbante : le RSVP de l'onglet Participants permet de
+passer de n'importe laquelle à n'importe quelle autre, `invited` compris.
 
 **Rejoindre tardivement n'a aucun effet rétroactif.** Les dépenses déjà saisies conservent
 leurs parts.

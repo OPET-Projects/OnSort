@@ -275,3 +275,96 @@ it("refuse l'aperçu d'une invitation nominative adressée à un autre", async (
   expect(response.status).toBe(403)
   expect(await response.json()).toMatchObject({ code: 'invitation_not_yours' })
 })
+
+// --- Trois réponses possibles ------------------------------------------------------------
+// La popup pose la question une fois, avec trois issues. « Je ne sais pas » n'est pas une
+// absence de réponse : c'est un état que l'organisateur voit.
+
+const respond = (token: string, headers: Headers, rsvp?: string) =>
+  app.request(`/api/invitations/${token}/accept`, {
+    method: 'POST',
+    headers: new Headers([...headers, ['content-type', 'application/json']]),
+    body: rsvp === undefined ? undefined : JSON.stringify({ rsvp }),
+  })
+
+it.each([['accepted'], ['invited'], ['declined']] as const)(
+  'entre dans l’événement avec la réponse %s',
+  async (rsvp) => {
+    const alice = await signIn('alice@example.test')
+    const bob = await signIn('bob@example.test')
+    const eventId = await makeEvent(alice)
+    const token = await makeLink(eventId, await userId(alice))
+
+    const response = await respond(token, bob, rsvp)
+
+    expect(response.status).toBe(200)
+
+    const participant = await prisma.eventParticipant.findFirstOrThrow({
+      where: { eventId, userId: await userId(bob) },
+    })
+    expect(participant.rsvp).toBe(rsvp)
+  },
+)
+
+// Décliner fait entrer quand même : la ligne conserve la trace de la réponse, et son auteur
+// peut revenir dessus (§3.2).
+it('crée bien la participation même sur un refus', async () => {
+  const alice = await signIn('alice@example.test')
+  const bob = await signIn('bob@example.test')
+  const eventId = await makeEvent(alice)
+  const token = await makeLink(eventId, await userId(alice))
+
+  await respond(token, bob, 'declined')
+
+  expect(await prisma.eventParticipant.count({ where: { eventId } })).toBe(2)
+})
+
+it('ouvre sans corps de requête en valant acceptation', async () => {
+  const alice = await signIn('alice@example.test')
+  const bob = await signIn('bob@example.test')
+  const eventId = await makeEvent(alice)
+  const token = await makeLink(eventId, await userId(alice))
+
+  const response = await respond(token, bob)
+
+  expect(response.status).toBe(200)
+
+  const participant = await prisma.eventParticipant.findFirstOrThrow({
+    where: { eventId, userId: await userId(bob) },
+  })
+  expect(participant.rsvp).toBe('accepted')
+})
+
+it('refuse une réponse hors des trois valeurs', async () => {
+  const alice = await signIn('alice@example.test')
+  const bob = await signIn('bob@example.test')
+  const eventId = await makeEvent(alice)
+  const token = await makeLink(eventId, await userId(alice))
+
+  const response = await respond(token, bob, 'peut-etre')
+
+  expect(response.status).toBe(400)
+  expect(await response.json()).toMatchObject({ code: 'validation_error' })
+})
+
+// Une invitation nominative ne passe à `accepted` que si son destinataire a dit oui : sinon
+// elle reste ouverte, pour qu'un « je ne sais pas » puisse encore devenir un « oui ».
+it("laisse l'invitation nominative ouverte tant que la réponse n'est pas un oui", async () => {
+  const alice = await signIn('alice@example.test')
+  const bob = await signIn('bob@example.test')
+  const eventId = await makeEvent(alice)
+
+  const invitation = await prisma.invitation.create({
+    data: {
+      scope: 'event',
+      targetId: eventId,
+      invitedEmail: 'bob@example.test',
+      invitedBy: await userId(alice),
+    },
+  })
+
+  await respond(invitation.id, bob, 'invited')
+
+  const after = await prisma.invitation.findUniqueOrThrow({ where: { id: invitation.id } })
+  expect(after.status).toBe('pending')
+})

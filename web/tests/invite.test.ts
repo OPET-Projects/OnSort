@@ -78,38 +78,46 @@ it("ouvre directement l'événement quand on en est déjà membre", async () => 
   expect(nav.toEvent).toHaveBeenCalledWith('e1')
 })
 
-it("accepte l'invitation et redirige vers l'événement", async () => {
-  signedIn()
-  vi.stubGlobal(
-    'fetch',
-    vi.fn(async (_url: string, init?: RequestInit) =>
+// Les trois réponses font entrer dans l'événement : décliner sans laisser de ligne serait
+// indistinguable de n'avoir jamais ouvert le lien.
+it.each([['accepted'], ['invited']] as const)(
+  'transmet la réponse %s puis ouvre l’événement',
+  async (rsvp) => {
+    signedIn()
+    const fetchMock = vi.fn(async (_url: string, init?: RequestInit) =>
       init?.method === 'POST' ? json({ eventId: 'e1' }) : json(previewBody),
-    ),
-  )
-  const nav = navSpies()
+    )
+    vi.stubGlobal('fetch', fetchMock)
+    const nav = navSpies()
 
-  const { load, accept } = useInvite('tok', nav)
-  await load()
-  await accept()
+    const { load, respond } = useInvite('tok', nav)
+    await load()
+    await respond(rsvp)
 
-  expect(nav.toEvent).toHaveBeenCalledWith('e1')
-})
+    const sent = fetchMock.mock.calls.find(([, init]) => init?.method === 'POST')?.[1]
+    expect(JSON.parse(String(sent?.body))).toEqual({ rsvp })
+    expect(nav.toEvent).toHaveBeenCalledWith('e1')
+  },
+)
 
-// « Non merci » n'écrit rien : le lien reste utilisable si l'invité change d'avis.
-it("renvoie à l'accueil sans rien envoyer quand on refuse", async () => {
+// Refuser enregistre la réponse mais renvoie à l'accueil : ouvrir l'événement qu'on vient
+// de décliner serait contradictoire.
+it('enregistre un refus et renvoie à l’accueil', async () => {
   signedIn()
-  const fetchMock = vi.fn(async () => json(previewBody))
+  const fetchMock = vi.fn(async (_url: string, init?: RequestInit) =>
+    init?.method === 'POST' ? json({ eventId: 'e1' }) : json(previewBody),
+  )
   vi.stubGlobal('fetch', fetchMock)
   const nav = navSpies()
 
-  const { load, decline } = useInvite('tok', nav)
+  const { load, respond } = useInvite('tok', nav)
   await load()
+  await respond('declined')
 
-  const callsBefore = fetchMock.mock.calls.length
-  decline()
-
+  const sent = fetchMock.mock.calls.find(([, init]) => init?.method === 'POST')?.[1]
+  expect(JSON.parse(String(sent?.body))).toEqual({ rsvp: 'declined' })
   expect(nav.toHome).toHaveBeenCalled()
-  expect(fetchMock.mock.calls).toHaveLength(callsBefore)
+  expect(nav.toEvent).not.toHaveBeenCalled()
 })
 
 it("affiche un message quand l'invitation n'est plus valide", async () => {
@@ -169,9 +177,9 @@ it('signale un échec survenu au moment de rejoindre', async () => {
   )
   const nav = navSpies()
 
-  const { state, message, load, accept } = useInvite('tok', nav)
+  const { state, message, load, respond } = useInvite('tok', nav)
   await load()
-  await accept()
+  await respond('accepted')
 
   expect(state.value).toBe('error')
   expect(message.value).toBe("Cette invitation n'est plus valide.")

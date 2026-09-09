@@ -1,6 +1,7 @@
 import { prisma } from '../../db.ts'
 import { ApiError } from '../../lib/http.ts'
 import { hashInviteToken } from '../../lib/tokens.ts'
+import type { RespondInput } from './schema.ts'
 
 // Consommation d'un jeton d'invitation (conception §2.6, §3.2). Le jeton désigne soit un
 // lien partageable (résolu par son hachage), soit une invitation nominative (résolue par
@@ -16,7 +17,11 @@ type Resolved = {
   invitationId: string | null
 }
 
-async function joinEvent(userId: string, eventId: string): Promise<void> {
+async function joinEvent(
+  userId: string,
+  eventId: string,
+  rsvp: RespondInput['rsvp'],
+): Promise<void> {
   const event = await prisma.event.findUnique({ where: { id: eventId }, select: { id: true } })
 
   if (event === null) {
@@ -29,18 +34,17 @@ async function joinEvent(userId: string, eventId: string): Promise<void> {
   // heurterait alors la contrainte d'unicité et l'appelant recevrait un 500. Un `upsert`
   // s'appuie sur cette même contrainte pour trancher en une seule instruction.
   //
-  // **Rejoindre vaut accepter.** L'invité vient de répondre « oui » dans la popup ; le
-  // laisser au statut `invited` lui ferait reposer la même question dans l'onglet
-  // Participants, où le bouton « Je participe » n'aurait plus rien à trancher. Le RSVP garde
-  // tout son sens ensuite : c'est par lui qu'on se décommande, ou qu'on revient (§3.2, « il
-  // peut changer d'avis »).
+  // **La réponse entre avec le participant.** L'invité vient de la donner dans la popup ;
+  // la lui redemander dans l'onglet Participants ferait répondre deux fois à la même
+  // question. Décliner fait entrer quand même : la ligne conserve la trace de la réponse et
+  // son auteur peut revenir dessus (§3.2).
   //
-  // `update: {}` est délibérément vide : une nouvelle acceptation ne doit ni rétrograder un
-  // administrateur en simple participant, ni écraser une réponse donnée depuis. Le cas ne se
-  // présente d'ailleurs pas depuis la popup, que `alreadyMember` court-circuite.
+  // `update: {}` est délibérément vide : une nouvelle ouverture du lien ne doit ni
+  // rétrograder un administrateur en simple participant, ni écraser une réponse donnée
+  // depuis. Le cas ne se présente pas depuis la popup, que `alreadyMember` court-circuite.
   await prisma.eventParticipant.upsert({
     where: { eventId_userId: { eventId, userId } },
-    create: { eventId, userId, role: 'member', rsvp: 'accepted' },
+    create: { eventId, userId, role: 'member', rsvp },
     update: {},
   })
 }
@@ -135,15 +139,17 @@ export async function previewInvitation(accepter: Accepter, token: string) {
 export async function acceptInvitation(
   accepter: Accepter,
   token: string,
+  rsvp: RespondInput['rsvp'] = 'accepted',
 ): Promise<{ eventId: string }> {
   const { eventId, invitationId } = await resolveInvitation(accepter, token)
 
-  await joinEvent(accepter.id, eventId)
+  await joinEvent(accepter.id, eventId, rsvp)
 
-  // Une invitation nominative passe à `accepted` ; un lien partageable n'a pas de statut.
-  // Refuser, lui, n'écrit rien : l'invité qui répond « non merci » garde son lien utilisable,
-  // car aucun état de cette application n'a le droit d'être un cul-de-sac.
-  if (invitationId !== null) {
+  // Une invitation nominative ne se clôt que sur un oui ; un lien partageable n'a pas de
+  // statut. Sur « je ne sais pas » ou sur un refus elle reste ouverte, faute de quoi le
+  // service la traiterait ensuite comme invalide et le destinataire ne pourrait plus jamais
+  // la rouvrir : un cul-de-sac, que les règles du projet interdisent.
+  if (invitationId !== null && rsvp === 'accepted') {
     await prisma.invitation.updateMany({
       where: { id: invitationId, status: 'pending' },
       data: { status: 'accepted' },

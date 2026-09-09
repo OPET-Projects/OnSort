@@ -52,7 +52,7 @@ export function useEvent(id: string) {
     }
   }
 
-  async function setRsvp(rsvp: 'accepted' | 'declined'): Promise<void> {
+  async function setRsvp(rsvp: 'accepted' | 'invited' | 'declined'): Promise<void> {
     await apiFetch(`/api/events/${id}/rsvp`, { method: 'POST', body: JSON.stringify({ rsvp }) })
     await refresh()
   }

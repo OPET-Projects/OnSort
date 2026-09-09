@@ -283,3 +283,20 @@ it('diffuse le changement de réponse d’un participant', async () => {
   // doit voir la réponse arriver sans rechargement.
   expect(received).toEqual([{ type: 'participant.rsvp', id: participantId }])
 })
+
+// Revenir à « je ne sais pas » doit rester possible : aucun état de réponse n'est absorbant.
+it.each([['accepted'], ['invited'], ['declined']] as const)(
+  'accepte la réponse %s',
+  async (rsvp) => {
+    const alice = await signIn('alice@example.test')
+    const created = await createEvent(alice)
+    const { id: eventId } = (await created.json()) as { id: string }
+
+    const response = await post(`/api/events/${eventId}/rsvp`, alice, { rsvp })
+
+    expect(response.status).toBe(200)
+
+    const participant = await prisma.eventParticipant.findFirstOrThrow({ where: { eventId } })
+    expect(participant.rsvp).toBe(rsvp)
+  },
+)

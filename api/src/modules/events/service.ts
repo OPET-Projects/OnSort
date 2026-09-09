@@ -191,7 +191,11 @@ export async function createInvitation(userId: string, eventId: string, input: I
   return { status: 'sent' as const }
 }
 
-export async function setRsvp(userId: string, eventId: string, rsvp: 'accepted' | 'declined') {
+export async function setRsvp(
+  userId: string,
+  eventId: string,
+  rsvp: 'accepted' | 'invited' | 'declined',
+) {
   const participant = await loadParticipant(userId, eventId)
 
   // Un participant qui décline conserve sa ligne (conception §3.2) : mise à jour, jamais

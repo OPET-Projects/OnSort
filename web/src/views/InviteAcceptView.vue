@@ -8,7 +8,7 @@ const route = useRoute()
 const router = useRouter()
 const token = String(route.params.token)
 
-const { state, preview, message, load, accept, decline } = useInvite(token, {
+const { state, preview, message, load, respond } = useInvite(token, {
   toLogin: () => {
     void router.replace({ name: 'login', query: { redirect: `/invite/${token}` } })
   },
@@ -101,28 +101,37 @@ onMounted(async () => {
             {{ preview.participantCount > 1 ? 'personnes y sont déjà' : 'personne y est déjà' }}
           </p>
 
-          <div class="mt-6 flex flex-wrap gap-2">
+          <div class="mt-6 flex flex-col gap-2">
             <button
               ref="joinButton"
               type="button"
               :disabled="state === 'joining'"
               class="rounded bg-neutral-900 px-4 py-2 text-sm text-white disabled:opacity-50"
-              @click="accept"
+              @click="respond('accepted')"
             >
-              {{ state === 'joining' ? 'Un instant…' : 'Rejoindre' }}
+              {{ state === 'joining' ? 'Un instant…' : 'Je participe' }}
             </button>
             <button
               type="button"
               :disabled="state === 'joining'"
-              class="rounded border border-neutral-300 px-4 py-2 text-sm"
-              @click="decline"
+              class="rounded border border-neutral-300 px-4 py-2 text-sm disabled:opacity-50"
+              @click="respond('invited')"
             >
-              Non merci
+              Je ne sais pas encore
+            </button>
+            <button
+              type="button"
+              :disabled="state === 'joining'"
+              class="rounded border border-neutral-300 px-4 py-2 text-sm disabled:opacity-50"
+              @click="respond('declined')"
+            >
+              Je ne peux pas
             </button>
           </div>
 
           <p class="mt-4 text-xs text-neutral-500">
-            Refuser ne supprime pas l'invitation : vous pourrez rouvrir ce lien plus tard.
+            Votre réponse n'est pas définitive : vous pourrez la changer depuis l'onglet
+            Participants.
           </p>
         </div>
       </div>
