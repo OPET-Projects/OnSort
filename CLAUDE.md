@@ -126,10 +126,11 @@ lui-même. Le client s'instancie avec un adaptateur de pilote.
 commande Prisma lancée depuis la racine échoue sur « Connection url is empty ». Passe par les
 scripts npm, qui s'exécutent depuis `api/`. Correction propre en attente.
 
-**Biome n'analyse pas les gabarits Vue.** Toute liaison utilisée uniquement dans un
-`<template>` lui paraît morte. La règle `noUnusedVariables` est donc désactivée pour les seuls
-fichiers `.vue`, via `overrides`. **N'applique jamais sa correction automatique sur un `.vue`** :
-elle supprimerait du code utilisé.
+**Biome n'analyse pas les gabarits Vue.** Toute liaison — variable **ou import** — utilisée
+uniquement dans un `<template>` lui paraît morte. Les règles `noUnusedVariables` **et**
+`noUnusedImports` sont donc désactivées pour les seuls fichiers `.vue`, via `overrides`.
+**N'applique jamais sa correction automatique sur un `.vue`** : elle supprimerait du code
+utilisé.
 
 **`npm run <script> --workspaces` s'exécute en séquence.** Un script qui ne rend jamais la
 main empêche les suivants de démarrer. C'est pourquoi le script `dev` lance les deux serveurs

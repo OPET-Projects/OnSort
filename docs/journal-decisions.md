@@ -69,6 +69,12 @@ test négatif — la règle se déclenche toujours sur un `.ts`. *Coût si laiss
 avertissements permanents, donc une accoutumance au bruit qui masquerait le prochain
 signalement réel.*
 
+**M1 : étendre la même neutralisation à `noUnusedImports`.** Les vues de M1 importent des
+symboles utilisés seulement dans le `<template>` (`RouterLink`, un formateur de date). C'est
+la même cause — Biome ne lit pas le gabarit — et le même remède, sur une règle voisine que
+M0 n'avait pas rencontrée faute d'import de ce genre. *Coût si erroné : un import mort non
+signalé dans un `.vue` ; les `.ts` restent couverts.*
+
 ---
 
 ## Modélisation et règles métier
