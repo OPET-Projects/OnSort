@@ -108,40 +108,105 @@ onsort/
 
 ## Démarrage
 
-Prérequis : Node 24 (voir `.nvmrc`) et Docker.
+### Prérequis
+
+- **Node 24** — la version exacte est dans `.nvmrc`. Avec nvm : `nvm use`.
+- **Docker**, pour la base de données.
+
+### Installation
 
 ```sh
-npm install                  # installe les deux espaces de travail
-cp .env.example .env         # puis compléter BETTER_AUTH_SECRET
-npm run db:up                # PostgreSQL 17 en conteneur
-npm run db:migrate           # migrations Prisma
-npm run db:seed              # comptes de développement : alice@, bob@, carla@example.test
-npm run dev                  # API sur :3000, front sur :5173
+npm install
+cp .env.example .env
 ```
 
-Générer un secret d'authentification : `openssl rand -base64 32`.
+Puis ouvrir `.env` et renseigner `BETTER_AUTH_SECRET`, qui doit faire au moins 32 caractères :
 
-Laisser `RESEND_API_KEY` vide en développement : les liens magiques sont alors écrits dans
-la console plutôt qu'envoyés par courriel.
+```sh
+openssl rand -base64 32
+```
+
+Laisser `RESEND_API_KEY` **vide**. Sans clé, les liens magiques s'affichent dans la console du
+serveur au lieu d'être envoyés par courriel : c'est ainsi qu'on se connecte en développement,
+sans dépendre d'une boîte de réception.
+
+### Vérifier les ports avant de lancer
+
+Deux ports sont fréquemment déjà occupés sur une machine de développeur. Vérifie-les :
+
+```sh
+lsof -nP -iTCP:5433 -sTCP:LISTEN    # base de données
+lsof -nP -iTCP:3000 -sTCP:LISTEN    # API
+```
+
+- **5433** — port hôte du conteneur PostgreSQL. Il n'est pas sur 5432, précisément parce que
+  beaucoup de machines y ont déjà un PostgreSQL installé.
+- **3000** — port de l'API. S'il est pris, change **`PORT` et `BETTER_AUTH_URL` ensemble** dans
+  `.env`, par exemple sur 3100. Le mandataire du front lit `PORT` et suivra.
+- **5173** — port du front, fixé par Vite.
+
+### Lancer
+
+```sh
+npm run db:up        # PostgreSQL 17 en conteneur
+npm run db:migrate   # applique les migrations
+npm run db:seed      # crée alice@, bob@ et carla@example.test
+npm run dev          # API et front en parallèle
+```
+
+L'application est alors sur **http://localhost:5173**.
+
+### Se connecter
+
+Il n'y a pas de mot de passe : l'authentification se fait uniquement par lien magique.
+
+1. Ouvrir http://localhost:5173 — la redirection vers l'écran de connexion est automatique.
+2. Saisir `alice@example.test` et valider. Le message de confirmation est volontairement
+   identique que le compte existe ou non.
+3. **Le lien magique s'affiche dans la console où tourne `npm run dev`.** Le copier.
+4. L'ouvrir dans le navigateur. Il aboutit sur le port de l'API, où aucune page n'existe :
+   c'est normal, le cookie de session vient d'être posé.
+5. Revenir sur http://localhost:5173 — l'application affiche l'identité connectée.
 
 ### Vérification
 
 ```sh
-npm run lint                 # Biome
-npm run typecheck            # tsc et vue-tsc
-npm test                     # Vitest sur les deux espaces
+npm run lint         # Biome, format et règles
+npm run typecheck    # tsc et vue-tsc
+npm test             # Vitest sur les deux espaces
 npm run build
 ```
 
-C'est exactement ce que la CI exécute à chaque poussée.
+C'est exactement ce que la CI exécute à chaque poussée. Les trois premières commandes doivent
+passer avant tout commit.
+
+### En cas de problème
+
+| Symptôme | Cause | Remède |
+|---|---|---|
+| `role "onsort" does not exist` | Un autre PostgreSQL occupe le port visé | Vérifier que `DATABASE_URL` pointe bien sur **5433** |
+| `Connection url is empty` | Commande Prisma lancée depuis la racine | Passer par les scripts npm, qui s'exécutent depuis `api/` |
+| `Cannot find native binding` | Verrou npm incomplet pour cette plateforme | `rm -rf node_modules package-lock.json && npm install` |
+| Le front ne joint pas l'API | `PORT` changé sans `BETTER_AUTH_URL` | Changer les deux ensemble dans `.env` |
+| Aucun lien magique visible | `RESEND_API_KEY` renseignée | La vider pour revenir au repli console |
 
 ## Documentation
 
-- [Rapport de projet](RAPPORT.md) — veille, démarche, revirements (cours *Culture des
-  concepts informatiques*)
-- [Conception détaillée](docs/conception.md)
-- [Décisions techniques et produit](docs/decisions-techniques.md)
-- [Versions et compatibilité](docs/versions.md)
+Pour reprendre le projet, lire dans cet ordre :
+
+1. [`CLAUDE.md`](CLAUDE.md) — contexte, conventions et **pièges connus**. À lire avant de
+   toucher au code ; chargé automatiquement par les agents de développement.
+2. [Comment on travaille](docs/workflow.md) — jalons, méthode de test, relecture, commits.
+3. [Conception détaillée](docs/conception.md) — modèle de données, règles métier, API.
+   **Fait autorité en cas de contradiction.**
+4. [Décisions techniques et produit](docs/decisions-techniques.md) — chaque choix, les options
+   écartées, la raison.
+5. [Versions et compatibilité](docs/versions.md) — versions exactes et contraintes.
+6. [Journal des décisions](docs/journal-decisions.md) — arbitrages pris en cours de route,
+   avec leur coût en cas d'erreur.
+7. [Plans d'implémentation](docs/plans/) — un par jalon.
+8. [Rapport de projet](RAPPORT.md) — veille et revirements, pour le cours *Culture des concepts
+   informatiques*.
 
 ## Équipe
 

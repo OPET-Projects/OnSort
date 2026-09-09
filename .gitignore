@@ -9,8 +9,9 @@ dist/
 # Prisma — client généré
 api/src/generated/
 
-# Outillage local : plans de travail et espace de travail des agents
-docs/plans/
+# Espace de travail brut des agents : diffs redondants avec l'historique Git,
+# extraits de plans et journaux verbeux. Ce qui avait de la valeur en a été tiré
+# vers docs/journal-decisions.md. Les plans, eux, sont versionnés dans docs/plans/.
 .superpowers/
 
 # Environnement
