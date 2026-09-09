@@ -335,6 +335,39 @@ codes de sortie.
 et remettre celle qui garde un reste fait du cas vide la condition d'arrêt de la boucle,
 plutôt qu'un fait à réaffirmer au vérificateur.
 
+## Ouvrir une invitation ne fait plus rejoindre
+
+Jusqu'ici, cliquer un lien d'invitation créait la participation à l'insu de l'invité : la vue
+appelait `accept` au montage, et rejoindre un événement était la conséquence silencieuse d'un
+clic sur un lien reçu. L'invité découvrait l'événement **après** y être entré.
+
+Désormais la page de l'événement s'affiche floutée derrière une popup, et rien n'est écrit
+tant que l'invité n'a pas répondu.
+
+**Nouvelle route `GET /api/invitations/:token`, ajoutée à §5.1.** Elle rend le titre, la
+période, le prénom de l'organisateur et le nombre de participants — rien d'autre. La lecture
+de l'événement, elle, reste refusée à un non-participant.
+
+**L'aperçu est volontairement pauvre, et c'est une décision de sécurité.** Un lien
+partageable circule sans contrôle. Rendre l'événement complet au porteur du jeton aurait
+exposé `getEvent`, qui porte l'**adresse électronique** de chaque participant : n'importe qui
+recevant le lien aurait lu les adresses de tout le groupe sans jamais rejoindre. *Coût si
+erroné : des champs à ajouter, ce qui est le sens facile à corriger.*
+
+**« Non merci » n'écrit rien.** Le lien reste utilisable, et l'invité qui change d'avis le
+rouvre. Marquer l'invitation `declined` aurait été plus expressif, mais le service traite
+ensuite une invitation refusée comme invalide : le refus serait devenu définitif, donc un
+cul-de-sac — ce que les règles du projet interdisent. Tracer le refus supposerait d'abord de
+rendre cet état réversible. *Coût si erroné : le refus n'est pas mesurable.*
+
+**`alreadyMember` court-circuite la popup.** Rouvrir son propre lien une fois entré ouvre
+directement l'événement : reposer la question ferait de la popup une porte à pousser chaque
+jour.
+
+**Le flou est décoratif, jamais une protection.** Le serveur n'envoie que le nécessaire ;
+aucune donnée cachée ne se lit en désactivant un style. Le décor porte `aria-hidden`, un
+arrière-plan illisible n'ayant aucun sens pour un lecteur d'écran.
+
 ## Points laissés ouverts
 
 - `api/prisma.config.ts` charge `../.env`, chemin relatif au **répertoire courant** et non au

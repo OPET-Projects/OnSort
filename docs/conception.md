@@ -396,6 +396,7 @@ GET    /events                     événements de l'appelant, triés par date
 POST   /events                     GET    /events/:id
 PATCH  /events/:id
 POST   /events/:id/invitations     lien ou adresse e-mail
+GET    /invitations/:token         aperçu avant de rejoindre
 POST   /invitations/:token/accept
 POST   /events/:id/rsvp
 GET    /events/:id/stream          SSE

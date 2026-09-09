@@ -8,6 +8,14 @@ import { hashInviteToken } from '../../lib/tokens.ts'
 
 type Accepter = { id: string; email: string }
 
+// Jeton résolu, sans effet de bord. La résolution est séparée de l'acceptation depuis que
+// l'invité voit un aperçu avant de décider : les deux gestes partagent exactement les mêmes
+// contrôles de validité, et un contrôle dupliqué finirait par diverger.
+type Resolved = {
+  eventId: string
+  invitationId: string | null
+}
+
 async function joinEvent(userId: string, eventId: string): Promise<void> {
   const event = await prisma.event.findUnique({ where: { id: eventId }, select: { id: true } })
 
@@ -30,10 +38,7 @@ async function joinEvent(userId: string, eventId: string): Promise<void> {
   })
 }
 
-async function acceptViaLink(
-  accepter: Accepter,
-  token: string,
-): Promise<{ eventId: string } | null> {
+async function resolveViaLink(token: string): Promise<Resolved | null> {
   const link = await prisma.inviteLink.findUnique({
     where: { tokenHash: hashInviteToken(token) },
   })
@@ -50,14 +55,10 @@ async function acceptViaLink(
     throw new ApiError('invitation_link_expired', 410, "Ce lien d'invitation a expiré.")
   }
 
-  await joinEvent(accepter.id, link.targetId)
-  return { eventId: link.targetId }
+  return { eventId: link.targetId, invitationId: null }
 }
 
-async function acceptViaInvitation(
-  accepter: Accepter,
-  token: string,
-): Promise<{ eventId: string }> {
+async function resolveViaInvitation(accepter: Accepter, token: string): Promise<Resolved> {
   const invitation = await prisma.invitation.findUnique({ where: { id: token } })
 
   if (invitation === null || invitation.scope !== 'event') {
@@ -80,18 +81,67 @@ async function acceptViaInvitation(
     throw new ApiError('invitation_not_found', 404, "Cette invitation n'est plus valide.")
   }
 
-  await joinEvent(accepter.id, invitation.targetId)
+  return { eventId: invitation.targetId, invitationId: invitation.id }
+}
 
-  if (invitation.status === 'pending') {
-    await prisma.invitation.update({ where: { id: invitation.id }, data: { status: 'accepted' } })
+async function resolveInvitation(accepter: Accepter, token: string): Promise<Resolved> {
+  return (await resolveViaLink(token)) ?? (await resolveViaInvitation(accepter, token))
+}
+
+// Aperçu montré derrière la popup « rejoindre ou non ». Volontairement pauvre : un lien
+// partageable circule sans contrôle, et son porteur n'est pas encore un participant. Ni la
+// liste des participants — qui porterait leurs adresses — ni le programme, ni les dépenses
+// ne franchissent cette route ; seul de quoi reconnaître l'événement auquel on dit oui.
+export async function previewInvitation(accepter: Accepter, token: string) {
+  const { eventId } = await resolveInvitation(accepter, token)
+
+  const event = await prisma.event.findUnique({
+    where: { id: eventId },
+    include: {
+      creator: { select: { name: true } },
+      _count: { select: { participants: true } },
+    },
+  })
+
+  if (event === null) {
+    throw new ApiError('event_not_found', 404, 'Événement introuvable.')
   }
 
-  return { eventId: invitation.targetId }
+  // Rouvrir son propre lien une fois entré ne doit pas reposer la question : le front saute
+  // alors la popup et ouvre l'événement.
+  const membership = await prisma.eventParticipant.findUnique({
+    where: { eventId_userId: { eventId, userId: accepter.id } },
+    select: { id: true },
+  })
+
+  return {
+    eventId: event.id,
+    title: event.title,
+    startsAt: event.startsAt,
+    endsAt: event.endsAt,
+    organiser: event.creator.name,
+    participantCount: event._count.participants,
+    alreadyMember: membership !== null,
+  }
 }
 
 export async function acceptInvitation(
   accepter: Accepter,
   token: string,
 ): Promise<{ eventId: string }> {
-  return (await acceptViaLink(accepter, token)) ?? (await acceptViaInvitation(accepter, token))
+  const { eventId, invitationId } = await resolveInvitation(accepter, token)
+
+  await joinEvent(accepter.id, eventId)
+
+  // Une invitation nominative passe à `accepted` ; un lien partageable n'a pas de statut.
+  // Refuser, lui, n'écrit rien : l'invité qui répond « non merci » garde son lien utilisable,
+  // car aucun état de cette application n'a le droit d'être un cul-de-sac.
+  if (invitationId !== null) {
+    await prisma.invitation.updateMany({
+      where: { id: invitationId, status: 'pending' },
+      data: { status: 'accepted' },
+    })
+  }
+
+  return { eventId }
 }

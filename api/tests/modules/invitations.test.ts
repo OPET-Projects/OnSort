@@ -160,3 +160,116 @@ it('supporte deux acceptations concurrentes du même lien', async () => {
   const rows = await prisma.eventParticipant.findMany({ where: { eventId, userId: bobId } })
   expect(rows).toHaveLength(1)
 })
+
+// --- Aperçu d'invitation ---------------------------------------------------------------
+// Il précède l'acceptation : l'invité doit savoir à quoi il dit oui. Le contenu est
+// volontairement pauvre — un lien partageable peut circuler largement, et le porteur du
+// jeton n'est pas encore un participant.
+
+const preview = (token: string, headers?: Headers) =>
+  app.request(`/api/invitations/${token}`, { headers })
+
+it("refuse l'aperçu sans session", async () => {
+  expect((await preview('whatever')).status).toBe(401)
+})
+
+it("rend le titre, la période, l'organisateur et le nombre de participants", async () => {
+  const alice = await signIn('alice@example.test')
+  const bob = await signIn('bob@example.test')
+  const eventId = await makeEvent(alice)
+  const token = await makeLink(eventId, await userId(alice))
+
+  const response = await preview(token, bob)
+
+  expect(response.status).toBe(200)
+  expect(await response.json()).toMatchObject({
+    eventId,
+    title: 'Sortie',
+    startsAt: '2026-10-01T18:00:00.000Z',
+    endsAt: '2026-10-01T22:00:00.000Z',
+    organiser: expect.any(String),
+    participantCount: 1,
+    alreadyMember: false,
+  })
+})
+
+// L'adresse électronique des participants ne doit jamais franchir cette route : quiconque
+// détient le lien partageable la lirait sans avoir rejoint quoi que ce soit.
+it("n'expose ni la liste des participants ni leurs adresses", async () => {
+  const alice = await signIn('alice@example.test')
+  const bob = await signIn('bob@example.test')
+  const eventId = await makeEvent(alice)
+  const token = await makeLink(eventId, await userId(alice))
+
+  const body = await (await preview(token, bob)).text()
+
+  expect(body).not.toContain('alice@example.test')
+  expect(body).not.toContain('participants')
+})
+
+// L'aperçu ne fait pas rejoindre : c'est tout l'objet de la popup qui le suit.
+it('ne crée aucune participation', async () => {
+  const alice = await signIn('alice@example.test')
+  const bob = await signIn('bob@example.test')
+  const eventId = await makeEvent(alice)
+  const token = await makeLink(eventId, await userId(alice))
+
+  await preview(token, bob)
+
+  const rows = await prisma.eventParticipant.findMany({ where: { eventId } })
+  expect(rows).toHaveLength(1)
+})
+
+// Rouvrir son lien une fois entré ne doit pas reposer la question.
+it('signale un appelant déjà participant', async () => {
+  const alice = await signIn('alice@example.test')
+  const bob = await signIn('bob@example.test')
+  const eventId = await makeEvent(alice)
+  const token = await makeLink(eventId, await userId(alice))
+  await accept(token, bob)
+
+  const response = await preview(token, bob)
+
+  expect(await response.json()).toMatchObject({ alreadyMember: true, participantCount: 2 })
+})
+
+it('rend 404 sur un jeton inconnu', async () => {
+  const bob = await signIn('bob@example.test')
+
+  const response = await preview('jeton-inexistant', bob)
+
+  expect(response.status).toBe(404)
+  expect(await response.json()).toMatchObject({ code: 'invitation_not_found' })
+})
+
+it('rend 410 sur un lien révoqué', async () => {
+  const alice = await signIn('alice@example.test')
+  const bob = await signIn('bob@example.test')
+  const eventId = await makeEvent(alice)
+  const token = await makeLink(eventId, await userId(alice), { revokedAt: new Date() })
+
+  const response = await preview(token, bob)
+
+  expect(response.status).toBe(410)
+  expect(await response.json()).toMatchObject({ code: 'invitation_link_revoked' })
+})
+
+it("refuse l'aperçu d'une invitation nominative adressée à un autre", async () => {
+  const alice = await signIn('alice@example.test')
+  const bob = await signIn('bob@example.test')
+  const eventId = await makeEvent(alice)
+
+  const invitation = await prisma.invitation.create({
+    data: {
+      scope: 'event',
+      targetId: eventId,
+      invitedEmail: 'carla@example.test',
+      invitedBy: await userId(alice),
+    },
+  })
+
+  const response = await preview(invitation.id, bob)
+
+  expect(response.status).toBe(403)
+  expect(await response.json()).toMatchObject({ code: 'invitation_not_yours' })
+})
