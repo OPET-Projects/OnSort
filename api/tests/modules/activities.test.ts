@@ -383,3 +383,24 @@ it('revérifie la période sur les valeurs résultantes d’une modification', a
   expect(patched.status).toBe(400)
   expect(await patched.json()).toMatchObject({ code: 'invalid_period' })
 })
+
+it('diffuse la création d’une activité', async () => {
+  const alice = await signIn('alice@example.test')
+  const eventId = await makeEvent(alice)
+
+  const received: ServerEvent[] = []
+  const unsubscribe = subscribe(eventId, (event) => received.push(event))
+
+  let activityId = ''
+  try {
+    const response = await propose(alice, eventId)
+    activityId = ((await response.json()) as { id: string }).id
+  } finally {
+    unsubscribe()
+  }
+
+  // Sans cette diffusion, une activité proposée n'apparaîtrait sur les autres écrans qu'au
+  // prochain rechargement manuel — et le flux ne porterait pas le type que la conception
+  // §5.2 lui prescrit.
+  expect(received).toEqual([{ type: 'activity.created', id: activityId }])
+})

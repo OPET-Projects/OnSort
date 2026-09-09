@@ -46,7 +46,7 @@ export async function createActivity(userId: string, eventId: string, input: Cre
   // La position suit l'ordre de proposition. Le réordonnancement explicite arrive en M7.
   const position = await prisma.activity.count({ where: { eventId } })
 
-  return prisma.activity.create({
+  const activity = await prisma.activity.create({
     data: {
       eventId,
       title: input.title,
@@ -58,6 +58,10 @@ export async function createActivity(userId: string, eventId: string, input: Cre
       proposedBy: participant.id,
     },
   })
+
+  publish(eventId, { type: 'activity.created', id: activity.id })
+
+  return activity
 }
 
 // Consulter le programme est ouvert à **tout** participant, y compris celui qui n'a pas
