@@ -17,6 +17,7 @@ const detail = {
   status: 'draft',
   createdBy: 'u1',
   participants: [],
+  pendingInvitations: [],
   viewer: { participantId: 'p1', role: 'member', rsvp: 'invited' },
 }
 

@@ -275,6 +275,12 @@ serait indistinguable d'un lien jamais ouvert.
 Aucune de ces trois réponses n'est absorbante : le RSVP de l'onglet Participants permet de
 passer de n'importe laquelle à n'importe quelle autre, `invited` compris.
 
+**Invitations en attente.** Une invitation nominative émise depuis l'application apparaît
+« à confirmer » sous la liste des participants, **pour l'administrateur seul**, tant que son
+destinataire n'a pas répondu. L'adresse affichée est celle qu'il a saisie ; elle se présente
+à l'identique que le compte existe ou non, la liste ne devant jamais dire qui est inscrit
+(§4). Un lien partageable n'a pas de destinataire et n'en produit aucune.
+
 **Rejoindre tardivement n'a aucun effet rétroactif.** Les dépenses déjà saisies conservent
 leurs parts.
 

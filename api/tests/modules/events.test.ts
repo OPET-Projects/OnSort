@@ -300,3 +300,104 @@ it.each([['accepted'], ['invited'], ['declined']] as const)(
     expect(participant.rsvp).toBe(rsvp)
   },
 )
+
+// --- Invitations nominatives en attente ---------------------------------------------------
+// Inviter depuis l'application fait apparaître l'invité « à confirmer » aux yeux de
+// l'organisateur. Un lien partageable n'a pas de destinataire : il n'en produit aucune.
+
+const invite = (headers: Headers, eventId: string, email: string) =>
+  post(`/api/events/${eventId}/invitations`, headers, { kind: 'email', email })
+
+const readEvent = async (headers: Headers, eventId: string) => {
+  const response = await app.request(`/api/events/${eventId}`, { headers })
+  return (await response.json()) as {
+    event: {
+      participants: { name: string }[]
+      pendingInvitations: { id: string; email: string }[]
+    }
+  }
+}
+
+it("montre l'invité nominatif comme en attente", async () => {
+  const alice = await signIn('alice@example.test')
+  const created = await createEvent(alice)
+  const { id: eventId } = (await created.json()) as { id: string }
+
+  await invite(alice, eventId, 'carla@example.test')
+
+  const { event } = await readEvent(alice, eventId)
+
+  expect(event.pendingInvitations).toHaveLength(1)
+  expect(event.pendingInvitations[0]).toMatchObject({ email: 'carla@example.test' })
+  expect(event.participants).toHaveLength(1)
+})
+
+// L'adresse s'affiche de la même façon que le compte existe ou non : la liste ne doit pas
+// devenir un oracle d'existence de compte.
+it('affiche de la même façon une adresse ayant déjà un compte', async () => {
+  const alice = await signIn('alice@example.test')
+  await signIn('bob@example.test')
+  const created = await createEvent(alice)
+  const { id: eventId } = (await created.json()) as { id: string }
+
+  await invite(alice, eventId, 'bob@example.test')
+
+  const { event } = await readEvent(alice, eventId)
+
+  expect(event.pendingInvitations).toHaveLength(1)
+  expect(event.pendingInvitations[0]).toMatchObject({ email: 'bob@example.test' })
+})
+
+it('ne produit aucune attente pour un lien partageable', async () => {
+  const alice = await signIn('alice@example.test')
+  const created = await createEvent(alice)
+  const { id: eventId } = (await created.json()) as { id: string }
+
+  await post(`/api/events/${eventId}/invitations`, alice, { kind: 'link' })
+
+  const { event } = await readEvent(alice, eventId)
+
+  expect(event.pendingInvitations).toEqual([])
+})
+
+// Une fois entré, l'invité est un participant : le laisser aussi dans les attentes le
+// ferait apparaître deux fois, avec deux statuts contradictoires.
+it("retire l'attente dès que l'invité a répondu", async () => {
+  const alice = await signIn('alice@example.test')
+  const bob = await signIn('bob@example.test')
+  const created = await createEvent(alice)
+  const { id: eventId } = (await created.json()) as { id: string }
+
+  await invite(alice, eventId, 'bob@example.test')
+
+  // La réponse d'invitation ne porte pas d'identifiant — même corps que le compte existe ou
+  // non, c'est la règle anti-énumération de §4. Le test le lit donc en base.
+  const invitation = await prisma.invitation.findFirstOrThrow({ where: { targetId: eventId } })
+
+  await app.request(`/api/invitations/${invitation.id}/accept`, {
+    method: 'POST',
+    headers: new Headers([...bob, ['content-type', 'application/json']]),
+    body: JSON.stringify({ rsvp: 'invited' }),
+  })
+
+  const { event } = await readEvent(alice, eventId)
+
+  expect(event.pendingInvitations).toEqual([])
+  expect(event.participants).toHaveLength(2)
+})
+
+// L'adresse d'un invité est ce que l'organisateur a saisi ; les autres participants n'ont
+// pas à la lire.
+it("ne montre les attentes qu'aux administrateurs", async () => {
+  const alice = await signIn('alice@example.test')
+  const bob = await signIn('bob@example.test')
+  const created = await createEvent(alice)
+  const { id: eventId } = (await created.json()) as { id: string }
+  await addMember(bob, eventId)
+
+  await invite(alice, eventId, 'carla@example.test')
+
+  const { event } = await readEvent(bob, eventId)
+
+  expect(event.pendingInvitations).toEqual([])
+})

@@ -10,6 +10,14 @@ export type Participant = {
   joinedAt: string
 }
 
+// Invitation nominative encore sans réponse. Vide pour un non-administrateur : l'adresse
+// est celle que l'organisateur a saisie, les autres participants n'ont pas à la lire.
+export type PendingInvitation = {
+  id: string
+  email: string
+  createdAt: string
+}
+
 export type EventDetail = {
   id: string
   title: string
@@ -19,6 +27,7 @@ export type EventDetail = {
   status: 'draft' | 'active' | 'closed'
   createdBy: string
   participants: Participant[]
+  pendingInvitations: PendingInvitation[]
   viewer: {
     participantId: string
     role: 'admin' | 'member'

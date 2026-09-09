@@ -386,6 +386,22 @@ erroné : une valeur par défaut à remettre.*
 `declined` : on pouvait quitter « à confirmer », jamais y revenir. C'était un état absorbant
 à l'envers, contraire à la garantie de §3.1.
 
+**Une invitation nominative apparaît « à confirmer », un lien partageable non.** La demande
+initiale était que l'invité figure dans la liste dès l'invitation. Créer une participation à ce
+moment-là était impossible dans un cas et interdit dans l'autre : impossible pour une adresse
+sans compte, `EventParticipant` référençant un `user` ; interdit pour une adresse qui en a
+un, car la liste aurait alors dit à l'organisateur quelles adresses sont inscrites — l'oracle
+d'énumération que §4 proscrit.
+
+La sortie retenue affiche l'**invitation** et non une participation. L'adresse vient de ce
+que l'organisateur a tapé, elle s'affiche pareil dans les deux cas, et la liste est réservée
+aux administrateurs — les autres participants n'ont pas à lire l'adresse de quelqu'un qui
+n'est pas encore là. *Coût si erroné : un bloc d'interface à retirer.*
+
+Le filtre porte sur la **participation** et non sur le statut de l'invitation : celle-ci
+reste `pending` après un « je ne sais pas », si bien que trier par statut aurait affiché
+l'invité deux fois, avec deux réponses contradictoires.
+
 **Copier le lien d'invitation le dit.** Le geste ne produisait aucun retour visible : il
 réussissait ou échouait dans le même silence. Un bandeau l'annonce en haut de l'écran, et la
 copie elle-même passe par un repli — `navigator.clipboard` n'existe qu'en contexte sécurisé

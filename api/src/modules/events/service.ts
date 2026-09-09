@@ -2,7 +2,7 @@ import { config } from '../../config.ts'
 import { prisma } from '../../db.ts'
 import { ApiError } from '../../lib/http.ts'
 import { mailer } from '../../lib/mailer.ts'
-import { canManageEvent } from '../../lib/permissions.ts'
+import { canManageEvent, type ParticipantRole } from '../../lib/permissions.ts'
 import { publish } from '../../lib/sse.ts'
 import { generateInviteToken, hashInviteToken } from '../../lib/tokens.ts'
 import type { CreateEventInput, InviteInput, UpdateEventInput } from './schema.ts'
@@ -78,6 +78,7 @@ export async function getEvent(userId: string, eventId: string) {
     endsAt: event.endsAt,
     status: event.status,
     createdBy: event.createdBy,
+    pendingInvitations: await pendingInvitationsFor(event, viewer.role),
     participants: event.participants.map((participant) => ({
       userId: participant.userId,
       name: participant.user.name,
@@ -189,6 +190,59 @@ export async function createInvitation(userId: string, eventId: string, input: I
     })
 
   return { status: 'sent' as const }
+}
+
+// Invitations nominatives encore sans réponse, montrées à l'organisateur sous la liste des
+// participants. Elles répondent à une question simple : « qui ai-je invité qui n'a rien dit ? »
+//
+// **Réservées aux administrateurs.** L'adresse est celle que l'organisateur a saisie
+// lui-même ; les autres participants n'ont pas à la lire.
+//
+// **Aucun oracle d'existence de compte** (§4) : l'adresse s'affiche à l'identique que le
+// compte existe — l'invitation porte alors `invited_user_id` — ou non, où elle porte
+// `invited_email`. La liste ne dit donc rien que l'organisateur ne sache déjà, puisqu'il a
+// tapé cette adresse. Un lien partageable n'a pas de destinataire et n'apparaît jamais ici.
+async function pendingInvitationsFor(
+  event: { id: string; participants: { userId: string; user: { email: string } }[] },
+  viewerRole: ParticipantRole,
+) {
+  if (!canManageEvent(viewerRole)) {
+    return []
+  }
+
+  const invitations = await prisma.invitation.findMany({
+    where: { scope: 'event', targetId: event.id, status: 'pending' },
+    orderBy: { createdAt: 'asc' },
+  })
+
+  const invitedUsers = await prisma.user.findMany({
+    where: { id: { in: invitations.map((i) => i.invitedUserId).filter((id) => id !== null) } },
+    select: { id: true, email: true },
+  })
+  const emailOf = new Map(invitedUsers.map((user) => [user.id, user.email]))
+
+  // Un invité entré dans l'événement est un participant : le laisser aussi dans les attentes
+  // l'afficherait deux fois, avec deux statuts contradictoires. Le filtre porte sur la
+  // participation et non sur le statut de l'invitation, qui reste `pending` tant que la
+  // réponse n'est pas un oui.
+  const memberIds = new Set(event.participants.map((participant) => participant.userId))
+  const memberEmails = new Set(event.participants.map((participant) => participant.user.email))
+
+  return invitations
+    .map((invitation) => ({
+      id: invitation.id,
+      email:
+        invitation.invitedEmail ??
+        (invitation.invitedUserId === null ? '' : (emailOf.get(invitation.invitedUserId) ?? '')),
+      invitedUserId: invitation.invitedUserId,
+      createdAt: invitation.createdAt,
+    }))
+    .filter((invitation) => {
+      if (invitation.email === '') return false
+      if (invitation.invitedUserId !== null && memberIds.has(invitation.invitedUserId)) return false
+      return !memberEmails.has(invitation.email)
+    })
+    .map(({ id, email, createdAt }) => ({ id, email, createdAt }))
 }
 
 export async function setRsvp(

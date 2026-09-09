@@ -449,7 +449,29 @@ async function sendEmailInvite(): Promise<void> {
             </span>
             <span class="text-xs text-neutral-500">{{ rsvpLabel[participant.rsvp] }}</span>
           </li>
+
+          <!--
+            Invitations nominatives sans réponse, visibles du seul organisateur. Elles
+            répondent à « qui ai-je invité qui n'a rien dit ? ». Un lien partageable n'a pas
+            de destinataire et n'en produit aucune.
+          -->
+          <li
+            v-for="invitation in event.pendingInvitations"
+            :key="invitation.id"
+            class="flex items-center justify-between gap-3 py-2 text-neutral-500"
+          >
+            <span class="min-w-0 truncate italic">{{ invitation.email }}</span>
+            <span class="shrink-0 text-xs">À confirmer</span>
+          </li>
         </ul>
+
+        <p
+          v-if="isAdmin && event.pendingInvitations.length > 0"
+          class="mt-2 text-xs text-neutral-500"
+        >
+          Ces personnes ont reçu une invitation et n'ont pas encore répondu. Vous seul voyez
+          cette liste.
+        </p>
       </section>
 
       <section v-if="isAdmin" class="mt-8 rounded border border-neutral-200 p-4">
