@@ -1,0 +1,37 @@
+{
+  "name": "on-sort",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Application web d'organisation de sorties de groupe",
+  "workspaces": [
+    "api",
+    "web"
+  ],
+  "engines": {
+    "node": ">=24.0.0"
+  },
+  "scripts": {
+    "dev": "trap 'kill 0' EXIT; npm run dev --workspace api & npm run dev --workspace web & wait",
+    "build": "npm run build --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "lint": "biome check .",
+    "format": "biome check --write .",
+    "db:up": "docker compose up -d db",
+    "db:down": "docker compose down",
+    "db:migrate": "npm run db:migrate --workspace api",
+    "db:generate": "npm run db:generate --workspace api",
+    "db:studio": "npm run db:studio --workspace api",
+    "db:seed": "npm run db:seed --workspace api"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.5.12"
+  },
+  "allowScripts": {
+    "prisma@7.10.0": true,
+    "@prisma/engines@7.10.0": true,
+    "esbuild@0.28.2": true,
+    "fsevents@2.3.3": true
+  }
+}

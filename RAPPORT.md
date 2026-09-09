@@ -123,6 +123,9 @@ conséquente de la pile**. Les trois traitent des entrées-sorties, aucun n'est 
 d'étranglement. Ce qui les sépare réellement tient à l'outillage et au confort, pas à la
 performance.
 
+Nous avons retenu Deno, puis nous sommes revenus à Node — et c'est cette bascule qui a
+validé l'enseignement plutôt que de le contredire. Voir la section 6.9.
+
 ### 3.2 Accès aux données
 
 Nous avons examiné trois approches, sous un critère qui nous est propre : la requête
@@ -134,8 +137,12 @@ centrale du produit est un calcul d'intersection de créneaux temporels.
 - **Kysely** — constructeur de requêtes, excellente affinité avec le SQL brut, migrations à
   outiller séparément.
 
-Ce critère unique a suffi à trancher. Il illustre un principe général : un outil ne
-s'évalue pas dans l'absolu mais sur le point dur du problème traité.
+Ce critère unique a suffi à trancher en faveur de Drizzle. Il illustre un principe général :
+un outil ne s'évalue pas dans l'absolu mais sur le point dur du problème traité.
+
+Le principe s'est ensuite retourné contre notre conclusion : nous avons renoncé aux types
+intervalles, ce qui a **supprimé le point dur** et donc le critère. Prisma est alors redevenu
+le meilleur choix. Voir la section 6.10.
 
 ### 3.3 Cartographie — quatre problèmes distincts
 
@@ -230,9 +237,9 @@ fonctionnalité à moitié faite.
 | Couche           | Choix                     | Raison principale                                                 |
 | ---------------- | ------------------------- | ----------------------------------------------------------------- |
 | Front            | Vue 3 + Vite, SPA         | Aucun enjeu de référencement, tout est derrière authentification  |
-| Back             | Deno 2 + Hono             | TypeScript natif, outillage intégré, types partagés avec le front |
-| Base             | PostgreSQL 17             | Types intervalles et contraintes d'exclusion natifs               |
-| Accès données    | Drizzle                   | Seul à traiter correctement notre requête centrale                |
+| Back             | Node 24 LTS + Hono        | Écosystème le mieux éprouvé pour l'outillage que nous exécutons   |
+| Base             | PostgreSQL 17             | Robuste, gratuit, conteneurisable en une commande                 |
+| Accès données    | Prisma 7                  | Migrations générées, meilleur confort une fois le point dur levé  |
 | Authentification | Better Auth, lien magique | Pas de mot de passe à stocker ni à protéger                       |
 | Carte            | Leaflet                   | Aucune dépendance à WebGL                                         |
 | Géocodage        | Base Adresse Nationale    | Gratuit, sans clé, sans quota, officiel, excellent sur la France  |
@@ -275,6 +282,12 @@ nous avons prise, puis défaite.
 | 7   | Vote sur les dates          | Date fixée par le créateur | Simplification du modèle                    |
 | 8   | Dépenses immuables          | Aucun solde stocké         | Formulation plus simple du même invariant   |
 | 9   | Sondage périodique          | SSE                        | Choix pédagogique assumé                    |
+| 10  | Deno 2                      | Node 24 LTS                | Bénéfice asymétrique du runtime             |
+| 11  | Contrainte `EXCLUDE`        | Invariant applicatif       | Aucun ORM ne l'exprime                      |
+| 12  | Drizzle                     | Prisma 7                   | Le critère qui l'avait écarté a disparu     |
+
+Trois d'entre eux — les numéros 1, 2 et 4 — portent sur des configurations qui **n'existent
+tout simplement pas**. Les autres sont des arbitrages.
 
 ### 6.1 Go → Deno *(incompatibilités en cascade)*
 
@@ -411,23 +424,104 @@ robuste. Nous avons retenu SSE en connaissance de cause, le sujet du cours justi
 mettre en œuvre le mécanisme adapté plutôt que son approximation. Cette décision est
 consignée comme telle : c'est un choix de projet d'étude, pas une optimisation.
 
+### 6.9 Deno → Node *(asymétrie du bénéfice)*
+
+Nous avions retenu Deno pour son TypeScript natif, son bac à sable de permissions et son
+outillage intégré. Nous sommes revenus à Node, sur un raisonnement qui ne portait pas sur les
+performances mais sur **la nature du code concerné** :
+
+- **le code de l'API, nous l'écrivons.** Les avantages de Deno s'y appliquent ;
+- **l'outillage front, nous l'exécutons.** Vite, Vitest et `vue-tsc` sont conçus, testés et
+  publiés pour Node. Les faire tourner sous Deno n'apporte aucun de leurs avantages, et
+  n'apporte que leur risque de compatibilité.
+
+Deux gains supplémentaires ont emporté la décision. Le partage de types devient
+**structurel** : en monorepo `npm workspaces`, le front déclare l'API en dépendance et
+importe le type de son routeur, ce qui supprime le montage à base de carte d'import qu'exigeait
+Deno. Et un risque non vérifié disparaît : Better Auth sous Deno était la combinaison la moins
+éprouvée de la pile.
+
+Ce revirement fut bon marché parce que **Hono est agnostique du runtime** : il n'a coûté qu'un
+adaptateur, `@hono/node-server`.
+
+**Enseignement** : le bénéfice d'un outil dépend de la position qu'on occupe vis-à-vis de lui.
+Auteur ou simple exécutant, ce n'est pas le même calcul.
+
+### 6.10 Contrainte `EXCLUDE` → invariant applicatif, et Drizzle → Prisma
+
+Ces deux revirements n'en font qu'un, et c'est ce qui les rend instructifs.
+
+Nous voulions renoncer à écrire des migrations à la main, et nous pensions que cela signifiait
+changer d'ORM. **Le diagnostic était faux.** `drizzle-kit generate` produit ses migrations par
+différence, exactement comme `prisma migrate dev` : aucun des deux n'oblige à écrire du SQL.
+Le seul SQL manuel venait de la contrainte `EXCLUDE USING gist`, qu'aucun ORM TypeScript ne
+sait exprimer.
+
+La vraie question n'était donc pas « quel ORM » mais « garde-t-on la contrainte ». Nous y avons
+renoncé : les disponibilités passent de `tstzrange` à deux colonnes `timestamptz`, et la
+non-superposition est appliquée en couche service, par fusion des plages dans une transaction
+plutôt que par rejet.
+
+Ce renoncement a supprimé le critère unique qui avait écarté Prisma — l'absence de types
+intervalles. Prisma est alors redevenu le meilleur choix, et l'ORM a changé **en conséquence**
+de la décision de modélisation, non l'inverse.
+
+**Enseignement** : avant de changer d'outil, vérifier que la gêne vient bien de l'outil. Ici,
+elle venait d'une fonctionnalité de la base de données que nous avions choisie nous-mêmes.
+
+### 6.11 Ce que l'installation réelle a démenti
+
+Les versions retenues avaient été vérifiées sur les registres. L'installation les a
+contredites sur quatre points, dont aucun n'était lisible dans les métadonnées :
+
+1. **`npm install` échouait.** Better Auth déclare un peer *optionnel* sur `vitest ^2 || ^3
+   || ^4`. Un peer optionnel passe habituellement pour un avertissement ; en monorepo, il fait
+   échouer la résolution. Vitest est descendu en 4.1.11.
+2. **Prisma 7 refuse `url` dans le bloc `datasource`.** La connexion se déclare dans
+   `prisma.config.ts` et le client exige un adaptateur de pilote — d'où l'ajout de
+   `@prisma/adapter-pg` et de `pg`, alors que nous avions écrit que Prisma embarquait le sien.
+3. **TypeScript 6 déprécie `baseUrl`**, avec une erreur bloquante.
+4. **npm 12 n'exécute plus les scripts d'installation sans autorisation nominative.** Sans
+   elle, ni le moteur Prisma ni le binaire esbuild ne sont téléchargés.
+
+**Enseignement** : la compatibilité déclarée n'est pas la compatibilité constatée. Une pile ne
+se valide pas sur un tableau de versions, mais en l'installant.
+
 ---
 
 ## 7. Concepts informatiques mobilisés
 
-### 7.1 Déléguer un invariant au système de gestion de base de données
+### 7.1 Où placer un invariant — et ce que coûte de le déplacer
 
 Deux indisponibilités d'un même utilisateur ne doivent jamais se recouvrir. Cette règle peut
-s'écrire dans le code applicatif — au risque d'être contournée par un chemin oublié — ou
 être confiée à PostgreSQL :
 
 ```sql
 EXCLUDE USING gist (user_id WITH =, period WITH &&)
 ```
 
-La base refuse alors l'insertion, quel que soit le code appelant. Un invariant appliqué par
-le système de stockage est structurellement plus fort qu'un invariant appliqué par
-l'application, parce qu'il ne peut pas être oublié.
+La base refuse alors l'insertion, quel que soit le code appelant. Un invariant appliqué par le
+système de stockage est structurellement plus fort qu'un invariant applicatif : il ne peut pas
+être contourné par un chemin de code oublié, ni par une écriture faite depuis un autre
+programme.
+
+**Nous y avons pourtant renoncé**, et l'arbitrage vaut d'être exposé. Aucun ORM TypeScript ne
+modélise les contraintes d'exclusion. Les conserver imposait une migration écrite et maintenue
+à la main, plus la vigilance de vérifier qu'un outil de migration travaillant par différence ne
+cherche pas à supprimer un objet qu'il ne connaît pas.
+
+La règle est donc remontée en couche service : les plages qui se recouvrent sont fusionnées
+dans une transaction avec verrou de ligne. La correction ne repose plus sur la base mais sur la
+discipline du code.
+
+Ce que ce déplacement coûte réellement : la garantie ne tient plus que tant qu'un seul
+programme écrit dans cette table. Le jour où un script de migration de données ou une tâche
+d'administration écrit directement, l'invariant peut être violé sans que rien ne s'y oppose.
+C'est acceptable ici, et ce ne le serait pas sur un système où plusieurs services partagent la
+base.
+
+**Le concept à retenir n'est pas « déléguer à la base est mieux », mais que la place d'un
+invariant détermine l'ensemble des acteurs qui ne peuvent pas le violer.**
 
 ### 7.2 État dérivé contre état stocké
 
@@ -524,8 +618,8 @@ Utilisateur ──► amis, indisponibilités personnelles
 | M1    | Événement, invitations, participants  | Un tiers rejoint depuis son téléphone       |
 | M2    | Activités, vote, SSE                  | Le décompte bouge en direct sur deux écrans |
 | M3    | Dépenses, soldes, virements minimisés | Quatre virements au lieu de dix             |
-| M4    | Carte, géocodage                      | Le programme sur une carte                  |
-| M5    | Groupes, calendrier partagé           | Le créneau qui convient à tous              |
+| M4    | Groupes, calendrier partagé           | Le créneau qui convient à tous              |
+| M5    | Carte, géocodage                      | Le programme sur une carte                  |
 | M6    | Amis, notifications                   |                                             |
 | M7    | Finitions                             |                                             |
 
@@ -535,14 +629,22 @@ Utilisateur ──► amis, indisponibilités personnelles
 
 ## 9. Bilan intermédiaire
 
-À ce stade, aucune ligne de code applicatif n'a été écrite, et c'est délibéré. La phase de
-cadrage a produit trois documents versionnés et a permis d'identifier avant implémentation :
+À ce stade, aucune fonctionnalité n'est écrite. Le dépôt contient quatre documents versionnés,
+l'espace de travail, l'intégration continue et une chaîne de vérification complète au vert.
 
-- **trois incompatibilités bloquantes** (Prisma/Go, Better Auth/Go, Deno/Vercel), qui
-  auraient chacune coûté une réécriture ;
+La phase de cadrage a permis d'identifier, avant toute implémentation :
+
+- **trois incompatibilités bloquantes** — Prisma avec Go, Better Auth avec Go, Deno avec
+  Vercel — dont chacune aurait coûté une réécriture ;
 - **une erreur de catégorie** sur l'outil de recherche de lieux ;
-- **cinq cas limites** de modélisation dont le traitement ne coûte rien s'il est prévu, et
-  cher s'il est découvert après coup.
+- **quatre incompatibilités de versions** que seule une installation réelle a révélées
+  (section 6.11) ;
+- **cinq cas limites** de modélisation dont le traitement ne coûte rien s'il est prévu, et cher
+  s'il est découvert après coup.
+
+Le coût de cette phase est réel : douze revirements, dont plusieurs auraient été évités par une
+veille plus complète en amont — les concurrents directs et l'incompatibilité de Prisma avec Go
+étaient l'un comme l'autre trouvables en quelques minutes.
 
 Le rapport sera complété au fil de l'implémentation : écarts entre la conception et le code
 produit, décisions prises en cours de route, et bilan final.
@@ -551,6 +653,8 @@ produit, décisions prises en cours de route, et bilan final.
 
 ## 10. Journal des révisions
 
-| Date             | Modification                                                        |
-| ---------------- | ------------------------------------------------------------------- |
-| 8 septembre 2026 | Version initiale : veille, démarche, choix, revirements, conception |
+| Date             | Modification                                                                                   |
+| ---------------- | ---------------------------------------------------------------------------------------------- |
+| 8 septembre 2026 | Version initiale : veille, démarche, choix, revirements, conception                            |
+| 8 septembre 2026 | Retour à Node, passage à Prisma 7, abandon de la contrainte `EXCLUDE` ; revirements 10 à 12    |
+| 8 septembre 2026 | Section 6.11 : ce que l'installation réelle a démenti. Calendrier partagé avancé en M4         |
