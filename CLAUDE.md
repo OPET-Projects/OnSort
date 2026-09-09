@@ -30,9 +30,9 @@ même commit que le code**. Un document qui ment est pire que pas de document.
 
 ## État actuel
 
-Les jalons **M0 à M5** sont terminés côté code : socle et authentification, événement et
+Les jalons **M0 à M6** sont terminés côté code : socle et authentification, événement et
 invitations, activités et vote en temps réel, dépenses et règlements, groupes et calendrier
-partagé, puis carte et géocodage. Un utilisateur crée un événement, invite, chacun répond, propose des
+partagé, carte et géocodage, puis amis et notifications. Un utilisateur crée un événement, invite, chacun répond, propose des
 activités et vote ; les dépenses se saisissent, les soldes s'en dérivent, et l'application
 propose le plus petit jeu de virements qui remet tout le monde à zéro. Un groupe superpose
 les indisponibilités de ses membres et fait apparaître les créneaux qui conviennent à tous.
@@ -43,8 +43,9 @@ seul.
 **Reste dû, hors code :** le déploiement sur une URL publique HTTPS, livrable de M1. La
 chaîne de livraison et l'accès au VPS ne sont pas tranchés.
 
-Le jalon suivant est **M6 — amis et notifications complètes**. Le séquencement complet est en
-section 9 de `docs/conception.md`.
+Le jalon suivant est **M7 — finitions : partage en pourcentage et en montant fixe,
+réordonnancement des activités, annulation**. Le séquencement complet est en section 9 de
+`docs/conception.md`.
 
 ## Stack
 

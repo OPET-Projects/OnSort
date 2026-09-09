@@ -51,13 +51,13 @@ produit est cohérent et se défend seul. Voir la section 9 de la conception.
 
 ### Où en est le projet
 
-**Les jalons M0 à M5 sont livrés** : comptes et connexion par lien magique, événements et
+**Les jalons M0 à M6 sont livrés** : comptes et connexion par lien magique, événements et
 invitations, activités avec vote et décompte en temps réel, dépenses et règlements, groupes
-et calendrier partagé, carte et géocodage.
+et calendrier partagé, carte et géocodage, amis et notifications.
 
-**Restent M6** — amis et notifications — **et M7** — partage en pourcentage et en montant
-fixe, réordonnancement des activités, annulation. Le paragraphe ci-dessus décrit le MVP
-**visé**, pas l'état actuel : ces fonctionnalités n'existent pas encore.
+**Reste M7** — partage en pourcentage et en montant fixe, réordonnancement des activités,
+annulation. Le paragraphe ci-dessus décrit le MVP **visé** : ces trois finitions n'existent
+pas encore.
 
 Reste également dû, hors code : le déploiement sur une URL publique, livrable du jalon M1.
 
@@ -279,6 +279,25 @@ d'intérêt par son nom est explicitement écartée du MVP — voir `decisions-t
 Ni clé ni compte : les tuiles viennent d'OpenStreetMap et le géocodage de la Base Adresse
 Nationale, tous deux gratuits. L'attribution affichée en bas de carte est une **condition**
 de la politique d'usage des tuiles, pas un ornement.
+
+### La cloche qui bouge toute seule
+
+C'est la démonstration du jalon M6, et elle demande **deux écrans**.
+
+1. **Mes amis** → ajouter quelqu'un par son adresse. Sa cloche affiche une notification
+   **sans qu'il recharge**. Il accepte, la vôtre bouge à son tour.
+2. Dans un événement partagé, proposez une activité : les participants **ayant accepté**
+   reçoivent « attend votre vote ». Ceux qui n'ont pas répondu ne reçoivent rien — ils ne
+   peuvent pas voter.
+3. Saisissez une dépense, déclarez un virement, faites-le confirmer : chaque geste prévient
+   la personne concernée, et elle seule.
+
+**Une action ne notifie jamais son auteur.** C'est la règle que chaque test vérifie, et elle
+se voit tout de suite à l'usage : votre propre cloche ne bouge pas quand vous agissez.
+
+La réponse à une demande d'ami est identique que l'adresse ait un compte ou non — c'est la
+même règle anti-énumération que pour les invitations : l'application n'est jamais un oracle
+qui dit qui est inscrit.
 
 ### Vérification
 

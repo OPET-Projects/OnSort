@@ -19,7 +19,7 @@ avant la fin.
 | M3 | Dépenses, soldes, virements minimisés | Quatre virements au lieu de dix — **terminé** |
 | M4 | Groupes, calendrier partagé | Le créneau qui convient à tous — **terminé** |
 | M5 | Carte, géocodage | Le programme sur une carte — **terminé** |
-| M6 | Amis, notifications | |
+| M6 | Amis, notifications | **terminé** |
 | M7 | Finitions | |
 
 À l'issue de M3, le produit est cohérent et se défend seul. Les jalons suivants s'ajoutent

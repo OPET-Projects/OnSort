@@ -525,6 +525,73 @@ au montage ; un conteneur de hauteur nulle produit une carte vide et muette.
 assertions « n'a pas été appelé » ont échoué pour cette raison, sur du code correct. Le
 `mockClear` est dans l'aide de test, commenté.
 
+## Jalon M6 — amis et notifications
+
+**Une notification est écrite puis diffusée, jamais seulement diffusée.** Le flux sert à
+celui qui regarde, la table à celui qui revient. Diffuser sans écrire perdrait tout pour qui
+n'était pas connecté — c'est-à-dire le cas courant. *Coût si erroné : une table à vider.*
+
+**Le bus SSE gagne des salons personnels, pas un second bus.** `lib/sse.ts` indexait déjà par
+une chaîne quelconque ; le préfixe `user:` empêche qu'un identifiant d'événement et un
+identifiant d'utilisateur ne nomment le même salon. Un second bus aurait dupliqué la gestion
+des abonnés et des connexions mortes.
+
+**Le flux personnel prend son salon dans la session, jamais dans l'URL.** Écouter le flux de
+quelqu'un d'autre n'est pas interdit : c'est **inexprimable**.
+
+**Une notification qui échoue n'échoue pas l'action.** Perdre une dépense saisie parce
+qu'une ligne d'information n'a pas pu s'écrire serait le pire des échanges.
+
+**Demander quelqu'un en ami tombe sous la règle anti-énumération** (§4), pour la troisième
+fois du projet après les invitations d'événement et de groupe. Demande créée, demande déjà en
+attente, ou adresse sans compte : la réponse est la même, et dans les trois cas quelque chose
+part — une notification, rien, ou un courriel d'invitation.
+
+**Une demande croisée vaut acceptation.** Deux personnes qui se demandent mutuellement
+veulent la même chose ; se heurter à une contrainte d'unicité serait absurde.
+
+**Redemander ne renotifie pas.** Sans cette garde, recliquer relancerait le destinataire
+autant de fois qu'on insiste. Une demande **refusée**, en revanche, se renouvelle : aucun
+état n'est absorbant.
+
+**Une action ne notifie jamais son auteur.** C'est le défaut le plus facile à introduire en
+câblant sept déclencheurs, et le plus agaçant à l'usage. Chaque test vérifie **qui ne reçoit
+rien** autant que qui reçoit.
+
+**`activity.proposed` ne part qu'à ceux qui ont accepté.** C'est « la notification tu dois
+voter » de §2.9 : les autres ne peuvent pas voter, la leur envoyer serait du bruit.
+
+### Le défaut le plus coûteux du projet
+
+**PostgreSQL et JavaScript ne comparent pas les chaînes de la même façon.** La contrainte
+`friendships_ordered_pair` comparait deux identifiants avec la collation de la base,
+`en_US.utf8`, dont l'ordre est **linguistique** : `'Z' < 'a'` y vaut **faux**, quand le même
+test en JavaScript vaut **vrai**. Les identifiants de Better Auth mêlant majuscules et
+minuscules, la base rejetait environ une fois sur deux le couple que `normalisePair` venait
+de normaliser.
+
+L'échec était **intermittent et déplacé** : il tombait sur un test différent à chaque
+exécution, selon la casse d'identifiants tirés au hasard. Trois passages verts d'affilée
+avaient failli me le faire classer sans suite ; c'est en le lançant huit fois de suite —
+quatre échecs — que la cause est apparue.
+
+`COLLATE "C"` compare octet par octet, exactement comme JavaScript sur de l'ASCII. Le piège
+est consigné dans `CLAUDE.md` : il vaut pour **toute** contrainte qui ordonne des chaînes.
+
+*Leçon : « ça ne se reproduit pas » n'est pas « c'est réglé ». Relancer en boucle coûte deux
+minutes et donne la cause exacte.*
+
+### Deux fautes de méthode à consigner
+
+**Une porte lancée à travers un tube ne prouve rien.** `gates.sh | tail -4` rend le code de
+sortie de `tail` : un typage cassé est passé et a été commité. C'est la **seconde** fois dans
+ce projet, après l'incident de M3 — le piège est déjà dans `CLAUDE.md`, ce qui n'a pas suffi.
+Le script n'affiche désormais que l'essentiel, pour qu'aucun filtrage ne soit tentant.
+
+**`vi.spyOn` sur `console.info` fuit d'un test à l'autre sans `restoreAllMocks`**, et
+`signIn` lit justement le lien magique dans cette sortie. L'échec apparaissait dans un test
+qui n'avait rien fait de mal.
+
 ## Points laissés ouverts
 
 - `api/prisma.config.ts` charge `../.env`, chemin relatif au **répertoire courant** et non au
@@ -541,6 +608,10 @@ assertions « n'a pas été appelé » ont échoué pour cette raison, sur du co
 - **Le partage en pourcentage et en montant fixe reste sans interface.** L'enum `split_mode`
   porte les trois valeurs et le stockage est déjà identique dans les trois cas ; seul `equal`
   est proposé à la saisie. §9 range les deux autres en M7.
+- **Aucun moyen de retirer un ami ni de bloquer quelqu'un.** §2.2 ne décrit ni l'un ni
+  l'autre. Une amitié est aujourd'hui définitive.
+- **Les notifications ne s'effacent pas.** Elles se marquent lues, la liste est bornée à
+  cinquante, mais rien ne purge l'ancien.
 - **La recherche de lieu par nom n'existe pas.** §2.7 l'écarte au MVP : Photon demande 8 à
   16 Go de RAM. L'autocomplétion d'adresse la remplace en pratique, mais chercher « le Louvre »
   ne marche pas — il faut une adresse.
