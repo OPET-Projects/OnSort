@@ -415,6 +415,54 @@ jour.
 aucune donnée cachée ne se lit en désactivant un style. Le décor porte `aria-hidden`, un
 arrière-plan illisible n'ayant aucun sens pour un lecteur d'écran.
 
+## Jalon M4 — groupes, calendrier partagé, superposition
+
+**Ajouter un membre par adresse passe par la machinerie d'invitation de M1.** §5.1 écrit
+`POST /groups/:id/members`, ce qui se lirait « insère cette personne ». L'insertion directe
+aurait répondu différemment selon que l'adresse a un compte ou non : l'oracle d'énumération
+que §4 proscrit. La route crée donc une `Invitation` de `scope: 'group'` — la valeur déclarée
+dès M1 « pour que le modèle polymorphe soit complet dès sa première migration », et dont M4
+est le jalon qui s'en sert. On ne rejoint jamais un groupe sans l'avoir accepté. *Coût si
+erroné : une route à simplifier.*
+
+**Le chemin d'acceptation est devenu polymorphe.** `resolveViaLink` et `resolveViaInvitation`
+filtraient sur `scope !== 'event'` ; ils rendent désormais `{ scope, targetId }`, et
+l'acceptation crée soit une participation, soit une adhésion. L'aperçu suit : un groupe n'a
+ni dates ni RSVP, la popup n'y propose donc que deux boutons.
+
+**`GET /groups/:id/calendar` rend les occupations *et* les créneaux libres.** §2.4 ne décrit
+que la superposition. Ne rendre que les occupations obligerait le front à calculer le
+complément, donc à réécrire la règle des bornes semi-ouvertes — exactement l'endroit où un
+`<` confondu avec un `<=` fabrique des conflits qui n'existent pas. Ne rendre que les
+créneaux libres empêcherait de montrer qui bloque quoi. *Coût si erroné : un champ inutilisé
+dans la réponse.*
+
+**La fenêtre `from`/`to` est obligatoire et bornée à 90 jours.** Sans borne, un appel sur dix
+ans lirait toute la table. Le refus porte un code distinct, `window_too_wide`, pour que
+l'interface puisse proposer de réduire plutôt que d'afficher « requête invalide ».
+
+**Les indisponibilités qui se touchent sont fusionnées, jamais rejetées** (§2.4,
+`decisions-techniques` §2.3). L'écriture se fait dans une transaction avec verrou de ligne :
+deux ajouts simultanés liraient sinon le même état, écriraient deux lignes disjointes, et
+l'invariant de non-superposition tomberait — celui-là même que la contrainte `EXCLUDE`
+écartée aurait garanti. C'est aussi la meilleure ergonomie, et l'interface le dit, faute de
+quoi voir deux saisies devenir une ligne passerait pour un bogue.
+
+**Supprimer une plage fusionnée supprime la plage résultante, pas la saisie d'origine.** La
+fusion perd les frontières initiales : c'est le prix assumé de la décision précédente.
+
+### Deux défauts corrigés au passage
+
+**Les paramètres de requête ne passaient pas la frontière de validation.**
+`schema.parse()` appelé dans une route lève une `ZodError` que le gestionnaire global traduit
+en **500** : une fenêtre absente passait pour une panne du serveur alors que c'est la requête
+qui est incomplète. `queryParams()` la traduit désormais en `400 validation_error`, comme
+`jsonBody` le fait pour les corps.
+
+**Un test d'affichage dépendait du fuseau horaire de la machine.** Une plage écrite en UTC
+franchissait minuit à Paris, et l'assertion « deux heures dans la même journée » échouait
+hors de GMT. Les instants des tests d'affichage se construisent maintenant en heure locale.
+
 ## Points laissés ouverts
 
 - `api/prisma.config.ts` charge `../.env`, chemin relatif au **répertoire courant** et non au
@@ -431,6 +479,12 @@ arrière-plan illisible n'ayant aucun sens pour un lecteur d'écran.
 - **Le partage en pourcentage et en montant fixe reste sans interface.** L'enum `split_mode`
   porte les trois valeurs et le stockage est déjà identique dans les trois cas ; seul `equal`
   est proposé à la saisie. §9 range les deux autres en M7.
+- **`events.group_id` reste inutilisé.** Créer un événement depuis un créneau libre est la
+  suite naturelle de M4, mais §9 borne le jalon à « groupes, calendrier partagé,
+  superposition ». Le lien demande une décision de produit qui n'a pas été prise.
+- **Un groupe ne se quitte pas, ne se renomme pas, et personne n'en est retiré.** §2.3 ne
+  décrit que la table ; les gestes d'administration au-delà de l'invitation n'ont pas de
+  spécification.
 - **Un solde est recalculé à chaque lecture**, sans cache. C'est délibéré et non mesuré : les
   volumes d'une sortie entre amis ne le justifient pas. À reconsidérer seulement avec un
   profil sous les yeux.
