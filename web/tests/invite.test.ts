@@ -15,6 +15,7 @@ const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } })
 
 const previewBody = {
+  scope: 'event',
   eventId: 'e1',
   title: 'Week-end à Lyon',
   startsAt: '2026-10-01T18:00:00.000Z',
@@ -24,7 +25,12 @@ const previewBody = {
   alreadyMember: false,
 }
 
-const navSpies = () => ({ toLogin: vi.fn(), toEvent: vi.fn(), toHome: vi.fn() })
+const navSpies = () => ({
+  toLogin: vi.fn(),
+  toEvent: vi.fn(),
+  toGroup: vi.fn(),
+  toHome: vi.fn(),
+})
 
 const signedIn = () =>
   useSessionStore().$patch({
@@ -184,4 +190,59 @@ it('signale un échec survenu au moment de rejoindre', async () => {
   expect(state.value).toBe('error')
   expect(message.value).toBe("Cette invitation n'est plus valide.")
   expect(nav.toEvent).not.toHaveBeenCalled()
+})
+
+// Une invitation de groupe n'a ni dates ni RSVP : on en est membre ou non, et l'acceptation
+// ouvre le groupe.
+it('ouvre le groupe sur une invitation de groupe', async () => {
+  signedIn()
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (_url: string, init?: RequestInit) =>
+      init?.method === 'POST'
+        ? json({ groupId: 'g1' })
+        : json({
+            scope: 'group',
+            groupId: 'g1',
+            title: 'Les copains',
+            organiser: 'Alice',
+            participantCount: 3,
+            alreadyMember: false,
+          }),
+    ),
+  )
+  const nav = navSpies()
+
+  const { load, preview, respond } = useInvite('tok', nav)
+  await load()
+
+  expect(preview.value?.scope).toBe('group')
+
+  await respond('accepted')
+
+  expect(nav.toGroup).toHaveBeenCalledWith('g1')
+  expect(nav.toEvent).not.toHaveBeenCalled()
+})
+
+it('ouvre directement le groupe quand on en est déjà membre', async () => {
+  signedIn()
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async () =>
+      json({
+        scope: 'group',
+        groupId: 'g1',
+        title: 'Les copains',
+        organiser: 'Alice',
+        participantCount: 3,
+        alreadyMember: true,
+      }),
+    ),
+  )
+  const nav = navSpies()
+
+  const { load } = useInvite('tok', nav)
+  await load()
+
+  expect(nav.toGroup).toHaveBeenCalledWith('g1')
 })

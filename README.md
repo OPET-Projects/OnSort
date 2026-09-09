@@ -228,6 +228,25 @@ inverse.
 Modifier une dépense recalcule ses parts ; changer la présence à une activité, jamais. Une
 dépense passée ne se réécrit pas.
 
+### Le créneau qui convient à tous
+
+C'est la démonstration du jalon M4, et le différenciateur du sujet — `conception.md` §9 le
+fait passer devant la carte.
+
+1. Depuis le tableau de bord, **Mes groupes** → créer un groupe, puis **Inviter** deux
+   personnes par leur adresse. Chacune reçoit un lien et rejoint le groupe.
+2. Chacun déclare ses absences depuis **Mes indisponibilités**. Le motif est facultatif et
+   **privé** : le groupe verra « occupé », jamais la raison.
+3. Deux saisies qui se touchent — « du 1 au 2 » puis « du 2 au 3 » — deviennent **une seule
+   ligne**. C'est voulu : c'est ainsi que l'invariant de non-superposition est tenu.
+4. La page du groupe affiche les **créneaux où personne n'est occupé**, avec leur durée, et
+   en dessous qui bloque quoi.
+5. Les sélecteurs changent la fenêtre — 7, 30 ou 90 jours — et la durée minimale d'un
+   créneau. Un trou d'une heure entre deux absences n'est pas une sortie.
+
+Le motif d'une indisponibilité ne franchit jamais la route du calendrier partagé : un test
+échoue si un libellé apparaît dans la réponse.
+
 ### Vérification
 
 ```sh

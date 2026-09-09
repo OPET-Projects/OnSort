@@ -33,3 +33,18 @@ export function optionalJsonBody<T extends ZodType>(schema: T) {
     await next()
   })
 }
+
+// Validation des paramètres de requête. `schema.parse()` appelé directement dans une route
+// lève une `ZodError` que le gestionnaire global traduit en **500** : une fenêtre absente
+// passerait pour une panne du serveur alors que c'est la requête qui est incomplète.
+export function queryParams<T extends ZodType>(schema: T, query: Record<string, string>) {
+  const result = schema.safeParse(query)
+
+  if (!result.success) {
+    throw new ApiError('validation_error', 400, 'Paramètres de requête invalides.', {
+      issues: result.error.issues,
+    })
+  }
+
+  return result.data
+}

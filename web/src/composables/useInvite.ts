@@ -6,19 +6,32 @@ import { useSessionStore } from '../stores/session'
 // encore » en est une : elle dit à l'organisateur que la question a été vue.
 export type Rsvp = 'accepted' | 'invited' | 'declined'
 
-export type InvitePreview = {
-  eventId: string
-  title: string
-  startsAt: string
-  endsAt: string
-  organiser: string
-  participantCount: number
-  alreadyMember: boolean
-}
+// L'aperçu est **polymorphe**, comme le jeton : un événement a des dates et trois réponses
+// possibles, un groupe n'a ni l'une ni l'autre — on en est membre ou non.
+export type InvitePreview =
+  | {
+      scope: 'event'
+      eventId: string
+      title: string
+      startsAt: string
+      endsAt: string
+      organiser: string
+      participantCount: number
+      alreadyMember: boolean
+    }
+  | {
+      scope: 'group'
+      groupId: string
+      title: string
+      organiser: string
+      participantCount: number
+      alreadyMember: boolean
+    }
 
 type Navigation = {
   toLogin: () => void
   toEvent: (eventId: string) => void
+  toGroup: (groupId: string) => void
   toHome: () => void
 }
 
@@ -30,6 +43,15 @@ export function useInvite(token: string, nav: Navigation) {
   const state = ref<'loading' | 'ready' | 'joining' | 'error'>('loading')
   const preview = ref<InvitePreview | null>(null)
   const message = ref('')
+
+  function openTarget(body: InvitePreview): void {
+    if (body.scope === 'group') {
+      nav.toGroup(body.groupId)
+      return
+    }
+
+    nav.toEvent(body.eventId)
+  }
 
   function explain(cause: unknown): void {
     state.value = 'error'
@@ -66,7 +88,7 @@ export function useInvite(token: string, nav: Navigation) {
       // Déjà entré : reposer la question n'aurait pas de sens, et une popup sur un
       // événement qu'on relit chaque jour deviendrait vite une porte à pousser.
       if (body.alreadyMember) {
-        nav.toEvent(body.eventId)
+        openTarget(body)
         return
       }
 
@@ -85,10 +107,10 @@ export function useInvite(token: string, nav: Navigation) {
     state.value = 'joining'
 
     try {
-      const { eventId } = await apiFetch<{ eventId: string }>(`/api/invitations/${token}/accept`, {
-        method: 'POST',
-        body: JSON.stringify({ rsvp }),
-      })
+      const target = await apiFetch<{ eventId?: string; groupId?: string }>(
+        `/api/invitations/${token}/accept`,
+        { method: 'POST', body: JSON.stringify({ rsvp }) },
+      )
 
       // Refuser puis atterrir sur l'événement serait contradictoire : on renvoie à
       // l'accueil. La participation existe malgré tout, si bien que l'événement reste
@@ -98,7 +120,14 @@ export function useInvite(token: string, nav: Navigation) {
         return
       }
 
-      nav.toEvent(eventId)
+      if (target.groupId !== undefined) {
+        nav.toGroup(target.groupId)
+        return
+      }
+
+      if (target.eventId !== undefined) {
+        nav.toEvent(target.eventId)
+      }
     } catch (cause) {
       explain(cause)
     }

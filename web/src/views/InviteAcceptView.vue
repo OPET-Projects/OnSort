@@ -15,6 +15,9 @@ const { state, preview, message, load, respond } = useInvite(token, {
   toEvent: (eventId) => {
     void router.replace(`/events/${eventId}`)
   },
+  toGroup: (groupId) => {
+    void router.replace(`/groups/${groupId}`)
+  },
   toHome: () => {
     void router.replace({ name: 'home' })
   },
@@ -59,15 +62,21 @@ onMounted(async () => {
               <h2 class="text-2xl font-semibold">{{ preview.title }}</h2>
               <span class="text-xs text-neutral-500">Invitation</span>
             </div>
-            <p class="mt-1 text-sm text-neutral-600">
+            <p v-if="preview.scope === 'event'" class="mt-1 text-sm text-neutral-600">
               {{ formatPeriod(preview.startsAt, preview.endsAt) }}
             </p>
           </header>
 
           <nav class="mt-6 flex gap-4 border-b border-neutral-200 text-sm text-neutral-500">
-            <span class="pb-2">Programme</span>
-            <span class="pb-2">Participants</span>
-            <span class="pb-2">Dépenses</span>
+            <template v-if="preview.scope === 'event'">
+              <span class="pb-2">Programme</span>
+              <span class="pb-2">Participants</span>
+              <span class="pb-2">Dépenses</span>
+            </template>
+            <template v-else>
+              <span class="pb-2">Créneaux</span>
+              <span class="pb-2">Membres</span>
+            </template>
           </nav>
 
           <div class="mt-6 flex flex-col gap-3">
@@ -87,13 +96,13 @@ onMounted(async () => {
           class="w-full max-w-md rounded-lg border border-neutral-200 bg-white p-6 shadow-lg"
         >
           <h1 id="invite-title" class="text-lg font-semibold">
-            {{ preview.organiser }} vous invite
+            {{ preview.organiser }} vous invite{{ preview.scope === 'group' ? ' dans un groupe' : '' }}
           </h1>
 
           <p class="mt-3 text-sm">
             <strong>{{ preview.title }}</strong>
           </p>
-          <p class="mt-1 text-sm text-neutral-600">
+          <p v-if="preview.scope === 'event'" class="mt-1 text-sm text-neutral-600">
             {{ formatPeriod(preview.startsAt, preview.endsAt) }}
           </p>
           <p class="mt-1 text-sm text-neutral-600">
@@ -109,9 +118,20 @@ onMounted(async () => {
               class="rounded bg-neutral-900 px-4 py-2 text-sm text-white disabled:opacity-50"
               @click="respond('accepted')"
             >
-              {{ state === 'joining' ? 'Un instant…' : 'Je participe' }}
+              {{
+                state === 'joining'
+                  ? 'Un instant…'
+                  : preview.scope === 'group'
+                    ? 'Rejoindre le groupe'
+                    : 'Je participe'
+              }}
             </button>
+            <!--
+              Un groupe n'a pas de RSVP : on en est membre ou non. « Je ne sais pas » n'aurait
+              rien à enregistrer, et la proposer mentirait sur ce que le clic fait.
+            -->
             <button
+              v-if="preview.scope === 'event'"
               type="button"
               :disabled="state === 'joining'"
               class="rounded border border-neutral-300 px-4 py-2 text-sm disabled:opacity-50"
@@ -125,11 +145,11 @@ onMounted(async () => {
               class="rounded border border-neutral-300 px-4 py-2 text-sm disabled:opacity-50"
               @click="respond('declined')"
             >
-              Je ne peux pas
+              {{ preview.scope === 'group' ? 'Non merci' : 'Je ne peux pas' }}
             </button>
           </div>
 
-          <p class="mt-4 text-xs text-neutral-500">
+          <p v-if="preview.scope === 'event'" class="mt-4 text-xs text-neutral-500">
             Votre réponse n'est pas définitive : vous pourrez la changer depuis l'onglet
             Participants.
           </p>

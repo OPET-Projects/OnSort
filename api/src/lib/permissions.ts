@@ -2,6 +2,7 @@
 // unions locales plutôt qu'importés du client Prisma généré : garder `lib/` sans dépendance
 // au code généré.
 export type ParticipantRole = 'admin' | 'member'
+export type GroupRole = 'admin' | 'member'
 export type Rsvp = 'invited' | 'accepted' | 'declined'
 
 // « Changer attendance_mode, clore l'événement » et « émettre une invitation » sont
@@ -43,4 +44,10 @@ export function canDeclareSettlement(viewerId: string, fromParticipantId: string
 // litige : un état unique laisserait le débiteur seul juge de son propre paiement.
 export function canConfirmSettlement(viewerId: string, toParticipantId: string): boolean {
   return viewerId === toParticipantId
+}
+
+// Administrer un groupe : inviter, et plus tard renommer. §3.8 ne couvre que l'événement ;
+// le groupe suit la même forme — un rôle par adhésion, pas une liste de droits.
+export function canManageGroup(role: GroupRole): boolean {
+  return role === 'admin'
 }

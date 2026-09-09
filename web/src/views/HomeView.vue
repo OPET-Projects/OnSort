@@ -35,6 +35,15 @@ const rsvpLabel: Record<string, string> = {
       </RouterLink>
     </header>
 
+    <!--
+      Les groupes et le calendrier n'ont aucune autre porte d'entrée : sans ces liens, les
+      deux écrans de M4 ne s'atteignent qu'en tapant leur adresse à la main.
+    -->
+    <nav class="mt-4 flex gap-4 text-sm">
+      <RouterLink to="/groups" class="underline">Mes groupes</RouterLink>
+      <RouterLink to="/me/calendar" class="underline">Mes indisponibilités</RouterLink>
+    </nav>
+
     <section class="mt-8">
       <h2 class="text-lg font-medium">Vos événements</h2>
 
