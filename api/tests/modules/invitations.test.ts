@@ -2,6 +2,7 @@ import { expect, it } from 'vitest'
 import { prisma } from '../../src/db.ts'
 import { hashInviteToken } from '../../src/lib/tokens.ts'
 import { app } from '../../src/main.ts'
+import { acceptInvitation } from '../../src/modules/invitations/service.ts'
 import { signIn } from '../helpers/auth.ts'
 
 async function userId(headers: Headers): Promise<string> {
@@ -134,4 +135,28 @@ it('répond 404 sur un jeton inconnu', async () => {
   const response = await accept('inconnu', bob)
   expect(response.status).toBe(404)
   expect(await response.json()).toMatchObject({ code: 'invitation_not_found' })
+})
+
+it('supporte deux acceptations concurrentes du même lien', async () => {
+  const alice = await signIn('alice@example.test')
+  const bob = await signIn('bob@example.test')
+  const eventId = await makeEvent(alice)
+  const bobId = await userId(bob)
+  const token = await makeLink(eventId, await userId(alice))
+
+  // Le service est appelé directement, pas par HTTP : la pile HTTP intercale assez
+  // d'attentes pour que la course ne se produise qu'au hasard, et un test qui ne échoue
+  // qu'une fois sur dix ne prouve rien. Ici les deux lectures « suis-je déjà
+  // participant ? » se résolvent avant la première écriture de façon déterministe. Sans
+  // écriture atomique, la seconde insertion heurte la contrainte d'unicité et l'appelant
+  // reçoit un 500 sur un simple double-clic.
+  const results = await Promise.allSettled([
+    acceptInvitation({ id: bobId, email: 'bob@example.test' }, token),
+    acceptInvitation({ id: bobId, email: 'bob@example.test' }, token),
+  ])
+
+  expect(results.map((result) => result.status)).toEqual(['fulfilled', 'fulfilled'])
+
+  const rows = await prisma.eventParticipant.findMany({ where: { eventId, userId: bobId } })
+  expect(rows).toHaveLength(1)
 })

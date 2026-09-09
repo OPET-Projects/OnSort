@@ -15,16 +15,19 @@ async function joinEvent(userId: string, eventId: string): Promise<void> {
     throw new ApiError('event_not_found', 404, 'Événement introuvable.')
   }
 
-  // Rejoindre est idempotent : un lien peut être ouvert deux fois.
-  const existing = await prisma.eventParticipant.findUnique({
+  // Rejoindre est idempotent : un lien peut être ouvert deux fois, et deux ouvertures
+  // simultanées sont un double-clic ordinaire. Une lecture suivie d'une écriture laisserait
+  // entre les deux une fenêtre où les deux appels se croient absents ; la seconde insertion
+  // heurterait alors la contrainte d'unicité et l'appelant recevrait un 500. Un `upsert`
+  // s'appuie sur cette même contrainte pour trancher en une seule instruction.
+  //
+  // `update: {}` est délibérément vide : une nouvelle acceptation ne doit ni rétrograder un
+  // administrateur en simple participant, ni effacer une réponse déjà donnée.
+  await prisma.eventParticipant.upsert({
     where: { eventId_userId: { eventId, userId } },
+    create: { eventId, userId, role: 'member', rsvp: 'invited' },
+    update: {},
   })
-
-  if (existing === null) {
-    await prisma.eventParticipant.create({
-      data: { eventId, userId, role: 'member', rsvp: 'invited' },
-    })
-  }
 }
 
 async function acceptViaLink(
