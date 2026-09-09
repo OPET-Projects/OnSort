@@ -75,9 +75,8 @@ non-votants, suggestions intelligentes.
 Les versions exactes et les contraintes qui les déterminent sont dans
 [`docs/versions.md`](docs/versions.md).
 
-Le déploiement n'est pas encore défini. Un VPS est disponible ; le choix de la chaîne de
-livraison est reporté — mais il devient un livrable du jalon M1, dont la démonstration
-suppose une URL publique.
+Le déploiement se fait par **Docker Compose derrière le nginx du VPS**, qui termine le TLS.
+C'est un livrable du jalon M1, dont la démonstration suppose une URL publique.
 
 Les raisons de chacun de ces choix, ainsi que les options écartées, sont documentées dans
 [`docs/decisions-techniques.md`](docs/decisions-techniques.md). La conception détaillée —
