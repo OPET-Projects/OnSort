@@ -97,8 +97,9 @@ enum Rsvp {
   declined
 }
 
-// `group` reste inutilisé jusqu'à M4 ; il est déclaré maintenant pour que le modèle
-// polymorphe de conception.md §2.6 soit complet dès sa première migration.
+// Déclaré dès M1 « pour que le modèle polymorphe de conception.md §2.6 soit complet dès sa
+// première migration », et employé depuis M4 : une invitation de groupe emprunte exactement
+// le même chemin qu'une invitation d'événement.
 enum InviteScope {
   event
   group
@@ -190,9 +191,8 @@ model Invitation {
 // --- M2 : activités et vote ------------------------------------------------------------
 // Modèle : conception.md §2.7.
 //
-// Deux colonnes de §2.7 restent volontairement absentes, chacune arrivant avec la
-// fonctionnalité qui l'écrit : `lat`/`lng` en M5 (géocodage et carte), `cancelled_at` en M7
-// (annulation). « On ne crée pas aujourd'hui des tables que personne n'écrit encore » —
+// Une colonne de §2.7 reste volontairement absente : `cancelled_at`, qui arrivera en M7 avec
+// l'annulation. « On ne crée pas aujourd'hui des tables que personne n'écrit encore » —
 // docs/workflow.md. `attendance_mode` et `activity_absences`, annoncés ici pour M3, sont
 // arrivés avec ce jalon : voir la section M3 plus bas.
 
@@ -214,6 +214,13 @@ model Activity {
   title          String
   kind           String            @default("")
   address        String            @default("")
+  // Coordonnées géographiques, posées par le géocodage de l'adresse (M5). Les deux vont
+  // ensemble ou pas du tout : une contrainte de la migration l'impose.
+  //
+  // **Seuls flottants du projet.** La règle « aucun flottant » vise le domaine financier ;
+  // une coordonnée est une mesure, pas une somme, et aucune addition ne porte dessus.
+  lat            Float?
+  lng            Float?
   startsAt       DateTime?         @map("starts_at")
   endsAt         DateTime?         @map("ends_at")
   position       Int               @default(0)

@@ -463,6 +463,68 @@ qui est incomplète. `queryParams()` la traduit désormais en `400 validation_er
 franchissait minuit à Paris, et l'assertion « deux heures dans la même journée » échouait
 hors de GMT. Les instants des tests d'affichage se construisent maintenant en heure locale.
 
+## Jalon M5 — carte, géocodage, pins ordonnés
+
+**§2.6 affirmait à tort que l'OSMF interdit l'usage tiers de ses tuiles.** Vérification faite
+contre la politique d'usage réelle, qui dit l'inverse — « We welcome creative uses and do not
+require you to use a specific API ». L'usage est **conditionnel** : attribution visible,
+`Referer` envoyé, cache respecté, aucun pré-chargement, et l'OSMF peut bloquer un usage qui
+dégrade le service. La confusion venait probablement des conditions de Google, qui
+interdisent bel et bien l'usage de leurs tuiles hors de leurs API. Conséquence : **aucune clé
+n'est nécessaire**, et la démonstration ne dépend d'aucun compte tiers.
+
+**Corollaire trouvé en corrigeant.** La façade posait `Referrer-Policy: same-origin`, qui
+supprime l'en-tête `Referer` vers un autre domaine — donc vers le serveur de tuiles, qui s'en
+sert pour identifier l'application. `strict-origin-when-cross-origin` envoie l'origine sans
+le chemin : l'application est identifiée, et les jetons d'invitation qui voyagent dans les
+chemins ne fuient pas davantage. Deux décisions se contredisaient sans que rien ne le
+signale.
+
+**La configuration des tuiles est servie par l'API, pas figée dans le front.** Une variable
+`VITE_` serait inscrite dans l'image au moment du `docker build` : en changer demanderait de
+reconstruire et de redéployer. `GET /api/map/config` la lit dans l'environnement du serveur,
+l'image reste générique, et changer de fournisseur ne coûte qu'un redémarrage. *Coût si
+erroné : une requête de plus au chargement de la carte.*
+
+**Vide et absent valent tous deux « le défaut ».** `.default()` de zod ne couvre que
+l'absence : un `MAP_TILES_URL=""` laissé dans un fichier d'exemple aurait empêché le
+démarrage. L'attribution par défaut ne suit que la source par défaut — servir les tuiles d'un
+fournisseur sous l'attribution d'un autre serait faux.
+
+**`GET /api/places` et `GET /api/map/config` ajoutées à §5.1**, qui ne les prévoyait pas.
+Les deux exigent une session : sans elle, l'application deviendrait un mandataire de
+géocodage gratuit pour n'importe qui, sous notre identité auprès d'un service public — et
+c'est nous qui serions bloqués.
+
+**Un échec de géocodage n'échoue jamais l'enregistrement.** La BAN peut être lente,
+indisponible, ou ne rien trouver. Perdre une saisie pour un service tiers serait le pire des
+échanges : une activité sans coordonnées est valide, elle n'apparaît simplement pas sur la
+carte.
+
+**Un score minimal de 0,5 décide de ce qui est « trouvé ».** La BAN rend toujours quelque
+chose. Un pin au mauvais endroit est pire qu'un pin absent, parce qu'il se croit vrai.
+
+**Le géocodage ne se relance que si l'adresse a changé.** Sans cette garde, corriger un titre
+appellerait un service public à chaque modification. Effacer l'adresse efface les
+coordonnées, faute de quoi un pin resterait au dernier lieu connu d'une activité qui n'en a
+plus.
+
+### Ce que la vérification sur données réelles a appris
+
+**La BAN géocode des adresses, pas des lieux.** « tour eiffel paris » ne marque que **0,38**,
+sous le seuil : saisi tel quel, ce libellé ne produit aucun pin. C'est le comportement
+attendu — §2.7 écarte explicitement la recherche de POI au MVP — mais il aurait été
+déroutant sans l'autocomplétion, qui propose « Avenue Gustave Eiffel 75007 Paris » et fait
+retenir ce libellé normalisé. **C'est l'autocomplétion qui rend le géocodage utilisable**,
+pas un accessoire de confort.
+
+**Une carte sans hauteur explicite est invisible sans erreur.** Leaflet mesure son conteneur
+au montage ; un conteneur de hauteur nulle produit une carte vide et muette.
+
+**`vi.spyOn` sur une méthode déjà espionnée rend le même espion, avec son historique.** Deux
+assertions « n'a pas été appelé » ont échoué pour cette raison, sur du code correct. Le
+`mockClear` est dans l'aide de test, commenté.
+
 ## Points laissés ouverts
 
 - `api/prisma.config.ts` charge `../.env`, chemin relatif au **répertoire courant** et non au
@@ -479,6 +541,9 @@ hors de GMT. Les instants des tests d'affichage se construisent maintenant en he
 - **Le partage en pourcentage et en montant fixe reste sans interface.** L'enum `split_mode`
   porte les trois valeurs et le stockage est déjà identique dans les trois cas ; seul `equal`
   est proposé à la saisie. §9 range les deux autres en M7.
+- **La recherche de lieu par nom n'existe pas.** §2.7 l'écarte au MVP : Photon demande 8 à
+  16 Go de RAM. L'autocomplétion d'adresse la remplace en pratique, mais chercher « le Louvre »
+  ne marche pas — il faut une adresse.
 - **`events.group_id` reste inutilisé.** Créer un événement depuis un créneau libre est la
   suite naturelle de M4, mais §9 borne le jalon à « groupes, calendrier partagé,
   superposition ». Le lien demande une décision de produit qui n'a pas été prise.

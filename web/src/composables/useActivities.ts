@@ -12,6 +12,10 @@ export type Activity = {
   address: string
   startsAt: string | null
   endsAt: string | null
+  // Posées par le géocodage de l'adresse, ou nulles : une activité sans lieu reconnu reste
+  // valide, elle n'apparaît simplement pas sur la carte.
+  lat: number | null
+  lng: number | null
   position: number
   status: ActivityStatus
   proposedBy: { participantId: string; name: string }

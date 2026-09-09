@@ -8,8 +8,21 @@ const schema = z.object({
   BETTER_AUTH_URL: z.string().url(),
   RESEND_API_KEY: z.string().default(''),
   MAIL_FROM: z.string().min(1),
+  // Source des tuiles. Vide **et** absente valent toutes deux « le défaut » : un
+  // `MAP_TILES_URL=""` laissé dans un fichier d'exemple ne doit pas empêcher le démarrage,
+  // et `.default()` de zod ne couvre que l'absence.
+  MAP_TILES_URL: z.string().default(''),
+  MAP_TILES_ATTRIBUTION: z.string().default(''),
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
 })
+
+// Tuiles OpenStreetMap par défaut : leur politique d'usage autorise l'usage tiers sous
+// conditions (decisions-techniques §2.6, corrigé au jalon M5). Aucune clé, aucun compte.
+const DEFAULT_TILES_URL = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png'
+
+// L'attribution est une **condition** de cette politique, pas un ornement.
+const DEFAULT_TILES_ATTRIBUTION =
+  '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
 
 export type Config = {
   databaseUrl: string
@@ -19,6 +32,8 @@ export type Config = {
   authUrl: string
   resendApiKey: string | null
   mailFrom: string
+  mapTilesUrl: string
+  mapTilesAttribution: string
   isProduction: boolean
 }
 
@@ -42,6 +57,15 @@ export function loadConfig(env: Record<string, string | undefined>): Config {
     authUrl: parsed.BETTER_AUTH_URL,
     resendApiKey: parsed.RESEND_API_KEY === '' ? null : parsed.RESEND_API_KEY,
     mailFrom: parsed.MAIL_FROM,
+    mapTilesUrl: parsed.MAP_TILES_URL === '' ? DEFAULT_TILES_URL : parsed.MAP_TILES_URL,
+    // L'attribution suit la source : servir les tuiles d'un fournisseur sous l'attribution
+    // d'un autre serait faux. Elle retombe donc sur le défaut seulement si l'URL aussi.
+    mapTilesAttribution:
+      parsed.MAP_TILES_ATTRIBUTION === ''
+        ? parsed.MAP_TILES_URL === ''
+          ? DEFAULT_TILES_ATTRIBUTION
+          : ''
+        : parsed.MAP_TILES_ATTRIBUTION,
     isProduction: parsed.NODE_ENV === 'production',
   }
 }
