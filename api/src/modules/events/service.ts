@@ -3,6 +3,7 @@ import { prisma } from '../../db.ts'
 import { ApiError } from '../../lib/http.ts'
 import { mailer } from '../../lib/mailer.ts'
 import { canManageEvent } from '../../lib/permissions.ts'
+import { publish } from '../../lib/sse.ts'
 import { generateInviteToken, hashInviteToken } from '../../lib/tokens.ts'
 import type { CreateEventInput, InviteInput, UpdateEventInput } from './schema.ts'
 
@@ -188,7 +189,7 @@ export async function createInvitation(userId: string, eventId: string, input: I
 }
 
 export async function setRsvp(userId: string, eventId: string, rsvp: 'accepted' | 'declined') {
-  await loadParticipant(userId, eventId)
+  const participant = await loadParticipant(userId, eventId)
 
   // Un participant qui décline conserve sa ligne (conception §3.2) : mise à jour, jamais
   // suppression.
@@ -196,6 +197,11 @@ export async function setRsvp(userId: string, eventId: string, rsvp: 'accepted' 
     where: { eventId_userId: { eventId, userId } },
     data: { rsvp },
   })
+
+  // Le message ne porte que `{ type, id }` : le client recharge la ressource concernée
+  // (conception §5.2). Une réponse change aussi qui peut proposer et voter, ce que les
+  // autres écrans doivent refléter sans rechargement manuel.
+  publish(eventId, { type: 'participant.rsvp', id: participant.id })
 }
 
 // Charge la ligne de participation de l'appelant, ou lève : 404 si l'événement n'existe

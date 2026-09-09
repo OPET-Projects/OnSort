@@ -9,7 +9,8 @@ import { formatPeriod } from '../lib/dates'
 
 const route = useRoute()
 const id = String(route.params.id)
-const { state, event, error, setRsvp, patch, createInviteLink, inviteByEmail } = useEvent(id)
+const { state, event, error, refresh, setRsvp, patch, createInviteLink, inviteByEmail } =
+  useEvent(id)
 // Destructuré comme `useEvent` ci-dessus : laissé sous forme d'objet, `programme.state`
 // serait une `Ref` dans le gabarit, et `programme.state === 'ready'` serait silencieusement
 // toujours faux.
@@ -33,8 +34,11 @@ const hasAccepted = computed(() => event.value?.viewer.rsvp === 'accepted')
 // (conception §6.4).
 useEventStream(id, {
   onTally: applyTally,
-  onChange: () => {
+  onActivityChange: () => {
     void reloadProgramme()
+  },
+  onParticipantChange: () => {
+    void refresh()
   },
 })
 

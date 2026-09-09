@@ -2,13 +2,18 @@ import { onMounted, onUnmounted } from 'vue'
 import type { Tally } from './useActivities'
 
 // Messages diffusés par l'API pour un événement ouvert à l'écran (conception §5.2). Tous
-// ne transportent que `{ type, id }` et déclenchent un rechargement ciblé — sauf
+// ne transportent que `{ type, id }` et déclenchent un rechargement **ciblé** — sauf
 // `activity.vote`, dont le décompte est appliqué directement.
-const RELOAD_TYPES = ['activity.created', 'activity.updated', 'activity.decided'] as const
+//
+// Le ciblage compte : recharger le programme quand une réponse change, ou l'inverse,
+// coûterait une requête pour rien et laisserait l'écran périmé sur la moitié qui a bougé.
+const ACTIVITY_TYPES = ['activity.created', 'activity.updated', 'activity.decided'] as const
+const PARTICIPANT_TYPES = ['participant.rsvp'] as const
 
 type Handlers = {
   onTally: (activityId: string, tally: Tally) => void
-  onChange: () => void
+  onActivityChange: () => void
+  onParticipantChange: () => void
 }
 
 type VoteMessage = { activityId: string; for: number; against: number }
@@ -27,8 +32,12 @@ export function useEventStream(eventId: string, handlers: Handlers) {
       handlers.onTally(payload.activityId, { for: payload.for, against: payload.against })
     })
 
-    for (const type of RELOAD_TYPES) {
-      source.addEventListener(type, () => handlers.onChange())
+    for (const type of ACTIVITY_TYPES) {
+      source.addEventListener(type, () => handlers.onActivityChange())
+    }
+
+    for (const type of PARTICIPANT_TYPES) {
+      source.addEventListener(type, () => handlers.onParticipantChange())
     }
   })
 
