@@ -29,11 +29,18 @@ async function joinEvent(userId: string, eventId: string): Promise<void> {
   // heurterait alors la contrainte d'unicité et l'appelant recevrait un 500. Un `upsert`
   // s'appuie sur cette même contrainte pour trancher en une seule instruction.
   //
+  // **Rejoindre vaut accepter.** L'invité vient de répondre « oui » dans la popup ; le
+  // laisser au statut `invited` lui ferait reposer la même question dans l'onglet
+  // Participants, où le bouton « Je participe » n'aurait plus rien à trancher. Le RSVP garde
+  // tout son sens ensuite : c'est par lui qu'on se décommande, ou qu'on revient (§3.2, « il
+  // peut changer d'avis »).
+  //
   // `update: {}` est délibérément vide : une nouvelle acceptation ne doit ni rétrograder un
-  // administrateur en simple participant, ni effacer une réponse déjà donnée.
+  // administrateur en simple participant, ni écraser une réponse donnée depuis. Le cas ne se
+  // présente d'ailleurs pas depuis la popup, que `alreadyMember` court-circuite.
   await prisma.eventParticipant.upsert({
     where: { eventId_userId: { eventId, userId } },
-    create: { eventId, userId, role: 'member', rsvp: 'invited' },
+    create: { eventId, userId, role: 'member', rsvp: 'accepted' },
     update: {},
   })
 }

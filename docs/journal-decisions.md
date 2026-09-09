@@ -360,6 +360,15 @@ ensuite une invitation refusée comme invalide : le refus serait devenu définit
 cul-de-sac — ce que les règles du projet interdisent. Tracer le refus supposerait d'abord de
 rendre cet état réversible. *Coût si erroné : le refus n'est pas mesurable.*
 
+**Rejoindre vaut accepter, et §3.2 a été corrigée en conséquence.** La participation était
+créée au statut `invited`, l'invité devant ensuite cliquer « Je participe » dans l'onglet
+Participants. Cette seconde étape n'avait de sens que parce que le lien faisait entrer sans
+rien demander : elle était le seul moment où quelqu'un consentait vraiment. La popup ayant
+pris ce rôle, la garder revenait à poser deux fois la même question, et le bouton « Je
+participe » n'avait plus rien à trancher — c'est le constat qui a déclenché ce changement.
+Le RSVP garde tout son sens ensuite : se décommander, ou revenir. *Coût si erroné : une
+valeur par défaut à remettre.*
+
 **`alreadyMember` court-circuite la popup.** Rouvrir son propre lien une fois entré ouvre
 directement l'événement : reposer la question ferait de la popup une porte à pousser chaque
 jour.

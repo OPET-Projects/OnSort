@@ -61,7 +61,9 @@ it('fait rejoindre l’événement sur un lien valide, et reste idempotent', asy
     where: { eventId, userId: await userId(bob) },
   })
   expect(rows).toHaveLength(1)
-  expect(rows[0]).toMatchObject({ role: 'member', rsvp: 'invited' })
+  // Rejoindre **vaut accepter** : la question est posée par la popup avant l'appel, et la
+  // reposer dans l'onglet Participants ferait répondre deux fois à la même chose.
+  expect(rows[0]).toMatchObject({ role: 'member', rsvp: 'accepted' })
 })
 
 it('rejette un lien révoqué', async () => {
