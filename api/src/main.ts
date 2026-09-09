@@ -8,6 +8,7 @@ import { activitiesRoutes } from './modules/activities/routes.ts'
 import { calendarRoutes } from './modules/calendar/routes.ts'
 import { eventsRoutes } from './modules/events/routes.ts'
 import { expensesRoutes } from './modules/expenses/routes.ts'
+import { groupsRoutes } from './modules/groups/routes.ts'
 import { invitationsRoutes } from './modules/invitations/routes.ts'
 import { settlementsRoutes } from './modules/settlements/routes.ts'
 
@@ -17,6 +18,7 @@ export const app = new Hono()
   .get('/api/me', requireSession, (c) => c.json({ user: c.get('user') }))
   .route('/api/me', calendarRoutes)
   .route('/api/events', eventsRoutes)
+  .route('/api/groups', groupsRoutes)
   .route('/api/activities', activitiesRoutes)
   .route('/api/expenses', expensesRoutes)
   .route('/api/invitations', invitationsRoutes)
