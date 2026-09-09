@@ -186,6 +186,21 @@ L'invitation par adresse e-mail suit le même chemin : le courriel (affiché en 
 clé Resend) contient un lien `…/invite/<id>`. La réponse est volontairement identique que
 l'adresse ait un compte ou non.
 
+### Voir le décompte bouger en direct
+
+C'est la démonstration du jalon M2, et elle demande **deux écrans**.
+
+1. Les deux comptes doivent avoir **accepté** l'événement : proposer et voter y sont
+   réservés. Un invité qui n'a pas répondu peut consulter le programme, mais les boutons de
+   vote lui restent fermés et l'interface lui dit pourquoi.
+2. Ouvrir le même événement dans deux navigateurs, onglet **Programme**.
+3. Sur l'un, proposer une activité. Elle apparaît des deux côtés.
+4. Voter **Pour** d'un côté : le compteur de l'autre écran bouge **sans rechargement**.
+   Changer d'avis remplace la voix au lieu de l'ajouter.
+5. L'administrateur peut **Retenir** ou **Écarter**, y compris contre la majorité — le vote
+   informe la décision, il ne la contraint pas. **Rouvrir le vote** ramène l'activité en
+   discussion : aucun état n'est bloquant.
+
 ### Vérification
 
 ```sh

@@ -4,6 +4,7 @@ import { auth } from './auth.ts'
 import { config } from './config.ts'
 import { renderApiError } from './lib/http.ts'
 import { requireSession } from './middleware/session.ts'
+import { activitiesRoutes } from './modules/activities/routes.ts'
 import { eventsRoutes } from './modules/events/routes.ts'
 import { invitationsRoutes } from './modules/invitations/routes.ts'
 
@@ -12,6 +13,7 @@ export const app = new Hono()
   .on(['GET', 'POST'], '/api/auth/*', (c) => auth.handler(c.req.raw))
   .get('/api/me', requireSession, (c) => c.json({ user: c.get('user') }))
   .route('/api/events', eventsRoutes)
+  .route('/api/activities', activitiesRoutes)
   .route('/api/invitations', invitationsRoutes)
   .onError(renderApiError)
 

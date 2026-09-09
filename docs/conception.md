@@ -400,6 +400,7 @@ POST   /invitations/:token/accept
 POST   /events/:id/rsvp
 GET    /events/:id/stream          SSE
 
+GET    /events/:id/activities     programme, trié par position
 POST   /events/:id/activities      PATCH  /activities/:id
 POST   /activities/:id/vote
 POST   /activities/:id/decision    administrateur
@@ -435,9 +436,14 @@ Types diffusés :
 
 ```txt
 participant.rsvp     activity.created     activity.decided
-activity.vote        activity.cancelled   expense.created
-expense.updated      settlement.declared  settlement.confirmed
+activity.updated     activity.vote        activity.cancelled
+expense.created      expense.updated      settlement.declared
+settlement.confirmed
 ```
+
+`activity.updated` a été ajouté à cette liste au jalon M2 : une activité modifiée doit se
+propager comme une activité créée, et `expense.updated` prouve que la symétrie création /
+modification était déjà voulue ailleurs.
 
 Les messages ne transportent que `{ type, id }` : le client recharge la ressource concernée.
 Cela évite de dupliquer la logique de permissions dans le flux et d'exposer des données à un

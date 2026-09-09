@@ -1,5 +1,6 @@
 import { expect, it, vi } from 'vitest'
 import { prisma } from '../../src/db.ts'
+import { type ServerEvent, subscribe } from '../../src/lib/sse.ts'
 import { hashInviteToken } from '../../src/lib/tokens.ts'
 import { app } from '../../src/main.ts'
 import { signIn } from '../helpers/auth.ts'
@@ -21,11 +22,14 @@ async function post(path: string, headers: Headers, body: unknown) {
   return send('POST', path, headers, body)
 }
 
+// Rend l'identifiant de la **participation** créée, celui que porte le flux temps réel.
 async function addMember(headers: Headers, eventId: string) {
   const me = await app.request('/api/me', { headers })
   const { user } = (await me.json()) as { user: { id: string } }
-  await prisma.eventParticipant.create({ data: { eventId, userId: user.id } })
-  return user.id
+  const participant = await prisma.eventParticipant.create({
+    data: { eventId, userId: user.id },
+  })
+  return participant.id
 }
 
 async function createEvent(headers: Headers, overrides: Record<string, unknown> = {}) {
@@ -254,4 +258,24 @@ it('répond à l’identique pour une adresse connue et une adresse inconnue', a
   } finally {
     infoSpy.mockRestore()
   }
+})
+
+it('diffuse le changement de réponse d’un participant', async () => {
+  const alice = await signIn('alice@example.test')
+  const bob = await signIn('bob@example.test')
+  const { id } = (await (await createEvent(alice)).json()) as { id: string }
+  const participantId = await addMember(bob, id)
+
+  const received: ServerEvent[] = []
+  const unsubscribe = subscribe(id, (event) => received.push(event))
+
+  try {
+    await post(`/api/events/${id}/rsvp`, bob, { rsvp: 'accepted' })
+  } finally {
+    unsubscribe()
+  }
+
+  // `participant.rsvp` figure dans les types de la conception §5.2 : l'écran du créateur
+  // doit voir la réponse arriver sans rechargement.
+  expect(received).toEqual([{ type: 'participant.rsvp', id: participantId }])
 })
