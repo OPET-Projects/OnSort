@@ -1,6 +1,7 @@
 import { prisma } from '../../db.ts'
 import { geocoder } from '../../lib/geocoder.ts'
 import { ApiError } from '../../lib/http.ts'
+import { notify } from '../../lib/notify.ts'
 import {
   canDecideActivity,
   canManageEvent,
@@ -15,6 +16,18 @@ import type { CreateActivityInput, UpdateActivityInput } from './schema.ts'
 
 // Règles métier des activités (conception §2.7, §3.3). Ce fichier ne connaît pas Hono : il
 // reçoit l'identifiant de l'appelant en argument et lève des `ApiError`.
+
+// Destinataires d'une notification d'activité : les participants **ayant accepté**, sauf
+// l'auteur de l'action. Notifier quelqu'un de ce qu'il vient de faire lui-même est le
+// défaut le plus facile à introduire ici, et le plus agaçant à l'usage.
+async function acceptedAudience(eventId: string, exceptUserId: string): Promise<string[]> {
+  const participants = await prisma.eventParticipant.findMany({
+    where: { eventId, rsvp: 'accepted' },
+    select: { userId: true },
+  })
+
+  return participants.map((p) => p.userId).filter((userId) => userId !== exceptUserId)
+}
 
 function assertPeriod(startsAt: Date | null, endsAt: Date | null): void {
   // Les deux bornes sont facultatives : une activité peut n'être qu'une idée sans horaire.
@@ -92,6 +105,15 @@ export async function createActivity(userId: string, eventId: string, input: Cre
   })
 
   publish(eventId, { type: 'activity.created', id: activity.id })
+
+  // « La notification tu dois voter » (§2.9). Elle ne part que vers ceux qui ont accepté :
+  // les autres ne peuvent pas voter, la leur envoyer serait du bruit.
+  await notify({
+    userIds: await acceptedAudience(eventId, userId),
+    type: 'activity.proposed',
+    eventId,
+    payload: { title: activity.title },
+  })
 
   return activity
 }
@@ -205,6 +227,13 @@ export async function decideActivity(
   const updated = await prisma.activity.update({ where: { id: activityId }, data: { status } })
 
   publish(activity.eventId, { type: 'activity.decided', id: activityId })
+
+  await notify({
+    userIds: await acceptedAudience(activity.eventId, userId),
+    type: 'activity.decided',
+    eventId: activity.eventId,
+    payload: { title: updated.title, status },
+  })
 
   return updated
 }

@@ -8,8 +8,10 @@ import { activitiesRoutes } from './modules/activities/routes.ts'
 import { calendarRoutes } from './modules/calendar/routes.ts'
 import { eventsRoutes } from './modules/events/routes.ts'
 import { expensesRoutes } from './modules/expenses/routes.ts'
+import { friendsRoutes } from './modules/friends/routes.ts'
 import { groupsRoutes } from './modules/groups/routes.ts'
 import { invitationsRoutes } from './modules/invitations/routes.ts'
+import { notificationsRoutes } from './modules/notifications/routes.ts'
 import { placesRoutes } from './modules/places/routes.ts'
 import { settlementsRoutes } from './modules/settlements/routes.ts'
 
@@ -19,10 +21,12 @@ export const app = new Hono()
   .get('/api/me', requireSession, (c) => c.json({ user: c.get('user') }))
   .route('/api/me', calendarRoutes)
   .route('/api/events', eventsRoutes)
+  .route('/api/friends', friendsRoutes)
   .route('/api/groups', groupsRoutes)
   .route('/api/activities', activitiesRoutes)
   .route('/api/expenses', expensesRoutes)
   .route('/api', placesRoutes)
+  .route('/api', notificationsRoutes)
   .route('/api/invitations', invitationsRoutes)
   .route('/api/settlements', settlementsRoutes)
   .onError(renderApiError)

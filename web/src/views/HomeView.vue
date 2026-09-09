@@ -40,6 +40,7 @@ const rsvpLabel: Record<string, string> = {
       deux écrans de M4 ne s'atteignent qu'en tapant leur adresse à la main.
     -->
     <nav class="mt-4 flex gap-4 text-sm">
+      <RouterLink to="/friends" class="underline">Mes amis</RouterLink>
       <RouterLink to="/groups" class="underline">Mes groupes</RouterLink>
       <RouterLink to="/me/calendar" class="underline">Mes indisponibilités</RouterLink>
     </nav>

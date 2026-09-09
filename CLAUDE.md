@@ -30,12 +30,16 @@ même commit que le code**. Un document qui ment est pire que pas de document.
 
 ## État actuel
 
-Les jalons **M0 à M5** sont terminés côté code : socle et authentification, événement et
+Les jalons **M0 à M6** sont terminés côté code : socle et authentification, événement et
 invitations, activités et vote en temps réel, dépenses et règlements, groupes et calendrier
-partagé, puis carte et géocodage. Un utilisateur crée un événement, invite, chacun répond, propose des
-activités et vote ; les dépenses se saisissent, les soldes s'en dérivent, et l'application
-propose le plus petit jeu de virements qui remet tout le monde à zéro. Un groupe superpose
-les indisponibilités de ses membres et fait apparaître les créneaux qui conviennent à tous.
+partagé, carte et géocodage, puis amis et notifications.
+
+Un utilisateur crée un événement, invite, chacun répond, propose des activités et vote. Les
+dépenses se saisissent, les soldes s'en dérivent, et l'application propose le plus petit jeu
+de virements qui remet tout le monde à zéro. Un groupe superpose les indisponibilités de ses
+membres et fait apparaître les créneaux qui conviennent à tous. Le programme s'affiche sur
+une carte, pins numérotés dans l'ordre. Et chaque geste qui concerne quelqu'un le prévient,
+en direct, sans qu'il recharge.
 
 **M3 était le point de coupe** de `docs/conception.md` §9 : le produit se défend désormais
 seul.
@@ -43,8 +47,9 @@ seul.
 **Reste dû, hors code :** le déploiement sur une URL publique HTTPS, livrable de M1. La
 chaîne de livraison et l'accès au VPS ne sont pas tranchés.
 
-Le jalon suivant est **M6 — amis et notifications complètes**. Le séquencement complet est en
-section 9 de `docs/conception.md`.
+Le jalon suivant est **M7 — finitions : partage en pourcentage et en montant fixe,
+réordonnancement des activités, annulation**. Le séquencement complet est en section 9 de
+`docs/conception.md`.
 
 ## Stack
 
@@ -175,6 +180,13 @@ une migration en développement : éditer le `.sql`, puis
 `docker exec onsort-db psql -U onsort -d onsort -c 'DROP SCHEMA public CASCADE; CREATE SCHEMA public;'`
 et `npm run db:migrate --workspace api` (qui appelle `migrate dev`) — ou demander à un
 humain de lancer `reset`. `migrate deploy` n'est pas bloqué.
+
+**PostgreSQL et JavaScript ne comparent pas les chaînes de la même façon.** La base est en
+`en_US.utf8`, dont l'ordre est linguistique : `'Z' < 'a'` y vaut **faux**, quand le même test
+en JavaScript vaut **vrai**. Une contrainte `CHECK` qui ordonne deux identifiants doit donc
+porter `COLLATE "C"`, sinon elle rejette une fois sur deux ce que la couche applicative vient
+de normaliser — et l'échec est **intermittent**, puisqu'il dépend de la casse d'identifiants
+tirés au hasard. Vu au jalon M6 sur `friendships_ordered_pair`.
 
 **Une contrainte `CHECK` ajoutée à une migration doit l'être avant sa première
 application.** Éditer un `.sql` déjà appliqué casse sa somme de contrôle. Reconstruire le
