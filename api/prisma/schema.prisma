@@ -120,22 +120,30 @@ model Event {
   createdAt    DateTime           @default(now()) @map("created_at")
   participants EventParticipant[]
   activities   Activity[]
+  expenses     Expense[]
+  settlements  Settlement[]
 
   @@index([groupId])
   @@map("events")
 }
 
 model EventParticipant {
-  id                 String          @id @default(uuid())
-  eventId            String          @map("event_id")
-  event              Event           @relation(fields: [eventId], references: [id], onDelete: Cascade)
-  userId             String          @map("user_id")
-  user               User            @relation(fields: [userId], references: [id], onDelete: Cascade)
-  role               ParticipantRole @default(member)
-  rsvp               Rsvp            @default(invited)
-  joinedAt           DateTime        @default(now()) @map("joined_at")
-  proposedActivities Activity[]
-  votes              ActivityVote[]
+  id                  String            @id @default(uuid())
+  eventId             String            @map("event_id")
+  event               Event             @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  userId              String            @map("user_id")
+  user                User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role                ParticipantRole   @default(member)
+  rsvp                Rsvp              @default(invited)
+  joinedAt            DateTime          @default(now()) @map("joined_at")
+  proposedActivities  Activity[]
+  votes               ActivityVote[]
+  expensesPaid        Expense[]         @relation("ExpensePayer")
+  expensesAuthored    Expense[]         @relation("ExpenseAuthor")
+  shares              ExpenseShare[]
+  settlementsSent     Settlement[]      @relation("SettlementDebtor")
+  settlementsReceived Settlement[]      @relation("SettlementCreditor")
+  absences            ActivityAbsence[]
 
   @@unique([eventId, userId])
   @@index([userId])
@@ -179,11 +187,11 @@ model Invitation {
 // --- M2 : activités et vote ------------------------------------------------------------
 // Modèle : conception.md §2.7.
 //
-// Quatre colonnes de §2.7 sont volontairement absentes, chacune arrivant avec la
-// fonctionnalité qui l'écrit : `lat`/`lng` en M5 (géocodage et carte), `attendance_mode` en
-// M3 (présence), `cancelled_at` en M7 (annulation). « On ne crée pas aujourd'hui des tables
-// que personne n'écrit encore » — docs/workflow.md. La table `activity_absences` suit la
-// même règle et arrivera en M3.
+// Deux colonnes de §2.7 restent volontairement absentes, chacune arrivant avec la
+// fonctionnalité qui l'écrit : `lat`/`lng` en M5 (géocodage et carte), `cancelled_at` en M7
+// (annulation). « On ne crée pas aujourd'hui des tables que personne n'écrit encore » —
+// docs/workflow.md. `attendance_mode` et `activity_absences`, annoncés ici pour M3, sont
+// arrivés avec ce jalon : voir la section M3 plus bas.
 
 enum ActivityStatus {
   proposed
@@ -197,20 +205,25 @@ enum VoteValue {
 }
 
 model Activity {
-  id         String           @id @default(uuid())
-  eventId    String           @map("event_id")
-  event      Event            @relation(fields: [eventId], references: [id], onDelete: Cascade)
-  title      String
-  kind       String           @default("")
-  address    String           @default("")
-  startsAt   DateTime?        @map("starts_at")
-  endsAt     DateTime?        @map("ends_at")
-  position   Int              @default(0)
-  status     ActivityStatus   @default(proposed)
-  proposedBy String           @map("proposed_by")
-  proposer   EventParticipant @relation(fields: [proposedBy], references: [id], onDelete: Cascade)
-  createdAt  DateTime         @default(now()) @map("created_at")
-  votes      ActivityVote[]
+  id             String            @id @default(uuid())
+  eventId        String            @map("event_id")
+  event          Event             @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  title          String
+  kind           String            @default("")
+  address        String            @default("")
+  startsAt       DateTime?         @map("starts_at")
+  endsAt         DateTime?         @map("ends_at")
+  position       Int               @default(0)
+  status         ActivityStatus    @default(proposed)
+  proposedBy     String            @map("proposed_by")
+  proposer       EventParticipant  @relation(fields: [proposedBy], references: [id], onDelete: Cascade)
+  createdAt      DateTime          @default(now()) @map("created_at")
+  // Réglage de présence de l'activité (§3.4), changeable à tout moment par un
+  // administrateur. Il vit ici et non sur l'événement : on saute le musée, pas la sortie.
+  attendanceMode AttendanceMode    @default(all) @map("attendance_mode")
+  votes          ActivityVote[]
+  expenses       Expense[]
+  absences       ActivityAbsence[]
 
   @@index([eventId, position])
   @@map("activities")
@@ -229,4 +242,99 @@ model ActivityVote {
 
   @@id([activityId, participantId])
   @@map("activity_votes")
+}
+
+// --- M3 : dépenses, parts, présence, règlements ----------------------------------------
+// Modèle : conception.md §2.8, §3.4, §3.5, §3.6.
+//
+// Les trois contraintes qui protègent le domaine financier — montant strictement positif
+// sur une dépense et sur un règlement, virement vers soi-même interdit — vivent dans la
+// migration : Prisma ne modélise pas les CHECK. Elles sont couvertes par schema-m3.test.ts.
+
+// Les trois modes partagent le **même stockage** : `expense_shares` enregistre des montants
+// absolus dans tous les cas (§2.8 note 3). `percent` et `fixed` ne coûtent que de
+// l'interface, livrée en M7 ; l'enum les porte dès maintenant pour éviter une migration
+// d'enum plus tard.
+enum SplitMode {
+  equal
+  percent
+  fixed
+}
+
+// `all` : les présents sont les participants ayant accepté l'événement.
+// `optional` : les mêmes, moins ceux inscrits dans `activity_absences` (§3.4).
+enum AttendanceMode {
+  all
+  optional
+}
+
+model Expense {
+  id          String           @id @default(uuid())
+  eventId     String           @map("event_id")
+  event       Event            @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  activityId  String?          @map("activity_id")
+  activity    Activity?        @relation(fields: [activityId], references: [id], onDelete: SetNull)
+  label       String
+  amountCents Int              @map("amount_cents")
+  currency    String           @default("EUR") @db.Char(3)
+  paidBy      String           @map("paid_by")
+  payer       EventParticipant @relation("ExpensePayer", fields: [paidBy], references: [id], onDelete: Cascade)
+  splitMode   SplitMode        @default(equal) @map("split_mode")
+  createdBy   String           @map("created_by")
+  author      EventParticipant @relation("ExpenseAuthor", fields: [createdBy], references: [id], onDelete: Cascade)
+  createdAt   DateTime         @default(now()) @map("created_at")
+  updatedAt   DateTime         @updatedAt @map("updated_at")
+  shares      ExpenseShare[]
+
+  @@index([eventId, createdAt])
+  @@map("expenses")
+}
+
+// Une part est un **montant absolu figé à la saisie** (§2.8 note 2). Elle référence une
+// participation, pas un utilisateur : quitter l'événement emporte la part, comme pour un
+// vote. L'unicité (dépense, participant) interdit la double part sans une ligne de code.
+model ExpenseShare {
+  id            String           @id @default(uuid())
+  expenseId     String           @map("expense_id")
+  expense       Expense          @relation(fields: [expenseId], references: [id], onDelete: Cascade)
+  participantId String           @map("participant_id")
+  participant   EventParticipant @relation(fields: [participantId], references: [id], onDelete: Cascade)
+  amountCents   Int              @map("amount_cents")
+
+  @@unique([expenseId, participantId])
+  @@index([participantId])
+  @@map("expense_shares")
+}
+
+// Ligne **indépendante** : un virement de 20 € reste un virement de 20 € même si une
+// dépense antérieure est modifiée, et le delta réapparaît dans le solde (§2.8 note 1).
+// Deux états successifs, jamais un seul : le débiteur déclare, le créancier confirme (§3.6).
+model Settlement {
+  id                String           @id @default(uuid())
+  eventId           String           @map("event_id")
+  event             Event            @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  fromParticipantId String           @map("from_participant_id")
+  fromParticipant   EventParticipant @relation("SettlementDebtor", fields: [fromParticipantId], references: [id], onDelete: Cascade)
+  toParticipantId   String           @map("to_participant_id")
+  toParticipant     EventParticipant @relation("SettlementCreditor", fields: [toParticipantId], references: [id], onDelete: Cascade)
+  amountCents       Int              @map("amount_cents")
+  declaredAt        DateTime         @default(now()) @map("declared_at")
+  confirmedAt       DateTime?        @map("confirmed_at")
+
+  @@index([eventId])
+  @@map("settlements")
+}
+
+// Absence à une activité, en mode `optional` seulement. **L'absence est la ligne, la
+// présence est l'absence de ligne** : c'est le sens de §3.4, où les présents sont « les
+// mêmes, moins ceux inscrits ».
+model ActivityAbsence {
+  activityId    String           @map("activity_id")
+  activity      Activity         @relation(fields: [activityId], references: [id], onDelete: Cascade)
+  participantId String           @map("participant_id")
+  participant   EventParticipant @relation(fields: [participantId], references: [id], onDelete: Cascade)
+  createdAt     DateTime         @default(now()) @map("created_at")
+
+  @@id([activityId, participantId])
+  @@map("activity_absences")
 }
