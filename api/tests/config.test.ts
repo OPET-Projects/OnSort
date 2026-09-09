@@ -18,6 +18,8 @@ describe('loadConfig', () => {
       appUrl: valid.APP_URL,
       authSecret: valid.BETTER_AUTH_SECRET,
       authUrl: valid.BETTER_AUTH_URL,
+      mapTilesUrl: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+      mapTilesAttribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
       resendApiKey: null,
       mailFrom: valid.MAIL_FROM,
       isProduction: false,
@@ -38,4 +40,32 @@ describe('loadConfig', () => {
   it('traite une clé Resend vide comme absente', () => {
     expect(loadConfig({ ...valid, RESEND_API_KEY: '' }).resendApiKey).toBeNull()
   })
+})
+
+// `.default()` de zod ne couvre que l'absence : une variable laissée vide dans un fichier
+// d'exemple aurait sinon empêché le démarrage.
+it.each([[undefined], ['']])('retombe sur OpenStreetMap quand MAP_TILES_URL vaut %s', (value) => {
+  const config = loadConfig({ ...valid, ...(value === undefined ? {} : { MAP_TILES_URL: value }) })
+
+  expect(config.mapTilesUrl).toBe('https://tile.openstreetmap.org/{z}/{x}/{y}.png')
+  expect(config.mapTilesAttribution).toContain('OpenStreetMap')
+})
+
+it('accepte un fournisseur de tuiles avec son attribution', () => {
+  const config = loadConfig({
+    ...valid,
+    MAP_TILES_URL: 'https://tiles.exemple.fr/{z}/{x}/{y}.png?key=abc',
+    MAP_TILES_ATTRIBUTION: '© Exemple',
+  })
+
+  expect(config.mapTilesUrl).toContain('tiles.exemple.fr')
+  expect(config.mapTilesAttribution).toBe('© Exemple')
+})
+
+// Servir les tuiles d'un fournisseur sous l'attribution d'un autre serait faux : l'attribution
+// par défaut ne suit que la source par défaut.
+it("n'attribue pas OpenStreetMap aux tuiles d'un autre fournisseur", () => {
+  const config = loadConfig({ ...valid, MAP_TILES_URL: 'https://tiles.exemple.fr/{z}/{x}/{y}.png' })
+
+  expect(config.mapTilesAttribution).toBe('')
 })
