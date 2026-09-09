@@ -11,6 +11,7 @@ import { expensesRoutes } from './modules/expenses/routes.ts'
 import { friendsRoutes } from './modules/friends/routes.ts'
 import { groupsRoutes } from './modules/groups/routes.ts'
 import { invitationsRoutes } from './modules/invitations/routes.ts'
+import { notificationsRoutes } from './modules/notifications/routes.ts'
 import { placesRoutes } from './modules/places/routes.ts'
 import { settlementsRoutes } from './modules/settlements/routes.ts'
 
@@ -25,6 +26,7 @@ export const app = new Hono()
   .route('/api/activities', activitiesRoutes)
   .route('/api/expenses', expensesRoutes)
   .route('/api', placesRoutes)
+  .route('/api', notificationsRoutes)
   .route('/api/invitations', invitationsRoutes)
   .route('/api/settlements', settlementsRoutes)
   .onError(renderApiError)

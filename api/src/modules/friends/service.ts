@@ -14,11 +14,21 @@ import type { FriendRequestInput } from './schema.ts'
 // distinguer les trois.
 const SAME_ANSWER = { status: 'sent' as const }
 
-async function sealFriendship(firstUserId: string, secondUserId: string): Promise<void> {
+// Passe une demande à `accepted` **et** scelle l'amitié, dans une seule transaction.
+//
+// Les deux écritures forment un tout : une demande acceptée sans amitié laisse deux personnes
+// persuadées d'être amies alors qu'aucune ligne ne le dit, et rien dans l'interface ne
+// permet de s'en sortir — la demande n'apparaît plus, donc elle ne peut plus être acceptée.
+//
+// L'`upsert` reste idempotent : deux acceptations concurrentes ne doivent pas heurter la
+// clé primaire du couple.
+async function acceptAndSeal(requestId: string, firstUserId: string, secondUserId: string) {
   const pair = normalisePair(firstUserId, secondUserId)
 
-  // Idempotent : deux acceptations concurrentes ne doivent pas heurter la clé primaire.
-  await prisma.friendship.upsert({ where: { userAId_userBId: pair }, create: pair, update: {} })
+  await prisma.$transaction([
+    prisma.friendRequest.update({ where: { id: requestId }, data: { status: 'accepted' } }),
+    prisma.friendship.upsert({ where: { userAId_userBId: pair }, create: pair, update: {} }),
+  ])
 }
 
 export async function requestFriendship(userId: string, input: FriendRequestInput) {
@@ -71,11 +81,7 @@ export async function requestFriendship(userId: string, input: FriendRequestInpu
   })
 
   if (incoming !== null && incoming.status === 'pending') {
-    await prisma.friendRequest.update({
-      where: { id: incoming.id },
-      data: { status: 'accepted' },
-    })
-    await sealFriendship(userId, target.id)
+    await acceptAndSeal(incoming.id, userId, target.id)
     await notify({ userIds: [target.id], type: 'friend.accepted', payload: { name: me.name } })
 
     return SAME_ANSWER
@@ -120,8 +126,7 @@ async function loadIncomingRequest(userId: string, requestId: string) {
 export async function acceptFriendRequest(userId: string, requestId: string) {
   const request = await loadIncomingRequest(userId, requestId)
 
-  await prisma.friendRequest.update({ where: { id: request.id }, data: { status: 'accepted' } })
-  await sealFriendship(userId, request.fromUserId)
+  await acceptAndSeal(request.id, userId, request.fromUserId)
 
   const me = await prisma.user.findUniqueOrThrow({ where: { id: userId } })
   await notify({

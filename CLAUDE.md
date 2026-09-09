@@ -176,6 +176,13 @@ une migration en développement : éditer le `.sql`, puis
 et `npm run db:migrate --workspace api` (qui appelle `migrate dev`) — ou demander à un
 humain de lancer `reset`. `migrate deploy` n'est pas bloqué.
 
+**PostgreSQL et JavaScript ne comparent pas les chaînes de la même façon.** La base est en
+`en_US.utf8`, dont l'ordre est linguistique : `'Z' < 'a'` y vaut **faux**, quand le même test
+en JavaScript vaut **vrai**. Une contrainte `CHECK` qui ordonne deux identifiants doit donc
+porter `COLLATE "C"`, sinon elle rejette une fois sur deux ce que la couche applicative vient
+de normaliser — et l'échec est **intermittent**, puisqu'il dépend de la casse d'identifiants
+tirés au hasard. Vu au jalon M6 sur `friendships_ordered_pair`.
+
 **Une contrainte `CHECK` ajoutée à une migration doit l'être avant sa première
 application.** Éditer un `.sql` déjà appliqué casse sa somme de contrôle. Reconstruire le
 schéma (ci-dessus) puis réappliquer.

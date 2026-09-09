@@ -64,8 +64,15 @@ ALTER TABLE "notifications" ADD CONSTRAINT "notifications_user_id_fkey" FOREIGN 
 -- Normalise le couple : une amitié occupe une seule ligne, et « sommes-nous amis » est une
 -- lecture directe, sans disjonction (conception §2.2). Prisma ne modélise pas les CHECK ;
 -- `tests/schema-m6.test.ts` les couvre.
+--
+-- **`COLLATE "C"` n'est pas décoratif.** La base est en `en_US.utf8`, dont l'ordre est
+-- linguistique : `'Z' < 'a'` y vaut **faux**, alors que le même test en JavaScript vaut
+-- **vrai**. Les identifiants mêlant majuscules et minuscules, la couche applicative
+-- normalisait donc dans un ordre que la contrainte rejetait — une fois sur deux. La
+-- collation `C` compare octet par octet, exactement comme JavaScript sur de l'ASCII, et les
+-- deux redeviennent d'accord sur ce que `<` veut dire.
 ALTER TABLE "friendships" ADD CONSTRAINT "friendships_ordered_pair"
-  CHECK ("user_a_id" < "user_b_id");
+  CHECK ("user_a_id" COLLATE "C" < "user_b_id" COLLATE "C");
 
 -- On ne se demande pas soi-même en ami.
 ALTER TABLE "friend_requests" ADD CONSTRAINT "friend_requests_distinct_users"

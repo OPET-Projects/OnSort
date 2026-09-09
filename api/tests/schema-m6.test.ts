@@ -73,6 +73,26 @@ it('refuse un couple non normalisé', async () => {
   ).rejects.toThrow()
 })
 
+// Régression. La base est en `en_US.utf8`, dont l'ordre est linguistique : `'Z' < 'a'` y
+// vaut **faux**, quand le même test en JavaScript vaut **vrai**. Sans `COLLATE "C"` sur la
+// contrainte, un couple normalisé côté application était rejeté par la base une fois sur
+// deux, selon la casse des identifiants tirés au hasard.
+it('accepte un couple que seule la collation C ordonne', async () => {
+  const upper = await prisma.user.create({
+    data: { id: 'Zed', name: 'Zed', email: 'zed@example.test' },
+  })
+  const lower = await prisma.user.create({
+    data: { id: 'aline', name: 'Aline', email: 'aline@example.test' },
+  })
+
+  // 'Zed' < 'aline' en octets, l'inverse en ordre linguistique.
+  const friendship = await prisma.friendship.create({
+    data: { userAId: upper.id, userBId: lower.id },
+  })
+
+  expect(friendship.userAId).toBe('Zed')
+})
+
 it('refuse une amitié avec soi-même', async () => {
   const alice = await makeUser('alice')
 
