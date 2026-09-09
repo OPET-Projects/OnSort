@@ -1,10 +1,15 @@
 import { prisma } from '../../db.ts'
 import { ApiError } from '../../lib/http.ts'
 import { splitEqually } from '../../lib/money.ts'
-import { canManageEvent, canRecordExpense } from '../../lib/permissions.ts'
+import {
+  canConfirmSettlement,
+  canDeclareSettlement,
+  canManageEvent,
+  canRecordExpense,
+} from '../../lib/permissions.ts'
 import { publish } from '../../lib/sse.ts'
 import { loadParticipant } from '../events/service.ts'
-import type { CreateExpenseInput, UpdateExpenseInput } from './schema.ts'
+import type { CreateExpenseInput, DeclareSettlementInput, UpdateExpenseInput } from './schema.ts'
 
 // Règles métier des dépenses (conception §2.8, §3.5, §3.8). Ce fichier ne connaît pas Hono :
 // il reçoit l'identifiant de l'appelant en argument et lève des `ApiError`.
@@ -179,6 +184,112 @@ export async function updateExpense(userId: string, expenseId: string, input: Up
   publish(expense.eventId, { type: 'expense.updated', id: expenseId })
 
   return updated
+}
+
+// Un règlement est une **ligne indépendante** (§2.8 note 1) : il ne modifie aucune dépense
+// et garde sa valeur si une dépense antérieure change — le delta réapparaît alors dans le
+// solde. Deux états successifs, jamais un seul : le débiteur déclare, le créancier confirme
+// (§3.6).
+export async function declareSettlement(
+  userId: string,
+  eventId: string,
+  input: DeclareSettlementInput,
+) {
+  const participant = await loadRecordingParticipant(userId, eventId)
+
+  // Le débiteur est **toujours** l'appelant : on ne déclare pas un paiement au nom d'un
+  // autre (§3.8). Aucun champ du corps ne peut le désigner.
+  if (input.toParticipantId === participant.id) {
+    throw new ApiError('self_settlement', 400, 'Un virement vers soi-même ne règle rien.')
+  }
+
+  const creditor = await prisma.eventParticipant.findFirst({
+    where: { id: input.toParticipantId, eventId },
+    select: { id: true },
+  })
+
+  if (creditor === null) {
+    throw new ApiError('unknown_creditor', 400, 'Ce bénéficiaire ne participe pas à cet événement.')
+  }
+
+  const settlement = await prisma.settlement.create({
+    data: {
+      eventId,
+      fromParticipantId: participant.id,
+      toParticipantId: creditor.id,
+      amountCents: input.amountCents,
+    },
+  })
+
+  publish(eventId, { type: 'settlement.declared', id: settlement.id })
+
+  return settlement
+}
+
+async function loadSettlement(settlementId: string) {
+  const settlement = await prisma.settlement.findUnique({ where: { id: settlementId } })
+
+  if (settlement === null) {
+    throw new ApiError('settlement_not_found', 404, 'Règlement introuvable.')
+  }
+
+  return settlement
+}
+
+export async function confirmSettlement(userId: string, settlementId: string) {
+  const settlement = await loadSettlement(settlementId)
+  const participant = await loadParticipant(userId, settlement.eventId)
+
+  if (!canConfirmSettlement(participant.id, settlement.toParticipantId)) {
+    throw new ApiError(
+      'forbidden',
+      403,
+      'Seul le bénéficiaire peut confirmer avoir reçu ce virement.',
+    )
+  }
+
+  // Confirmer deux fois n'est pas une erreur : l'appel est idempotent et la première date
+  // fait foi. Deux clics sur un réseau lent ne doivent pas produire un 409 incompréhensible.
+  if (settlement.confirmedAt !== null) {
+    return settlement
+  }
+
+  const confirmed = await prisma.settlement.update({
+    where: { id: settlementId },
+    data: { confirmedAt: new Date() },
+  })
+
+  publish(settlement.eventId, { type: 'settlement.confirmed', id: settlementId })
+
+  return confirmed
+}
+
+// Retrait d'une déclaration erronée — mauvais destinataire, mauvais montant. Sans lui, la
+// ligne resterait éternellement en attente et le créancier ne pourrait ni la confirmer ni
+// la refuser : un état bloqué, qu'aucune machine à états de cette application n'a le droit
+// de produire. Après confirmation, la ligne est définitive : un règlement est un fait, et
+// se corrige par un virement inverse.
+export async function withdrawSettlement(userId: string, settlementId: string) {
+  const settlement = await loadSettlement(settlementId)
+  const participant = await loadParticipant(userId, settlement.eventId)
+
+  if (!canDeclareSettlement(participant.id, settlement.fromParticipantId)) {
+    throw new ApiError('forbidden', 403, "Seul l'émetteur peut retirer sa déclaration.")
+  }
+
+  if (settlement.confirmedAt !== null) {
+    throw new ApiError(
+      'settlement_already_confirmed',
+      409,
+      'Ce virement a été confirmé : corrigez-le par un virement inverse.',
+    )
+  }
+
+  await prisma.settlement.delete({ where: { id: settlementId } })
+
+  publish(settlement.eventId, { type: 'settlement.declared', id: settlementId })
+
+  return { ok: true }
 }
 
 export { loadRecordingParticipant, resolveBeneficiaries }
