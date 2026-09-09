@@ -6,7 +6,7 @@ import { formatPeriod } from '../lib/dates'
 
 const route = useRoute()
 const id = String(route.params.id)
-const { state, event, error, setRsvp, patch } = useEvent(id)
+const { state, event, error, setRsvp, patch, createInviteLink, inviteByEmail } = useEvent(id)
 
 const isAdmin = computed(() => event.value?.viewer.role === 'admin')
 
@@ -36,6 +36,22 @@ async function changeStatus(): Promise<void> {
   if (statusDraft.value === '') return
   await patch({ status: statusDraft.value as 'draft' | 'active' | 'closed' })
   statusDraft.value = ''
+}
+
+const inviteUrl = ref('')
+async function generateLink(): Promise<void> {
+  inviteUrl.value = await createInviteLink()
+}
+async function copyLink(): Promise<void> {
+  await navigator.clipboard.writeText(inviteUrl.value)
+}
+
+const inviteEmail = ref('')
+const inviteSent = ref(false)
+async function sendEmailInvite(): Promise<void> {
+  await inviteByEmail(inviteEmail.value)
+  inviteEmail.value = ''
+  inviteSent.value = true
 }
 </script>
 
@@ -131,6 +147,54 @@ async function changeStatus(): Promise<void> {
           >
             Appliquer
           </button>
+        </div>
+
+        <div class="mt-5 border-t border-neutral-100 pt-4">
+          <h3 class="text-sm font-medium">Inviter</h3>
+
+          <div class="mt-2">
+            <button
+              type="button"
+              class="rounded border border-neutral-300 px-3 py-1 text-sm"
+              @click="generateLink"
+            >
+              Créer un lien partageable
+            </button>
+            <div v-if="inviteUrl" class="mt-2 flex items-center gap-2">
+              <input
+                :value="inviteUrl"
+                readonly
+                class="flex-1 rounded border border-neutral-200 px-2 py-1 text-xs"
+              />
+              <button
+                type="button"
+                class="rounded bg-neutral-900 px-2 py-1 text-xs text-white"
+                @click="copyLink"
+              >
+                Copier
+              </button>
+            </div>
+          </div>
+
+          <form class="mt-4 flex flex-col gap-2" @submit.prevent="sendEmailInvite">
+            <label class="text-sm" for="invite-email">Inviter par e-mail</label>
+            <div class="flex gap-2">
+              <input
+                id="invite-email"
+                v-model="inviteEmail"
+                type="email"
+                required
+                class="flex-1 rounded border border-neutral-300 px-2 py-1 text-sm"
+              />
+              <button type="submit" class="rounded bg-neutral-900 px-3 py-1 text-sm text-white">
+                Envoyer
+              </button>
+            </div>
+            <p v-if="inviteSent" class="text-xs text-neutral-500">
+              Si un compte existe pour cette adresse, l'invitation lui a été transmise ;
+              sinon un courriel d'invitation vient de partir.
+            </p>
+          </form>
         </div>
       </section>
     </template>

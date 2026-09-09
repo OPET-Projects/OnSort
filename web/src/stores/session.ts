@@ -31,12 +31,12 @@ export const useSessionStore = defineStore('session', () => {
     }
   }
 
-  async function requestMagicLink(email: string): Promise<void> {
+  async function requestMagicLink(email: string, callbackURL = '/'): Promise<void> {
     const response = await fetch('/api/auth/sign-in/magic-link', {
       method: 'POST',
       credentials: 'include',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ email, callbackURL: '/' }),
+      body: JSON.stringify({ email, callbackURL }),
     })
 
     if (!response.ok) {

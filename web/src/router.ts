@@ -21,6 +21,12 @@ export const router = createRouter({
       component: () => import('./views/EventView.vue'),
       meta: { requiresAuth: true },
     },
+    {
+      // Pas de `requiresAuth` : la vue résout elle-même l'authentification puis la reprise.
+      path: '/invite/:token',
+      name: 'invite',
+      component: () => import('./views/InviteAcceptView.vue'),
+    },
   ],
 })
 
