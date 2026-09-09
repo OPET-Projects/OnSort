@@ -1,4 +1,5 @@
 import { prisma } from '../../db.ts'
+import { geocoder } from '../../lib/geocoder.ts'
 import { ApiError } from '../../lib/http.ts'
 import {
   canDecideActivity,
@@ -6,6 +7,7 @@ import {
   canProposeActivity,
   canVote,
 } from '../../lib/permissions.ts'
+import { bestMatch } from '../../lib/places.ts'
 import { publish } from '../../lib/sse.ts'
 import { tally, type VoteValue } from '../../lib/vote.ts'
 import { loadParticipant } from '../events/service.ts'
@@ -41,6 +43,28 @@ async function loadAcceptedParticipant(userId: string, eventId: string) {
   return participant
 }
 
+// Coordonnées d'une adresse, ou `null` si elle est vide, introuvable, ou si le service ne
+// répond pas.
+//
+// **Un échec de géocodage n'échoue jamais l'enregistrement.** La BAN peut être lente,
+// indisponible, ou ne rien trouver ; perdre une saisie pour un service tiers serait le pire
+// des échanges. Une activité sans coordonnées est valide, elle n'apparaît simplement pas sur
+// la carte.
+async function locate(address: string): Promise<{ lat: number | null; lng: number | null }> {
+  if (address.trim() === '') {
+    return { lat: null, lng: null }
+  }
+
+  try {
+    const match = bestMatch(await geocoder.search(address))
+
+    return match === null ? { lat: null, lng: null } : { lat: match.lat, lng: match.lng }
+  } catch (error) {
+    console.warn(`Géocodage de « ${address} » abandonné :`, error)
+    return { lat: null, lng: null }
+  }
+}
+
 export async function createActivity(userId: string, eventId: string, input: CreateActivityInput) {
   const participant = await loadAcceptedParticipant(userId, eventId)
 
@@ -50,6 +74,7 @@ export async function createActivity(userId: string, eventId: string, input: Cre
 
   // La position suit l'ordre de proposition. Le réordonnancement explicite arrive en M7.
   const position = await prisma.activity.count({ where: { eventId } })
+  const { lat, lng } = await locate(input.address)
 
   const activity = await prisma.activity.create({
     data: {
@@ -57,6 +82,8 @@ export async function createActivity(userId: string, eventId: string, input: Cre
       title: input.title,
       kind: input.kind,
       address: input.address,
+      lat,
+      lng,
       startsAt,
       endsAt,
       position,
@@ -90,6 +117,8 @@ export async function listActivities(userId: string, eventId: string) {
     address: activity.address,
     startsAt: activity.startsAt,
     endsAt: activity.endsAt,
+    lat: activity.lat,
+    lng: activity.lng,
     position: activity.position,
     status: activity.status,
     proposedBy: {
@@ -215,12 +244,21 @@ export async function updateActivity(
   const endsAt = input.endsAt === undefined ? activity.endsAt : input.endsAt
   assertPeriod(startsAt, endsAt)
 
+  // Le géocodage ne se relance **que** si l'adresse a changé : sans cette garde, corriger un
+  // titre appellerait un service public à chaque frappe. Effacer l'adresse efface les
+  // coordonnées, faute de quoi un pin resterait au dernier lieu connu d'une activité qui
+  // n'en a plus.
+  const addressChanged = input.address !== undefined && input.address !== activity.address
+  const located = addressChanged ? await locate(input.address ?? '') : null
+
   const updated = await prisma.activity.update({
     where: { id: activityId },
     data: {
       title: input.title,
       kind: input.kind,
       address: input.address,
+      lat: located?.lat,
+      lng: located?.lng,
       startsAt: input.startsAt,
       endsAt: input.endsAt,
       attendanceMode: input.attendanceMode,
