@@ -35,17 +35,19 @@ onMounted(async () => {
 
 <template>
   <main class="relative min-h-screen">
-    <p v-if="state === 'loading'" class="p-6 text-sm text-neutral-500">
-      Ouverture de l'invitation…
-    </p>
+    <p v-if="state === 'loading'" class="p-6 text-sm text-muted">Ouverture de l'invitation…</p>
 
     <div
       v-else-if="state === 'error'"
-      class="mx-auto flex min-h-screen max-w-md flex-col justify-center gap-4 p-6"
+      class="mx-auto flex min-h-screen w-full max-w-md flex-col justify-center gap-4 px-5 py-10"
     >
-      <h1 class="text-2xl font-semibold">On Sort ?</h1>
-      <p class="text-sm text-red-700">{{ message }}</p>
-      <RouterLink to="/" class="text-sm underline">Retour au tableau de bord</RouterLink>
+      <h1 class="text-2xl font-bold tracking-tight">On sort&nbsp;?</h1>
+      <p class="rounded-field border border-fail-line bg-fail px-4 py-3 text-sm text-fail-ink">
+        {{ message }}
+      </p>
+      <RouterLink to="/" class="text-sm font-semibold text-accent">
+        Retour au tableau de bord
+      </RouterLink>
     </div>
 
     <template v-else-if="preview">
@@ -55,67 +57,76 @@ onMounted(async () => {
         liste des participants ni les dépenses. `aria-hidden` le retire des lecteurs d'écran,
         pour qui un décor flouté n'a aucun sens.
       -->
-      <div class="pointer-events-none select-none blur-sm" aria-hidden="true">
-        <div class="mx-auto max-w-2xl p-6 md:p-10">
-          <header>
-            <div class="flex items-baseline justify-between gap-3">
-              <h2 class="text-2xl font-semibold">{{ preview.title }}</h2>
-              <span class="text-xs text-neutral-500">Invitation</span>
-            </div>
-            <p v-if="preview.scope === 'event'" class="mt-1 text-sm text-neutral-600">
-              {{ formatPeriod(preview.startsAt, preview.endsAt) }}
-            </p>
-          </header>
+      <div class="pointer-events-none blur-[4px] select-none" aria-hidden="true">
+        <div class="mx-auto flex w-full max-w-2xl flex-col gap-4 px-5 py-7 md:px-8">
+          <div class="flex items-baseline justify-between gap-3">
+            <h2 class="text-2xl font-bold tracking-tight">{{ preview.title }}</h2>
+            <span class="text-xs text-faint">Invitation</span>
+          </div>
+          <p v-if="preview.scope === 'event'" class="text-[13px] text-ink-2">
+            {{ formatPeriod(preview.startsAt, preview.endsAt) }}
+          </p>
 
-          <nav class="mt-6 flex gap-4 border-b border-neutral-200 text-sm text-neutral-500">
+          <div class="flex gap-4 border-b border-line pb-2.5 text-[13px] text-faint">
             <template v-if="preview.scope === 'event'">
-              <span class="pb-2">Programme</span>
-              <span class="pb-2">Participants</span>
-              <span class="pb-2">Dépenses</span>
+              <span>Programme</span>
+              <span>Participants</span>
+              <span>Dépenses</span>
             </template>
             <template v-else>
-              <span class="pb-2">Créneaux</span>
-              <span class="pb-2">Membres</span>
+              <span>Créneaux</span>
+              <span>Membres</span>
             </template>
-          </nav>
+          </div>
 
-          <div class="mt-6 flex flex-col gap-3">
-            <div v-for="line in 3" :key="line" class="rounded border border-neutral-200 p-4">
-              <div class="h-4 w-2/3 rounded bg-neutral-200"></div>
-              <div class="mt-2 h-3 w-1/3 rounded bg-neutral-100"></div>
+          <div class="flex flex-col gap-2.5">
+            <div
+              v-for="line in 3"
+              :key="line"
+              class="flex flex-col gap-2.5 rounded-card border border-line bg-surface p-4"
+            >
+              <div class="h-3.5 w-2/3 rounded-full bg-disabled"></div>
+              <div class="h-2.5 w-1/3 rounded-full bg-line-soft"></div>
             </div>
           </div>
         </div>
       </div>
 
-      <div class="fixed inset-0 flex items-center justify-center bg-neutral-900/20 p-6">
+      <div class="fixed inset-0 flex items-center justify-center bg-ink/28 p-5">
         <div
           role="dialog"
           aria-modal="true"
           aria-labelledby="invite-title"
-          class="w-full max-w-md rounded-lg border border-neutral-200 bg-white p-6 shadow-lg"
+          class="flex w-full max-w-md flex-col gap-4 rounded-surface border border-line bg-surface p-5 shadow-float md:p-7"
         >
-          <h1 id="invite-title" class="text-lg font-semibold">
-            {{ preview.organiser }} vous invite{{ preview.scope === 'group' ? ' dans un groupe' : '' }}
-          </h1>
+          <div class="flex items-center gap-2.5">
+            <span
+              class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-accent-soft text-xs font-semibold text-accent-press"
+            >
+              {{ preview.organiser.slice(0, 2).toUpperCase() }}
+            </span>
+            <h1 id="invite-title" class="text-base leading-snug font-semibold">
+              {{ preview.organiser }} vous invite{{ preview.scope === 'group' ? ' dans un groupe' : '' }}
+            </h1>
+          </div>
 
-          <p class="mt-3 text-sm">
-            <strong>{{ preview.title }}</strong>
-          </p>
-          <p v-if="preview.scope === 'event'" class="mt-1 text-sm text-neutral-600">
-            {{ formatPeriod(preview.startsAt, preview.endsAt) }}
-          </p>
-          <p class="mt-1 text-sm text-neutral-600">
-            {{ preview.participantCount }}
-            {{ preview.participantCount > 1 ? 'personnes y sont déjà' : 'personne y est déjà' }}
-          </p>
+          <div class="flex flex-col gap-1">
+            <p class="text-lg font-bold tracking-tight">{{ preview.title }}</p>
+            <p v-if="preview.scope === 'event'" class="text-[13px] leading-relaxed text-ink-2">
+              {{ formatPeriod(preview.startsAt, preview.endsAt) }}
+            </p>
+            <p class="text-[13px] text-muted">
+              {{ preview.participantCount }}
+              {{ preview.participantCount > 1 ? 'personnes y sont déjà' : 'personne y est déjà' }}
+            </p>
+          </div>
 
-          <div class="mt-6 flex flex-col gap-2">
+          <div class="flex flex-col gap-2">
             <button
               ref="joinButton"
               type="button"
               :disabled="state === 'joining'"
-              class="rounded bg-neutral-900 px-4 py-2 text-sm text-white disabled:opacity-50"
+              class="flex h-13 items-center justify-center rounded-field bg-accent text-[15px] font-semibold text-white disabled:opacity-50"
               @click="respond('accepted')"
             >
               {{
@@ -134,7 +145,7 @@ onMounted(async () => {
               v-if="preview.scope === 'event'"
               type="button"
               :disabled="state === 'joining'"
-              class="rounded border border-neutral-300 px-4 py-2 text-sm disabled:opacity-50"
+              class="flex h-12 items-center justify-center rounded-field border border-field text-sm font-medium text-ink-2 disabled:opacity-50"
               @click="respond('invited')"
             >
               Je ne sais pas encore
@@ -142,14 +153,14 @@ onMounted(async () => {
             <button
               type="button"
               :disabled="state === 'joining'"
-              class="rounded border border-neutral-300 px-4 py-2 text-sm disabled:opacity-50"
+              class="flex h-12 items-center justify-center rounded-field border border-field text-sm font-medium text-ink-2 disabled:opacity-50"
               @click="respond('declined')"
             >
               {{ preview.scope === 'group' ? 'Non merci' : 'Je ne peux pas' }}
             </button>
           </div>
 
-          <p v-if="preview.scope === 'event'" class="mt-4 text-xs text-neutral-500">
+          <p v-if="preview.scope === 'event'" class="text-xs leading-relaxed text-faint">
             Votre réponse n'est pas définitive : vous pourrez la changer depuis l'onglet
             Participants.
           </p>

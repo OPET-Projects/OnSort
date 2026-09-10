@@ -37,24 +37,37 @@ const schedule = computed(() => {
 </script>
 
 <template>
-  <article class="rounded border border-neutral-200 p-4">
-    <header class="flex items-baseline justify-between gap-3">
-      <h3 class="font-medium">{{ activity.title }}</h3>
-      <span class="shrink-0 text-xs text-neutral-500">{{ statusLabel[activity.status] }}</span>
+  <article class="flex flex-col gap-3 rounded-card border border-line bg-surface p-4 shadow-rest">
+    <header class="flex items-start justify-between gap-2.5">
+      <span class="flex min-w-0 flex-col gap-0.5">
+        <h3 class="text-base font-semibold">{{ activity.title }}</h3>
+        <span v-if="activity.address" class="text-[13px] text-muted">{{ activity.address }}</span>
+        <span v-if="activity.kind" class="text-xs text-faint">{{ activity.kind }}</span>
+        <span v-if="schedule" class="text-[13px] text-ink-2">{{ schedule }}</span>
+      </span>
+      <span
+        class="shrink-0 rounded-lg px-2.5 py-1 text-xs font-semibold"
+        :class="
+          activity.status === 'accepted'
+            ? 'bg-free text-free-ink'
+            : activity.status === 'rejected'
+              ? 'bg-fail text-fail-ink'
+              : 'bg-fill text-muted'
+        "
+      >
+        {{ statusLabel[activity.status] }}
+      </span>
     </header>
 
-    <p v-if="activity.kind" class="mt-1 text-xs text-neutral-500">{{ activity.kind }}</p>
-    <p v-if="activity.address" class="mt-1 text-sm text-neutral-600">{{ activity.address }}</p>
-    <p v-if="schedule" class="mt-1 text-sm text-neutral-600">{{ schedule }}</p>
-    <p class="mt-2 text-xs text-neutral-500">Proposée par {{ activity.proposedBy.name }}</p>
-
-    <div class="mt-3 flex flex-wrap items-center gap-2">
+    <div class="flex gap-2">
       <button
         type="button"
         :disabled="!isOpen || !canVote"
-        class="rounded px-3 py-1 text-sm disabled:opacity-40"
+        class="flex h-11 flex-1 items-center justify-center rounded-control text-sm disabled:opacity-40"
         :class="
-          activity.myVote === 'for' ? 'bg-neutral-900 text-white' : 'border border-neutral-300'
+          activity.myVote === 'for'
+            ? 'bg-accent font-semibold text-white'
+            : 'border border-field font-medium text-ink-2'
         "
         @click="emit('vote', activity.id, 'for')"
       >
@@ -63,9 +76,11 @@ const schedule = computed(() => {
       <button
         type="button"
         :disabled="!isOpen || !canVote"
-        class="rounded px-3 py-1 text-sm disabled:opacity-40"
+        class="flex h-11 flex-1 items-center justify-center rounded-control text-sm disabled:opacity-40"
         :class="
-          activity.myVote === 'against' ? 'bg-neutral-900 text-white' : 'border border-neutral-300'
+          activity.myVote === 'against'
+            ? 'bg-accent font-semibold text-white'
+            : 'border border-field font-medium text-ink-2'
         "
         @click="emit('vote', activity.id, 'against')"
       >
@@ -73,13 +88,14 @@ const schedule = computed(() => {
       </button>
     </div>
 
-    <p v-if="closedReason" class="mt-2 text-xs text-neutral-500">{{ closedReason }}</p>
+    <p class="text-xs text-faint">Proposée par {{ activity.proposedBy.name }}</p>
+    <p v-if="closedReason" class="text-xs text-faint">{{ closedReason }}</p>
 
-    <div v-if="isAdmin" class="mt-3 flex flex-wrap gap-2 border-t border-neutral-100 pt-3">
+    <div v-if="isAdmin" class="flex flex-wrap gap-2 border-t border-line-soft pt-3">
       <button
         v-if="activity.status !== 'accepted'"
         type="button"
-        class="rounded border border-neutral-300 px-3 py-1 text-sm"
+        class="flex h-11 items-center rounded-control border border-field px-3.5 text-sm font-medium text-ink-2"
         @click="emit('decide', activity.id, 'accepted')"
       >
         Retenir
@@ -87,7 +103,7 @@ const schedule = computed(() => {
       <button
         v-if="activity.status !== 'rejected'"
         type="button"
-        class="rounded border border-neutral-300 px-3 py-1 text-sm"
+        class="flex h-11 items-center rounded-control border border-field px-3.5 text-sm font-medium text-ink-2"
         @click="emit('decide', activity.id, 'rejected')"
       >
         Écarter
@@ -95,7 +111,7 @@ const schedule = computed(() => {
       <button
         v-if="activity.status !== 'proposed'"
         type="button"
-        class="rounded border border-neutral-300 px-3 py-1 text-sm"
+        class="flex h-11 items-center rounded-control border border-field px-3.5 text-sm font-medium text-ink-2"
         @click="emit('decide', activity.id, 'proposed')"
       >
         Rouvrir le vote

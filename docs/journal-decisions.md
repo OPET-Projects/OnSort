@@ -600,6 +600,38 @@ Le script n'affiche désormais que l'essentiel, pour qu'aucun filtrage ne soit t
 `signIn` lit justement le lien magique dans cette sortie. L'échec apparaissait dans un test
 qui n'avait rien fait de mal.
 
+## Habillage — système de design et coque de navigation
+
+**Les jetons vivent dans `web/src/style.css`, jamais dans les composants.** Le front était
+écrit en utilitaires Tailwind bruts : `neutral-900`, `neutral-200`, `rounded`, sans aucune
+définition commune. Le bloc `@theme` nomme désormais les couleurs, les rayons et les ombres —
+`bg-accent`, `rounded-card`, `shadow-rest` — et Tailwind 4 les expose automatiquement. Une
+valeur écrite en dur dans un composant est donc une valeur à rapatrier dans ce fichier.
+*Ce que ça coûte si c'est mauvais* : renommer un jeton touche tous les gabarits d'un coup ;
+c'est un `sed`, pas une reprise.
+
+**La police est auto-hébergée, pas chargée depuis Google Fonts.** Un `<link>` vers
+`fonts.googleapis.com` n'aurait rien coûté en dépendances, mais il fait partir une requête
+vers un tiers à chaque visite — discutable au regard du RGPD — et l'interface change d'allure
+si le CDN est bloqué. `@fontsource-variable/plus-jakarta-sans`, épinglé, sert les fichiers
+depuis notre propre origine. C'est la seule dépendance ajoutée pour l'habillage.
+
+**La navigation devient une coque, pas des liens en clair.** Le tableau de bord portait trois
+liens soulignés vers les amis, les groupes et le calendrier ; les autres écrans en portaient
+un vers le tableau de bord, chacun au hasard de sa fin de page. `AppNav` rend la même liste
+deux fois : barre latérale au-delà de `md`, barre basse en dessous. Un écran de détail garde
+son onglet parent allumé — ouvrir un événement reste dans « Sorties ».
+*Ce que ça coûte si c'est mauvais* : une entrée de plus dans la barre est une ligne dans
+`destinations`, et les tests de `web/tests/nav.test.ts` disent immédiatement quel chemin
+allume quoi.
+
+**L'écran d'événement gagne une colonne de rappel au-delà de `md`, et rien en dessous.**
+Participants et programme retenu y sont répétés pendant qu'on saisit une dépense. Sur
+téléphone, cette colonne redirait mot pour mot l'onglet ouvert juste à côté : elle est
+simplement absente.
+
+---
+
 ## Points laissés ouverts
 
 - `api/prisma.config.ts` charge `../.env`, chemin relatif au **répertoire courant** et non au
