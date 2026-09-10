@@ -44,8 +44,16 @@ en direct, sans qu'il recharge.
 **M3 était le point de coupe** de `docs/conception.md` §9 : le produit se défend désormais
 seul.
 
+Depuis, deux chantiers hors jalons : le front porte un **système de design** — jetons dans
+`web/src/style.css`, coque de navigation (barre latérale au-delà de `md`, barre basse en
+dessous) — et la connexion accepte **Google** à côté du lien magique, ce qui sort le courriel
+du chemin critique. Le jeu de développement (`npm run db:seed`) pose un événement complet,
+votes, dépenses et virement en attente compris.
+
 **Reste dû, hors code :** le déploiement sur une URL publique HTTPS, livrable de M1. La
-chaîne de livraison et l'accès au VPS ne sont pas tranchés.
+chaîne de livraison et l'accès au VPS ne sont pas tranchés. Le même domaine débloquerait
+l'envoi de courriel vers des tiers (`docs/decisions-techniques.md` §2.8) et la connexion
+Google en production (§2.12).
 
 Le jalon suivant est **M7 — finitions : partage en pourcentage et en montant fixe,
 réordonnancement des activités, annulation**. Le séquencement complet est en section 9 de

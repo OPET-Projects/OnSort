@@ -602,6 +602,10 @@ qui n'avait rien fait de mal.
 
 ## Habillage — système de design et coque de navigation
 
+Les maquettes qui font foi vivent sur un canevas partagé : https://claude.ai/code/artifact/d5811af8-6a04-4f45-83a6-b0b13d15e74e — écrans mobiles
+en 360 et 390 px, écrans desktop en 1440, feuille des jetons, états de chargement, de
+vide et d'erreur. En cas d'écart entre le canevas et le code, c'est le code qui a tort.
+
 **Les jetons vivent dans `web/src/style.css`, jamais dans les composants.** Le front était
 écrit en utilitaires Tailwind bruts : `neutral-900`, `neutral-200`, `rounded`, sans aucune
 définition commune. Le bloc `@theme` nomme désormais les couleurs, les rayons et les ombres —
