@@ -670,6 +670,33 @@ façon le SMTP qu'avec un abonnement payant.
 
 ---
 
+## Jeu de données de développement — un événement, pas trois comptes vides
+
+**Le seed crée maintenant une sortie vivante.** Trois comptes nus obligeaient à ressaisir un
+événement, des votes et deux dépenses à la main après chaque `npm test`, qui vide la base.
+Il pose désormais un événement en cours, trois activités dont une retenue et quatre votes,
+deux dépenses aux parts figées, un virement déclaré et non confirmé, un groupe, deux
+indisponibilités, une amitié et une demande en attente.
+
+**Les dates sont relatives, jamais écrites en dur.** Un événement daté en clair devient passé
+au bout d'une semaine : il disparaît alors du tableau de bord et vide les créneaux libres, et
+la démonstration semble cassée alors que seul le calendrier a avancé.
+
+**Tout porte un identifiant préfixé `dev-`, et le seed supprime avant d'écrire.** Le rejouer
+remplace au lieu d'empiler — c'est le geste qu'on fait après chaque suite de tests.
+
+**Le seed est testé.** Non pour vérifier qu'il s'insère, mais qu'il reste cohérent avec le
+domaine : les parts somment au montant de leur dépense, les soldes dérivés tombent à zéro, et
+le virement en attente vaut exactement le déséquilibre. Un jeu de démonstration incohérent se
+verrait sur l'écran des dépenses, au pire moment.
+
+**Deuxième test qui dépendait du `.env` du développeur.** Celui de `/api/auth-providers`
+affirmait `google: false` — vrai jusqu'à ce que les clés Google soient posées en local, faux
+ensuite. Il pose désormais les deux états explicitement. Même leçon que pour la clé d'envoi :
+un test qui lit l'environnement du développeur teste sa machine, pas le code.
+
+---
+
 ## Points laissés ouverts
 
 - `api/prisma.config.ts` charge `../.env`, chemin relatif au **répertoire courant** et non au
