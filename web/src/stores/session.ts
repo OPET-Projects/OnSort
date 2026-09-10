@@ -51,5 +51,32 @@ export const useSessionStore = defineStore('session', () => {
     }
   }
 
-  return { user, status, fetchSession, requestMagicLink }
+  // Rend l'URL du fournisseur au lieu d'y naviguer : une redirection déclenchée depuis le
+  // magasin serait intestable, et la navigation est une affaire de vue.
+  async function startGoogleSignIn(path = '/'): Promise<string> {
+    // Même raison que pour le lien magique : Better Auth résout un `callbackURL` relatif
+    // contre sa propre `baseURL`, pas contre le front.
+    const callbackURL = new URL(path, window.location.origin).toString()
+
+    const response = await fetch('/api/auth/sign-in/social', {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ provider: 'google', callbackURL }),
+    })
+
+    if (!response.ok) {
+      throw new Error('La connexion par Google a échoué. Réessayez dans un instant.')
+    }
+
+    const body = (await response.json()) as { url?: unknown }
+
+    if (typeof body.url !== 'string') {
+      throw new Error('La connexion par Google a échoué. Réessayez dans un instant.')
+    }
+
+    return body.url
+  }
+
+  return { user, status, fetchSession, requestMagicLink, startGoogleSignIn }
 })

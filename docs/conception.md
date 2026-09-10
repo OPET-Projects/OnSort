@@ -27,8 +27,10 @@ Leaflet, API Base Adresse Nationale, Resend, Docker pour la base locale.
 
 ### 2.1 Authentification
 
-Tables gérées par Better Auth : `user`, `session`, `account`, `verification`. Seul le plugin
-`magicLink` est activé. **Le compte est obligatoire** : aucun accès anonyme, aucun compte
+Tables gérées par Better Auth : `user`, `session`, `account`, `verification`. Deux chemins
+d'entrée : le plugin `magicLink`, et **Google** en fournisseur social lorsque
+`GOOGLE_CLIENT_ID` et `GOOGLE_CLIENT_SECRET` sont configurés — `account` porte déjà les
+colonnes qu'il demande. **Le compte est obligatoire** : aucun accès anonyme, aucun compte
 temporaire.
 
 ### 2.2 Social
@@ -349,12 +351,17 @@ l'événement, le rôle passe automatiquement au participant le plus ancien.
 
 ## 4. Authentification et vie privée
 
-Connexion par lien magique uniquement. Le token d'invitation doit survivre à l'aller-retour
-de l'e-mail : il est déposé en cookie avant l'envoi et relu au retour.
+Deux chemins d'entrée : le lien magique, et Google quand il est configuré. Le token
+d'invitation doit survivre à l'aller-retour, quel que soit le chemin : il est déposé en
+cookie avant le départ et relu au retour.
 
-L'e-mail se trouve donc sur le chemin critique — sans lui, personne ne peut se connecter.
-Un mode de développement avec comptes pré-remplis et connexion directe est prévu, afin
-qu'une démonstration ne dépende jamais de la délivrabilité.
+**L'identité reste l'adresse e-mail.** Google en rend une, déjà vérifiée : les invitations,
+la recherche d'amis et la règle anti-énumération ci-dessous portent dessus sans changement,
+et un même utilisateur retrouve son compte quel que soit le chemin emprunté.
+
+Google retire l'e-mail du chemin critique de la **connexion** — plus rien à envoyer, donc
+rien à faire échouer. L'envoi reste nécessaire pour inviter une adresse inconnue ; le lien
+partageable (§3.4) et le repli console couvrent ce besoin en développement.
 
 **Règle anti-énumération.** La saisie d'une adresse e-mail, qu'il s'agisse d'inviter ou de
 se connecter, renvoie toujours la même réponse : même message, même code HTTP, quel que soit

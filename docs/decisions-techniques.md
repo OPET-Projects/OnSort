@@ -256,6 +256,14 @@ Deux règles :
 - ne jamais auto-héberger de serveur SMTP : les emails partant d'un VPS atterrissent en
   indésirable.
 
+**Ce que Resend impose, découvert à l'usage** : sans **domaine** vérifié par DNS, il ne
+livre qu'à l'adresse du titulaire du compte. Une démonstration à plusieurs comptes exige donc
+un domaine à nous — le même que celui du déploiement (§2.10). Brevo a été essayé comme
+contournement puis retiré : voir le journal.
+
+En attendant, la connexion ne dépend plus du courriel (§2.12) et le repli console couvre le
+développement.
+
 ### 2.9 Base locale — Docker
 
 PostgreSQL en conteneur pour le développement. Deux précautions :
@@ -291,6 +299,34 @@ impose de servir le front et l'API sur la même origine. WebSocket a été écar
 unidirectionnel, le duplex n'apporterait rien.
 
 ---
+
+### 2.12 Connexion — Google à côté du lien magique
+
+Le lien magique seul plaçait la délivrabilité du courriel sur le chemin critique de la
+connexion : sans domaine vérifié (§2.8), personne d'autre que le titulaire du compte
+d'envoi ne pouvait entrer. Google supprime cette dépendance — gratuit, sans quota, sans DNS,
+et il rend une adresse déjà vérifiée, si bien que l'identité de l'application ne bouge pas.
+
+Options écartées :
+
+- **SMS.** Gratuit nulle part : Firebase demande une carte bancaire au-delà de dix envois
+  par jour, l'essai Twilio n'écrit qu'à des numéros pré-vérifiés — le même mur que Resend.
+  Et le numéro déplacerait l'identité, donc les invitations et l'anti-énumération avec elle.
+- **Mot de passe.** Le plus simple à démontrer, mais il ajoute une surface (stockage,
+  réinitialisation, robustesse) pour un bénéfice que Google donne déjà.
+- **GitHub.** Retenu comme candidat, écarté pour l'instant : le public visé n'est pas
+  développeur, et beaucoup de comptes n'exposent aucune adresse publique.
+
+Ce que Google coûte : un projet Google Cloud et un écran de consentement. Les scopes
+`email` et `profile` sont non sensibles, donc aucune validation d'application n'est requise.
+En développement l'URL de retour `http://localhost` est acceptée ; **en production Google
+exige une URL HTTPS sur un vrai domaine**, jamais une adresse IP — c'est le même domaine que
+celui du déploiement (§2.10) et de la vérification Resend (§2.8).
+
+Les deux variables vont ensemble : une moitié seule fait échouer le démarrage avec un
+message qui la nomme, plutôt qu'une erreur du fournisseur au premier clic. Sans aucune des
+deux, le bouton n'apparaît pas — le front demande à l'API ce qui est configuré
+(`GET /api/auth-providers`) au lieu de le lire dans une variable de construction.
 
 ## 3. Décisions produit challengées
 

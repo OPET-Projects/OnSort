@@ -600,6 +600,107 @@ Le script n'affiche désormais que l'essentiel, pour qu'aucun filtrage ne soit t
 `signIn` lit justement le lien magique dans cette sortie. L'échec apparaissait dans un test
 qui n'avait rien fait de mal.
 
+## Habillage — système de design et coque de navigation
+
+Les maquettes qui font foi vivent sur un canevas partagé : https://claude.ai/code/artifact/d5811af8-6a04-4f45-83a6-b0b13d15e74e — écrans mobiles
+en 360 et 390 px, écrans desktop en 1440, feuille des jetons, états de chargement, de
+vide et d'erreur. En cas d'écart entre le canevas et le code, c'est le code qui a tort.
+
+**Les jetons vivent dans `web/src/style.css`, jamais dans les composants.** Le front était
+écrit en utilitaires Tailwind bruts : `neutral-900`, `neutral-200`, `rounded`, sans aucune
+définition commune. Le bloc `@theme` nomme désormais les couleurs, les rayons et les ombres —
+`bg-accent`, `rounded-card`, `shadow-rest` — et Tailwind 4 les expose automatiquement. Une
+valeur écrite en dur dans un composant est donc une valeur à rapatrier dans ce fichier.
+*Ce que ça coûte si c'est mauvais* : renommer un jeton touche tous les gabarits d'un coup ;
+c'est un `sed`, pas une reprise.
+
+**La police est auto-hébergée, pas chargée depuis Google Fonts.** Un `<link>` vers
+`fonts.googleapis.com` n'aurait rien coûté en dépendances, mais il fait partir une requête
+vers un tiers à chaque visite — discutable au regard du RGPD — et l'interface change d'allure
+si le CDN est bloqué. `@fontsource-variable/plus-jakarta-sans`, épinglé, sert les fichiers
+depuis notre propre origine. C'est la seule dépendance ajoutée pour l'habillage.
+
+**La navigation devient une coque, pas des liens en clair.** Le tableau de bord portait trois
+liens soulignés vers les amis, les groupes et le calendrier ; les autres écrans en portaient
+un vers le tableau de bord, chacun au hasard de sa fin de page. `AppNav` rend la même liste
+deux fois : barre latérale au-delà de `md`, barre basse en dessous. Un écran de détail garde
+son onglet parent allumé — ouvrir un événement reste dans « Sorties ».
+*Ce que ça coûte si c'est mauvais* : une entrée de plus dans la barre est une ligne dans
+`destinations`, et les tests de `web/tests/nav.test.ts` disent immédiatement quel chemin
+allume quoi.
+
+**L'écran d'événement gagne une colonne de rappel au-delà de `md`, et rien en dessous.**
+Participants et programme retenu y sont répétés pendant qu'on saisit une dépense. Sur
+téléphone, cette colonne redirait mot pour mot l'onglet ouvert juste à côté : elle est
+simplement absente.
+
+---
+
+## Connexion — sortir le courriel du chemin critique
+
+**Brevo a été branché, puis retiré.** Resend ne livre qu'au titulaire du compte tant qu'un
+**domaine** n'est pas vérifié par DNS, ce qui rendait impossible une démonstration à
+plusieurs comptes. Brevo, qui valide une simple adresse d'expéditeur, semblait contourner le
+problème — il ne le contourne qu'à moitié : depuis les exigences Gmail/Yahoo de 2024,
+étendues à Microsoft en 2025, un expéditeur sans domaine authentifié voit son adresse
+réécrite et ses messages classés indésirables. Le contournement déplaçait la panne au lieu
+de la supprimer. Retour à Resend seul.
+
+**Ce qui règle vraiment le problème : Google.** La connexion ne passe plus par un courriel
+du tout — gratuit, sans quota, sans DNS. Et comme Google rend une adresse déjà vérifiée,
+l'identité de l'application ne bouge pas d'un pouce : invitations, amis et anti-énumération
+continuent de porter sur l'adresse (`conception.md` §4, `decisions-techniques.md` §2.12).
+*Ce que ça coûte si c'est mauvais* : `socialProviders` est un objet vide sans clés, et
+l'écran de connexion redevient ce qu'il était.
+
+**Le front demande à l'API quels fournisseurs existent**, plutôt que de le lire dans une
+variable `VITE_`. Une variable de construction vaudrait celle de l'image, pas celle du
+serveur qui répond — et un bouton proposé sans clés mène droit sur une erreur du
+fournisseur, loin de sa cause.
+
+**Les deux variables Google vont ensemble.** Une moitié seule fait échouer le démarrage avec
+un message qui la nomme. Sans cette garde, l'erreur serait apparue chez Google, au premier
+clic d'un utilisateur.
+
+**Un défaut réel trouvé en chemin : `npm test` envoyait de vrais courriels.** La suite charge
+le `.env` du développeur, clé d'envoi comprise ; depuis qu'une vraie clé y était posée,
+chaque exécution partait chez le fournisseur — sur son quota, vers les adresses inventées
+par les fixtures. La clé est désormais ignorée sous `NODE_ENV=test`. Le symptôme était
+spectaculaire : 202 tests rouges d'un coup, tous pour la même raison.
+
+**`PROTON_EMAIL` et `PROTON_PASSWORD` retirées de `.env.example`.** Jamais lues par
+`config.ts` : elles faisaient croire à un fournisseur inexistant. Proton ne propose de toute
+façon le SMTP qu'avec un abonnement payant.
+
+---
+
+## Jeu de données de développement — un événement, pas trois comptes vides
+
+**Le seed crée maintenant une sortie vivante.** Trois comptes nus obligeaient à ressaisir un
+événement, des votes et deux dépenses à la main après chaque `npm test`, qui vide la base.
+Il pose désormais un événement en cours, trois activités dont une retenue et quatre votes,
+deux dépenses aux parts figées, un virement déclaré et non confirmé, un groupe, deux
+indisponibilités, une amitié et une demande en attente.
+
+**Les dates sont relatives, jamais écrites en dur.** Un événement daté en clair devient passé
+au bout d'une semaine : il disparaît alors du tableau de bord et vide les créneaux libres, et
+la démonstration semble cassée alors que seul le calendrier a avancé.
+
+**Tout porte un identifiant préfixé `dev-`, et le seed supprime avant d'écrire.** Le rejouer
+remplace au lieu d'empiler — c'est le geste qu'on fait après chaque suite de tests.
+
+**Le seed est testé.** Non pour vérifier qu'il s'insère, mais qu'il reste cohérent avec le
+domaine : les parts somment au montant de leur dépense, les soldes dérivés tombent à zéro, et
+le virement en attente vaut exactement le déséquilibre. Un jeu de démonstration incohérent se
+verrait sur l'écran des dépenses, au pire moment.
+
+**Deuxième test qui dépendait du `.env` du développeur.** Celui de `/api/auth-providers`
+affirmait `google: false` — vrai jusqu'à ce que les clés Google soient posées en local, faux
+ensuite. Il pose désormais les deux états explicitement. Même leçon que pour la clé d'envoi :
+un test qui lit l'environnement du développeur teste sa machine, pas le code.
+
+---
+
 ## Points laissés ouverts
 
 - `api/prisma.config.ts` charge `../.env`, chemin relatif au **répertoire courant** et non au
