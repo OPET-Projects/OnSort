@@ -632,6 +632,44 @@ simplement absente.
 
 ---
 
+## Connexion — sortir le courriel du chemin critique
+
+**Brevo a été branché, puis retiré.** Resend ne livre qu'au titulaire du compte tant qu'un
+**domaine** n'est pas vérifié par DNS, ce qui rendait impossible une démonstration à
+plusieurs comptes. Brevo, qui valide une simple adresse d'expéditeur, semblait contourner le
+problème — il ne le contourne qu'à moitié : depuis les exigences Gmail/Yahoo de 2024,
+étendues à Microsoft en 2025, un expéditeur sans domaine authentifié voit son adresse
+réécrite et ses messages classés indésirables. Le contournement déplaçait la panne au lieu
+de la supprimer. Retour à Resend seul.
+
+**Ce qui règle vraiment le problème : Google.** La connexion ne passe plus par un courriel
+du tout — gratuit, sans quota, sans DNS. Et comme Google rend une adresse déjà vérifiée,
+l'identité de l'application ne bouge pas d'un pouce : invitations, amis et anti-énumération
+continuent de porter sur l'adresse (`conception.md` §4, `decisions-techniques.md` §2.12).
+*Ce que ça coûte si c'est mauvais* : `socialProviders` est un objet vide sans clés, et
+l'écran de connexion redevient ce qu'il était.
+
+**Le front demande à l'API quels fournisseurs existent**, plutôt que de le lire dans une
+variable `VITE_`. Une variable de construction vaudrait celle de l'image, pas celle du
+serveur qui répond — et un bouton proposé sans clés mène droit sur une erreur du
+fournisseur, loin de sa cause.
+
+**Les deux variables Google vont ensemble.** Une moitié seule fait échouer le démarrage avec
+un message qui la nomme. Sans cette garde, l'erreur serait apparue chez Google, au premier
+clic d'un utilisateur.
+
+**Un défaut réel trouvé en chemin : `npm test` envoyait de vrais courriels.** La suite charge
+le `.env` du développeur, clé d'envoi comprise ; depuis qu'une vraie clé y était posée,
+chaque exécution partait chez le fournisseur — sur son quota, vers les adresses inventées
+par les fixtures. La clé est désormais ignorée sous `NODE_ENV=test`. Le symptôme était
+spectaculaire : 202 tests rouges d'un coup, tous pour la même raison.
+
+**`PROTON_EMAIL` et `PROTON_PASSWORD` retirées de `.env.example`.** Jamais lues par
+`config.ts` : elles faisaient croire à un fournisseur inexistant. Proton ne propose de toute
+façon le SMTP qu'avec un abonnement payant.
+
+---
+
 ## Points laissés ouverts
 
 - `api/prisma.config.ts` charge `../.env`, chemin relatif au **répertoire courant** et non au

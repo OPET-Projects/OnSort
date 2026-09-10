@@ -5,6 +5,7 @@ import { config } from './config.ts'
 import { renderApiError } from './lib/http.ts'
 import { requireSession } from './middleware/session.ts'
 import { activitiesRoutes } from './modules/activities/routes.ts'
+import { authProvidersRoutes } from './modules/auth/routes.ts'
 import { calendarRoutes } from './modules/calendar/routes.ts'
 import { eventsRoutes } from './modules/events/routes.ts'
 import { expensesRoutes } from './modules/expenses/routes.ts'
@@ -25,6 +26,7 @@ export const app = new Hono()
   .route('/api/groups', groupsRoutes)
   .route('/api/activities', activitiesRoutes)
   .route('/api/expenses', expensesRoutes)
+  .route('/api', authProvidersRoutes)
   .route('/api', placesRoutes)
   .route('/api', notificationsRoutes)
   .route('/api/invitations', invitationsRoutes)

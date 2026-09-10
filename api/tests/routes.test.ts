@@ -21,6 +21,15 @@ it('refuse /api/me sans session', async () => {
   })
 })
 
+// Sans clés Google en test, le front ne doit pas proposer un bouton qui mènerait sur une
+// erreur du fournisseur.
+it('annonce les fournisseurs de connexion configurés, sans session', async () => {
+  const response = await app.request('/api/auth-providers')
+
+  expect(response.status).toBe(200)
+  expect(await response.json()).toEqual({ google: false })
+})
+
 it('expose le gestionnaire d’authentification', async () => {
   const response = await app.request('/api/auth/sign-in/magic-link', {
     method: 'POST',

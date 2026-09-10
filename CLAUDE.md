@@ -60,7 +60,7 @@ Monorepo `npm workspaces`, deux espaces : `api/` et `web/`.
 | Runtime | Node 24 LTS — version exacte dans `.nvmrc` |
 | API | Hono, servi par `@hono/node-server` |
 | Base | PostgreSQL 17 en conteneur, accès par Prisma 7 + `@prisma/adapter-pg` |
-| Authentification | Better Auth, greffon `magicLink` seul, **compte obligatoire** |
+| Authentification | Better Auth : greffon `magicLink` + Google en option, **compte obligatoire** |
 | Front | Vue 3 + Vite, SPA, Pinia, Vue Router, Tailwind |
 | Types partagés | Hono RPC — `web` importe `AppType` et `SessionUser` depuis le paquet `api` |
 | Carte | Leaflet, tuiles OpenStreetMap, géocodage Base Adresse Nationale — sans clé |
