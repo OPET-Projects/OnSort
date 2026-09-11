@@ -1,6 +1,13 @@
 import { prisma } from '../../db.ts'
 import { ApiError } from '../../lib/http.ts'
-import { computeBalances, minimizeTransfers, splitEqually } from '../../lib/money.ts'
+import {
+  computeBalances,
+  minimizeTransfers,
+  type Share,
+  splitByFixed,
+  splitByPercent,
+  splitEqually,
+} from '../../lib/money.ts'
 import { notify } from '../../lib/notify.ts'
 import {
   canConfirmSettlement,
@@ -64,13 +71,45 @@ async function resolveBeneficiaries(eventId: string, requested: string[] | undef
   return requested
 }
 
+// Les trois modes de partage produisent la même chose : des **montants absolus** (§2.8
+// note 3). Les fonctions pures de `lib/money.ts` portent l'arithmétique et lèvent une
+// `Error` nue ; c'est ici, à la frontière du domaine, qu'elle prend un code que le client
+// peut lire — un total de pourcentages faux est une faute de saisie, pas un bogue.
+function asShares(compute: () => Share[]): Share[] {
+  try {
+    return compute()
+  } catch (error) {
+    throw new ApiError('invalid_split', 400, (error as Error).message)
+  }
+}
+
+// Parts d'une dépense selon son mode. Les bénéficiaires sont vérifiés **avant** le calcul
+// dans les trois cas : un étranger à l'événement doit recevoir `unknown_beneficiary`, pas
+// une erreur d'arithmétique.
+async function computeShares(
+  eventId: string,
+  amountCents: number,
+  input: CreateExpenseInput,
+): Promise<Share[]> {
+  if (input.splitMode === 'equal') {
+    const beneficiaries = await resolveBeneficiaries(eventId, input.beneficiaryIds)
+    return splitEqually(amountCents, beneficiaries)
+  }
+
+  await resolveBeneficiaries(
+    eventId,
+    input.shares.map((share) => share.participantId),
+  )
+
+  return input.splitMode === 'percent'
+    ? asShares(() => splitByPercent(amountCents, input.shares))
+    : asShares(() => splitByFixed(amountCents, input.shares))
+}
+
 export async function createExpense(userId: string, eventId: string, input: CreateExpenseInput) {
   const participant = await loadRecordingParticipant(userId, eventId)
-  const beneficiaries = await resolveBeneficiaries(eventId, input.beneficiaryIds)
-
-  // Les trois modes partagent le même stockage (§2.8 note 3) ; seul `equal` sait calculer en
-  // M3, l'interface des deux autres arrive en M7.
-  const shares = splitEqually(input.amountCents, beneficiaries)
+  const shares = await computeShares(eventId, input.amountCents, input)
+  const beneficiaries = shares.map((share) => share.participantId)
 
   const expense = await prisma.expense.create({
     data: {
@@ -146,6 +185,69 @@ export async function loadExpense(expenseId: string) {
   return expense
 }
 
+// Parts d'une dépense corrigée, ou `null` quand rien ne justifie de les réécrire.
+//
+// Les parts sont stockées en **valeur absolue**, jamais en pourcentage : un nouveau montant
+// sur une dépense en pourcentage ne peut donc pas être recalculé sans que les pourcentages
+// soient redonnés. Les déduire des anciennes parts reviendrait à inventer une intention que
+// personne n'a exprimée.
+async function recomputeShares(
+  eventId: string,
+  expenseId: string,
+  amountCents: number,
+  splitMode: 'equal' | 'percent' | 'fixed',
+  input: UpdateExpenseInput,
+): Promise<Share[] | null> {
+  const given = input.shares
+
+  if (given !== undefined) {
+    await resolveBeneficiaries(
+      eventId,
+      given.map((share) => share.participantId),
+    )
+
+    // Le schéma a déjà refusé des parts dont la forme ne suit pas le mode ; le tri ci-dessous
+    // ne fait que le redire au typage, sans assertion de type.
+    if (splitMode === 'percent') {
+      const weights = given.filter((share) => 'percent' in share)
+      return asShares(() => splitByPercent(amountCents, weights))
+    }
+
+    const parts = given.filter((share) => 'amountCents' in share)
+    return asShares(() => splitByFixed(amountCents, parts))
+  }
+
+  if (splitMode === 'equal') {
+    const beneficiaries =
+      input.beneficiaryIds === undefined
+        ? (
+            await prisma.expenseShare.findMany({
+              where: { expenseId },
+              select: { participantId: true },
+            })
+          ).map((share) => share.participantId)
+        : await resolveBeneficiaries(eventId, input.beneficiaryIds)
+
+    return splitEqually(amountCents, beneficiaries)
+  }
+
+  // Rien qui touche au partage n'a changé : les parts figées restent telles quelles.
+  if (
+    input.amountCents === undefined &&
+    input.beneficiaryIds === undefined &&
+    input.splitMode === undefined
+  ) {
+    return null
+  }
+
+  throw new ApiError(
+    'shares_required',
+    400,
+    'Redonnez les parts : une dépense en pourcentage ou en montant fixe ne se recalcule pas seule.',
+    { splitMode },
+  )
+}
+
 export async function updateExpense(userId: string, expenseId: string, input: UpdateExpenseInput) {
   const expense = await loadExpense(expenseId)
   const participant = await loadParticipant(userId, expense.eventId)
@@ -165,25 +267,21 @@ export async function updateExpense(userId: string, expenseId: string, input: Up
   }
 
   const amountCents = input.amountCents ?? expense.amountCents
-  const beneficiaries =
-    input.beneficiaryIds === undefined
-      ? (
-          await prisma.expenseShare.findMany({
-            where: { expenseId },
-            select: { participantId: true },
-          })
-        ).map((share) => share.participantId)
-      : await resolveBeneficiaries(expense.eventId, input.beneficiaryIds)
+  const splitMode = input.splitMode ?? expense.splitMode
 
   // §2.8 note 2 fige les parts contre les changements de **présence** — pas contre la
   // correction de la dépense elle-même. Laisser les anciennes parts sur un nouveau montant
   // casserait l'invariant `SUM(parts) = montant`, donc on les réécrit.
-  const shares = splitEqually(amountCents, beneficiaries)
+  const shares = await recomputeShares(expense.eventId, expenseId, amountCents, splitMode, input)
 
   // Suppression et réécriture dans la même transaction : sans elle, un incident entre les
-  // deux laisserait une dépense sans aucune part, donc un solde faux.
+  // deux laisserait une dépense sans aucune part, donc un solde faux. Des parts inchangées
+  // ne sont pas réécrites — les effacer pour les recréer à l'identique ferait du bruit sans
+  // rien changer.
   const updated = await prisma.$transaction(async (tx) => {
-    await tx.expenseShare.deleteMany({ where: { expenseId } })
+    if (shares !== null) {
+      await tx.expenseShare.deleteMany({ where: { expenseId } })
+    }
 
     return tx.expense.update({
       where: { id: expenseId },
@@ -191,7 +289,8 @@ export async function updateExpense(userId: string, expenseId: string, input: Up
         label: input.label,
         amountCents,
         activityId: input.activityId,
-        shares: { create: shares },
+        splitMode: input.splitMode,
+        shares: shares === null ? undefined : { create: shares },
       },
       include: { shares: true },
     })
