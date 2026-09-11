@@ -3,8 +3,8 @@ import { streamSSE } from 'hono/streaming'
 import { type ServerEvent, subscribe } from '../../lib/sse.ts'
 import { jsonBody } from '../../lib/validator.ts'
 import { requireSession, type SessionVariables } from '../../middleware/session.ts'
-import { createActivitySchema } from '../activities/schema.ts'
-import { createActivity, listActivities } from '../activities/service.ts'
+import { createActivitySchema, reorderActivitiesSchema } from '../activities/schema.ts'
+import { createActivity, listActivities, reorderActivities } from '../activities/service.ts'
 import { createExpenseSchema, declareSettlementSchema } from '../expenses/schema.ts'
 import { createExpense, declareSettlement, getBalances, listExpenses } from '../expenses/service.ts'
 import { createEventSchema, inviteSchema, rsvpSchema, updateEventSchema } from './schema.ts'
@@ -50,6 +50,14 @@ export const eventsRoutes = new Hono<{ Variables: SessionVariables }>()
   .post('/:id/activities', jsonBody(createActivitySchema), async (c) => {
     const activity = await createActivity(c.get('user').id, c.req.param('id'), c.req.valid('json'))
     return c.json({ id: activity.id }, 201)
+  })
+  .patch('/:id/activities/order', jsonBody(reorderActivitiesSchema), async (c) => {
+    const result = await reorderActivities(
+      c.get('user').id,
+      c.req.param('id'),
+      c.req.valid('json').activityIds,
+    )
+    return c.json(result)
   })
   .get('/:id/activities', async (c) => {
     return c.json({ activities: await listActivities(c.get('user').id, c.req.param('id')) })

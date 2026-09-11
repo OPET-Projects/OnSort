@@ -299,6 +299,60 @@ export async function updateActivity(
   return updated
 }
 
+// Réordonnancement du programme (§5.1). **Réservé à l'administrateur** : §3.8 lui attribue
+// « trancher le vote » et « clore l'événement », et l'ordre du programme relève de la même
+// catégorie — il engage le groupe, pas une proposition personnelle.
+export async function reorderActivities(
+  userId: string,
+  eventId: string,
+  activityIds: readonly string[],
+) {
+  const participant = await loadParticipant(userId, eventId)
+
+  if (!canManageEvent(participant.role)) {
+    throw new ApiError('forbidden', 403, 'Seul un administrateur peut réordonner le programme.')
+  }
+
+  const existing = await prisma.activity.findMany({ where: { eventId }, select: { id: true } })
+  const requested = new Set(activityIds)
+
+  // Un doublon donnerait deux positions à une activité et en priverait une autre : la liste
+  // cesserait de décrire un ordre.
+  if (requested.size !== activityIds.length) {
+    throw new ApiError('invalid_order', 400, 'Une activité figure deux fois dans cet ordre.')
+  }
+
+  // La liste doit contenir **exactement** les activités de l'événement. Une liste partielle
+  // laisserait les absentes à une position arbitraire, et une activité étrangère changerait
+  // l'ordre d'un autre programme.
+  const complete =
+    requested.size === existing.length && existing.every((activity) => requested.has(activity.id))
+
+  if (!complete) {
+    throw new ApiError(
+      'invalid_order',
+      400,
+      "L'ordre doit nommer exactement les activités de cet événement.",
+      { expected: existing.length, received: requested.size },
+    )
+  }
+
+  // Transaction : à mi-chemin, deux activités partageraient la même position et le programme
+  // aurait deux troisièmes places.
+  await prisma.$transaction(
+    activityIds.map((id, position) =>
+      prisma.activity.update({ where: { id }, data: { position } }),
+    ),
+  )
+
+  // **Une seule diffusion** pour le geste entier : une par activité déplacée ferait recharger
+  // le programme autant de fois. L'identifiant porté est celui de l'événement — c'est le
+  // programme qui a changé, pas une activité.
+  publish(eventId, { type: 'activity.updated', id: eventId })
+
+  return { activityIds: [...activityIds] }
+}
+
 // Présence à une activité (§3.4). **L'absence est la ligne, la présence est l'absence de
 // ligne** : les présents sont les participants ayant accepté, moins ceux inscrits dans
 // `activity_absences`.

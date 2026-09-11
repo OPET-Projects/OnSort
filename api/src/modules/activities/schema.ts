@@ -25,6 +25,14 @@ export const updateActivitySchema = z
   })
   .partial()
 
+// Le réordonnancement reçoit la **liste complète** des identifiants, pas un déplacement :
+// « monte celle-ci d'un cran » dépendrait de l'ordre supposé par le client, qui peut être
+// périmé. Une liste complète est vérifiable — le service exige qu'elle contienne exactement
+// les activités de l'événement.
+export const reorderActivitiesSchema = z.object({
+  activityIds: z.array(z.uuid()).min(1),
+})
+
 export const attendanceSchema = z.object({
   present: z.boolean(),
 })
