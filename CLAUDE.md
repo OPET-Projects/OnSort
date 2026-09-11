@@ -185,11 +185,26 @@ donc dès qu'on lance la suite. Relancer le seed avant une démonstration.
 des tables doit étendre `TABLES`. `TRUNCATE ... CASCADE` rend l'ordre indifférent, mais une
 table oubliée laisse des lignes entre les tests et les rend dépendants de leur ordre.
 
-**Prisma refuse `migrate reset` et `migrate dev` lancés par un agent.** Pour retravailler
-une migration en développement : éditer le `.sql`, puis
+**Un agent ne peut pas lancer `prisma migrate dev`, `reset` ni `diff` — et ce n'est pas
+Prisma qui refuse, c'est le bac à sable de l'agent.** Le refus est classé « Irreversible
+Local Destruction » : `migrate dev` peut proposer un `reset` qui efface la base, et il est
+interactif — il réclame un nom de migration. Le filtre est large : même `migrate diff
+--script`, pourtant en lecture seule, est bloqué. `migrate deploy` et `migrate status`
+passent.
+
+Écrire une migration sans `migrate dev`, donc : créer `api/prisma/migrations/<horodatage>_<nom>/migration.sql`
+à la main — le SQL est celui que Prisma aurait émis, prendre les migrations existantes pour
+modèle — puis, **depuis `api/`** (le chemin `../.env` en dépend), `npx prisma migrate deploy`
+et `npm run db:generate`. Vérifier par `npx prisma migrate status`, qui doit dire
+« Database schema is up to date! ». Un humain peut confirmer l'absence de dérive avec
+`npx prisma migrate dev` : « Already in sync » signifie que le `.sql` écrit à la main dit
+exactement ce que `schema.prisma` décrit.
+
+Pour retravailler une migration **déjà appliquée** : éditer le `.sql` casse sa somme de
+contrôle, il faut donc reconstruire le schéma —
 `docker exec onsort-db psql -U onsort -d onsort -c 'DROP SCHEMA public CASCADE; CREATE SCHEMA public;'`
-et `npm run db:migrate --workspace api` (qui appelle `migrate dev`) — ou demander à un
-humain de lancer `reset`. `migrate deploy` n'est pas bloqué.
+puis `npx prisma migrate deploy` depuis `api/` — ou demander à un humain de lancer `reset`.
+Les deux effacent le jeu de développement, que `npm run db:seed` repose.
 
 **PostgreSQL et JavaScript ne comparent pas les chaînes de la même façon.** La base est en
 `en_US.utf8`, dont l'ordre est linguistique : `'Z' < 'a'` y vaut **faux**, quand le même test
