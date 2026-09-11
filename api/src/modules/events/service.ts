@@ -81,6 +81,10 @@ export async function getEvent(userId: string, eventId: string) {
     createdBy: event.createdBy,
     pendingInvitations: await pendingInvitationsFor(event, viewer.role),
     participants: event.participants.map((participant) => ({
+      // L'identifiant de **participation**, et non celui de l'utilisateur : parts de dépense,
+      // soldes et règlements sont tous indexés par participation, et un partage en
+      // pourcentage ou en montant fixe doit pouvoir nommer ses bénéficiaires.
+      participantId: participant.id,
       userId: participant.userId,
       name: participant.user.name,
       email: participant.user.email,

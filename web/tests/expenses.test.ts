@@ -125,3 +125,75 @@ it('rend NaN sur une saisie qui n’est pas un nombre', () => {
   expect(Number.isNaN(parseEurosToCents('abc'))).toBe(true)
   expect(Number.isNaN(parseEurosToCents(''))).toBe(true)
 })
+
+// --- les trois modes de partage (M7) ------------------------------------------------------
+
+it('saisit une dépense en pourcentage', async () => {
+  const fetchMock = vi.fn(async () =>
+    json({ expenses: [], balances: [], transfers: [], pendingSettlements: [] }),
+  )
+  vi.stubGlobal('fetch', fetchMock)
+
+  const { record } = useExpenses('e1')
+  await record({
+    label: 'Hôtel',
+    amountCents: 10_000,
+    splitMode: 'percent',
+    shares: [
+      { participantId: 'p1', percent: 70 },
+      { participantId: 'p2', percent: 30 },
+    ],
+  })
+
+  const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit]
+  expect(url).toBe('/api/events/e1/expenses')
+  expect(JSON.parse(String(init.body))).toEqual({
+    label: 'Hôtel',
+    amountCents: 10_000,
+    splitMode: 'percent',
+    shares: [
+      { participantId: 'p1', percent: 70 },
+      { participantId: 'p2', percent: 30 },
+    ],
+  })
+})
+
+it('saisit une dépense en montant fixe', async () => {
+  const fetchMock = vi.fn(async () =>
+    json({ expenses: [], balances: [], transfers: [], pendingSettlements: [] }),
+  )
+  vi.stubGlobal('fetch', fetchMock)
+
+  const { record } = useExpenses('e1')
+  await record({
+    label: 'Courses',
+    amountCents: 5000,
+    splitMode: 'fixed',
+    shares: [
+      { participantId: 'p1', amountCents: 3500 },
+      { participantId: 'p2', amountCents: 1500 },
+    ],
+  })
+
+  const [, init] = fetchMock.mock.calls[0] as [string, RequestInit]
+  expect(JSON.parse(String(init.body))).toMatchObject({ splitMode: 'fixed' })
+})
+
+// Sans mode, la dépense reste partagée à parts égales : c'est le cas courant, et il ne doit
+// rien demander de plus.
+it('reste à parts égales par défaut', async () => {
+  const fetchMock = vi.fn(async () =>
+    json({ expenses: [], balances: [], transfers: [], pendingSettlements: [] }),
+  )
+  vi.stubGlobal('fetch', fetchMock)
+
+  const { record } = useExpenses('e1')
+  await record({ label: 'Taxi', amountCents: 1000 })
+
+  const [, init] = fetchMock.mock.calls[0] as [string, RequestInit]
+  expect(JSON.parse(String(init.body))).toEqual({
+    label: 'Taxi',
+    amountCents: 1000,
+    splitMode: 'equal',
+  })
+})

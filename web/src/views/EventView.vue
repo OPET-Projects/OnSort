@@ -8,7 +8,7 @@ import MapView from '../components/MapView.vue'
 import { useActivities } from '../composables/useActivities'
 import { useEvent } from '../composables/useEvent'
 import { useEventStream } from '../composables/useEventStream'
-import { useExpenses } from '../composables/useExpenses'
+import { type SplitMode, useExpenses } from '../composables/useExpenses'
 import { useMapConfig } from '../composables/useMapConfig'
 import { usePlaces } from '../composables/usePlaces'
 import { copyToClipboard } from '../lib/clipboard'
@@ -31,6 +31,8 @@ const {
   propose,
   vote,
   decide,
+  move,
+  cancel,
 } = useActivities(id)
 
 // Même remarque que ci-dessus sur la destructuration : les `Ref` doivent rester nommées.
@@ -111,11 +113,62 @@ async function submitProposal(): Promise<void> {
   }
 }
 
-const spending = ref({ label: '', amount: '' })
+const spending = ref({ label: '', amount: '', splitMode: 'equal' as SplitMode })
 const spendingError = ref('')
+
+// Une saisie par bénéficiaire, indexée par participation : un pourcentage entier en mode
+// `percent`, des euros en mode `fixed`. Une case laissée vide vaut zéro — quelqu'un peut ne
+// rien devoir sur une dépense dont il bénéficie.
+const splitEntries = ref<Record<string, string>>({})
+
+// Les bénéficiaires possibles sont ceux qui ont accepté, comme côté API (§3.4).
+const beneficiaries = computed(() =>
+  (event.value?.participants ?? []).filter((participant) => participant.rsvp === 'accepted'),
+)
+
+const spendingAmountCents = computed(() => parseEurosToCents(spending.value.amount))
+
+const percentEntered = computed(() =>
+  beneficiaries.value.reduce(
+    (sum, participant) =>
+      sum + Math.trunc(Number(splitEntries.value[participant.participantId]) || 0),
+    0,
+  ),
+)
+
+const fixedEnteredCents = computed(() =>
+  beneficiaries.value.reduce((sum, participant) => {
+    const cents = parseEurosToCents(splitEntries.value[participant.participantId] ?? '')
+    return sum + (Number.isFinite(cents) ? cents : 0)
+  }, 0),
+)
+
+// Le décalage s'affiche en direct : un formulaire qui n'indique pas qu'il manque 3 % se
+// solde par un refus incompréhensible.
+const splitHint = computed(() => {
+  if (spending.value.splitMode === 'percent') {
+    const gap = 100 - percentEntered.value
+    if (gap === 0) return 'Total : 100 %.'
+    return gap > 0
+      ? `Total : ${percentEntered.value} % — il manque ${gap} %.`
+      : `Total : ${percentEntered.value} % — ${-gap} % de trop.`
+  }
+
+  if (spending.value.splitMode === 'fixed') {
+    const total = Number.isFinite(spendingAmountCents.value) ? spendingAmountCents.value : 0
+    const gap = total - fixedEnteredCents.value
+    if (gap === 0) return `Total : ${formatCents(fixedEnteredCents.value)}.`
+    return gap > 0
+      ? `Total : ${formatCents(fixedEnteredCents.value)} — il manque ${formatCents(gap)}.`
+      : `Total : ${formatCents(fixedEnteredCents.value)} — ${formatCents(-gap)} de trop.`
+  }
+
+  return "La dépense est partagée à parts égales entre ceux qui ont accepté l'événement."
+})
+
 async function submitExpense(): Promise<void> {
   spendingError.value = ''
-  const amountCents = parseEurosToCents(spending.value.amount)
+  const amountCents = spendingAmountCents.value
 
   // Le montant est refusé ici, avec le contexte du formulaire, plutôt que dans
   // `parseEurosToCents` qui n'aurait pas de quoi rédiger le message.
@@ -124,11 +177,63 @@ async function submitExpense(): Promise<void> {
     return
   }
 
+  const mode = spending.value.splitMode
+
+  if (mode === 'percent' && percentEntered.value !== 100) {
+    spendingError.value = 'Les pourcentages doivent totaliser 100.'
+    return
+  }
+
+  if (mode === 'fixed' && fixedEnteredCents.value !== amountCents) {
+    spendingError.value = 'La somme des parts doit faire le montant de la dépense.'
+    return
+  }
+
   try {
-    await record({ label: spending.value.label, amountCents })
-    spending.value = { label: '', amount: '' }
+    if (mode === 'percent') {
+      await record({
+        label: spending.value.label,
+        amountCents,
+        splitMode: 'percent',
+        shares: beneficiaries.value.map((participant) => ({
+          participantId: participant.participantId,
+          percent: Math.trunc(Number(splitEntries.value[participant.participantId]) || 0),
+        })),
+      })
+    } else if (mode === 'fixed') {
+      await record({
+        label: spending.value.label,
+        amountCents,
+        splitMode: 'fixed',
+        shares: beneficiaries.value.map((participant) => {
+          const cents = parseEurosToCents(splitEntries.value[participant.participantId] ?? '')
+          return {
+            participantId: participant.participantId,
+            amountCents: Number.isFinite(cents) ? cents : 0,
+          }
+        }),
+      })
+    } else {
+      await record({ label: spending.value.label, amountCents })
+    }
+
+    spending.value = { label: '', amount: '', splitMode: 'equal' }
+    splitEntries.value = {}
   } catch (cause) {
     spendingError.value = cause instanceof Error ? cause.message : 'La saisie a échoué.'
+  }
+}
+
+// Réordonner et annuler n'ont pas de formulaire où poser leur erreur : une ligne au-dessus
+// du programme évite un échec muet.
+const programmeActionError = ref('')
+
+async function runOnProgramme(action: () => Promise<void>): Promise<void> {
+  programmeActionError.value = ''
+  try {
+    await action()
+  } catch (cause) {
+    programmeActionError.value = cause instanceof Error ? cause.message : "L'opération a échoué."
   }
 }
 
@@ -345,14 +450,23 @@ async function sendEmailInvite(): Promise<void> {
             </p>
 
             <div v-else class="flex flex-col gap-2.5">
+              <p v-if="programmeActionError" class="text-sm text-fail-ink">
+                {{ programmeActionError }}
+              </p>
               <ActivityCard
-                v-for="activity in activities"
+                v-for="(activity, index) in activities"
                 :key="activity.id"
                 :activity="activity"
                 :can-vote="hasAccepted"
                 :is-admin="isAdmin"
+                :is-first="index === 0"
+                :is-last="index === activities.length - 1"
                 @vote="vote"
                 @decide="decide"
+                @move="(activityId, delta) => runOnProgramme(() => move(activityId, delta))"
+                @cancel="
+                  (activityId, cancelled) => runOnProgramme(() => cancel(activityId, cancelled))
+                "
               />
             </div>
 
@@ -474,16 +588,45 @@ async function sendEmailInvite(): Promise<void> {
                   placeholder="Montant en euros"
                   class="h-12 rounded-control border border-field bg-surface px-3.5 text-[15px] outline-none focus:border-accent focus:ring-4 focus:ring-accent/15"
                 />
+                <select
+                  v-model="spending.splitMode"
+                  aria-label="Mode de partage"
+                  class="h-12 rounded-control border border-field bg-surface px-3.5 text-[15px] outline-none focus:border-accent focus:ring-4 focus:ring-accent/15"
+                >
+                  <option value="equal">À parts égales</option>
+                  <option value="percent">En pourcentage</option>
+                  <option value="fixed">En montant fixe</option>
+                </select>
+
+                <div v-if="spending.splitMode !== 'equal'" class="flex flex-col gap-2">
+                  <label
+                    v-for="participant in beneficiaries"
+                    :key="participant.participantId"
+                    class="flex items-center justify-between gap-3 text-[13px]"
+                  >
+                    <span class="min-w-0 truncate text-ink-2">{{ participant.name }}</span>
+                    <span class="flex shrink-0 items-center gap-1.5">
+                      <input
+                        v-model="splitEntries[participant.participantId]"
+                        type="text"
+                        inputmode="decimal"
+                        :placeholder="spending.splitMode === 'percent' ? '0' : '0,00'"
+                        class="h-11 w-24 rounded-control border border-field bg-surface px-2.5 text-right text-[15px] outline-none focus:border-accent focus:ring-4 focus:ring-accent/15"
+                      />
+                      <span class="text-muted">{{
+                        spending.splitMode === 'percent' ? '%' : '€'
+                      }}</span>
+                    </span>
+                  </label>
+                </div>
+
                 <button
                   type="submit"
                   class="flex h-12 items-center justify-center rounded-control bg-accent text-sm font-semibold text-white"
                 >
                   Enregistrer
                 </button>
-                <p class="text-xs leading-relaxed text-faint">
-                  La dépense est partagée à parts égales entre ceux qui ont accepté
-                  l'événement.
-                </p>
+                <p class="text-xs leading-relaxed text-faint">{{ splitHint }}</p>
                 <p v-if="spendingError" class="text-sm text-fail-ink">{{ spendingError }}</p>
               </form>
 

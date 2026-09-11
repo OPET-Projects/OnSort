@@ -2,6 +2,9 @@ import { onMounted, ref } from 'vue'
 import { ApiFetchError, apiFetch } from '../lib/http'
 
 export type Participant = {
+  // Identifiant de **participation** : c'est lui que nomment les parts d'une dépense, les
+  // soldes et les règlements.
+  participantId: string
   userId: string
   name: string
   email: string

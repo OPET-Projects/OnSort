@@ -107,3 +107,69 @@ it('ignore un décompte visant une activité inconnue', async () => {
   expect(() => applyTally('inconnue', { for: 9, against: 9 })).not.toThrow()
   expect(activities.value[0]?.tally).toEqual({ for: 1, against: 0 })
 })
+
+// --- réordonnancement et annulation (M7) --------------------------------------------------
+
+const programme = [
+  { ...activity, id: 'a1', title: 'Musée', position: 0 },
+  { ...activity, id: 'a2', title: 'Restaurant', position: 1 },
+  { ...activity, id: 'a3', title: 'Concert', position: 2 },
+]
+
+async function loaded(fetchMock: ReturnType<typeof vi.fn>) {
+  vi.stubGlobal('fetch', fetchMock)
+  const composable = useActivities('e1')
+  await composable.reload()
+  return composable
+}
+
+it('envoie la liste complète des identifiants dans le nouvel ordre', async () => {
+  const fetchMock = vi.fn(async () => json({ activities: programme }))
+  const { move } = await loaded(fetchMock)
+
+  await move('a3', -1)
+
+  const [url, init] = fetchMock.mock.calls[1] as [string, RequestInit]
+  expect(url).toBe('/api/events/e1/activities/order')
+  expect(init.method).toBe('PATCH')
+  expect(JSON.parse(String(init.body))).toEqual({ activityIds: ['a1', 'a3', 'a2'] })
+})
+
+it('descend une activité', async () => {
+  const fetchMock = vi.fn(async () => json({ activities: programme }))
+  const { move } = await loaded(fetchMock)
+
+  await move('a1', 1)
+
+  const [, init] = fetchMock.mock.calls[1] as [string, RequestInit]
+  expect(JSON.parse(String(init.body))).toEqual({ activityIds: ['a2', 'a1', 'a3'] })
+})
+
+// Aux extrémités, il n'y a rien à échanger : une requête partirait pour reposer l'ordre
+// existant, et l'API la refuserait ou ne changerait rien.
+it('ne demande rien aux extrémités', async () => {
+  const fetchMock = vi.fn(async () => json({ activities: programme }))
+  const { move } = await loaded(fetchMock)
+
+  await move('a1', -1)
+  await move('a3', 1)
+
+  expect(fetchMock).toHaveBeenCalledTimes(1)
+})
+
+it('annule une activité puis la rétablit', async () => {
+  const fetchMock = vi.fn(async () => json({ activities: programme }))
+  const { cancel } = await loaded(fetchMock)
+
+  await cancel('a2', true)
+
+  const [url, init] = fetchMock.mock.calls[1] as [string, RequestInit]
+  expect(url).toBe('/api/activities/a2/cancel')
+  expect(init.method).toBe('POST')
+  expect(JSON.parse(String(init.body))).toEqual({ cancelled: true })
+
+  await cancel('a2', false)
+
+  const [, restore] = fetchMock.mock.calls[3] as [string, RequestInit]
+  expect(JSON.parse(String(restore.body))).toEqual({ cancelled: false })
+})

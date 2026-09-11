@@ -18,6 +18,8 @@ export type Activity = {
   lng: number | null
   position: number
   status: ActivityStatus
+  // Une activité annulée **reste dans le programme**, barrée, son vote fermé (§3.7).
+  cancelledAt: string | null
   proposedBy: { participantId: string; name: string }
   tally: Tally
   myVote: VoteValue | null
@@ -90,7 +92,43 @@ export function useActivities(eventId: string) {
     await reload()
   }
 
+  // Déplacement d'une activité d'un cran. L'API reçoit la **liste complète** des
+  // identifiants, jamais le déplacement : c'est ici que l'ordre affiché devient cette liste,
+  // et un échange aux extrémités n'a rien à envoyer.
+  async function move(activityId: string, delta: -1 | 1): Promise<void> {
+    const ids = activities.value.map((candidate) => candidate.id)
+    const from = ids.indexOf(activityId)
+    const to = from + delta
+
+    const moving = ids[from]
+    const displaced = ids[to]
+
+    if (moving === undefined || displaced === undefined) {
+      return
+    }
+
+    const reordered = [...ids]
+    reordered[from] = displaced
+    reordered[to] = moving
+
+    await apiFetch(`/api/events/${eventId}/activities/order`, {
+      method: 'PATCH',
+      body: JSON.stringify({ activityIds: reordered }),
+    })
+    await reload()
+  }
+
+  // Annuler et rétablir sont le même geste dans les deux sens : §3.7 ne crée pas d'état
+  // absorbant, et le bouton bascule.
+  async function cancel(activityId: string, cancelled: boolean): Promise<void> {
+    await apiFetch(`/api/activities/${activityId}/cancel`, {
+      method: 'POST',
+      body: JSON.stringify({ cancelled }),
+    })
+    await reload()
+  }
+
   onMounted(reload)
 
-  return { state, activities, error, reload, applyTally, propose, vote, decide }
+  return { state, activities, error, reload, applyTally, propose, vote, decide, move, cancel }
 }
