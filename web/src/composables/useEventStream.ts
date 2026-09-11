@@ -7,7 +7,12 @@ import type { Tally } from './useActivities'
 //
 // Le ciblage compte : recharger le programme quand une réponse change, ou l'inverse,
 // coûterait une requête pour rien et laisserait l'écran périmé sur la moitié qui a bougé.
-const ACTIVITY_TYPES = ['activity.created', 'activity.updated', 'activity.decided'] as const
+const ACTIVITY_TYPES = [
+  'activity.created',
+  'activity.updated',
+  'activity.decided',
+  'activity.cancelled',
+] as const
 const PARTICIPANT_TYPES = ['participant.rsvp'] as const
 // Les quatre messages financiers déclenchent le même rechargement : dépenses et soldes
 // voyagent ensemble, et un virement confirmé bouge les deux.

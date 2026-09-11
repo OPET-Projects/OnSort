@@ -143,6 +143,9 @@ export async function listActivities(userId: string, eventId: string) {
     lng: activity.lng,
     position: activity.position,
     status: activity.status,
+    // Une activité annulée **reste dans le programme** (§3.7) : la retirer de la liste
+    // reviendrait à la supprimer aux yeux de l'utilisateur, ce que la conception refuse.
+    cancelledAt: activity.cancelledAt,
     proposedBy: {
       participantId: activity.proposedBy,
       name: activity.proposer.user.name,
@@ -177,6 +180,12 @@ export async function castVote(userId: string, activityId: string, value: VoteVa
       403,
       "Acceptez d'abord l'événement pour voter sur son programme.",
     )
+  }
+
+  // Le vote d'une activité annulée est clos : elle n'attend plus l'avis de personne. Le
+  // rétablissement le rouvre — rien n'est perdu.
+  if (activity.cancelledAt !== null) {
+    throw new ApiError('activity_cancelled', 409, 'Cette activité est annulée.')
   }
 
   // Le vote n'est ouvert que tant que l'activité est proposée (§3.3). Rouvrir le vote passe
@@ -351,6 +360,39 @@ export async function reorderActivities(
   publish(eventId, { type: 'activity.updated', id: eventId })
 
   return { activityIds: [...activityIds] }
+}
+
+// Annulation d'une activité (§3.7) : `cancelled_at` est renseigné, **sans suppression
+// physique**. Les votes restent, les dépenses aussi — « un acompte non remboursable
+// existe ». Les soldes étant calculés par événement et non par activité, il n'y a rien à
+// leur faire, et c'est précisément le point à ne pas « corriger ».
+//
+// **Réservé à l'administrateur**, pour la même raison que le réordonnancement : annuler
+// engage le groupe. Et l'annulation **se rétablit** : annuler par erreur ne doit pas être
+// définitif, aucun état de cette application n'étant absorbant.
+export async function cancelActivity(userId: string, activityId: string, cancelled: boolean) {
+  const activity = await loadActivity(activityId)
+  const participant = await loadParticipant(userId, activity.eventId)
+
+  if (!canManageEvent(participant.role)) {
+    throw new ApiError('forbidden', 403, 'Seul un administrateur peut annuler une activité.')
+  }
+
+  const updated = await prisma.activity.update({
+    where: { id: activityId },
+    data: { cancelledAt: cancelled ? new Date() : null },
+  })
+
+  publish(activity.eventId, { type: 'activity.cancelled', id: activityId })
+
+  await notify({
+    userIds: await acceptedAudience(activity.eventId, userId),
+    type: 'activity.cancelled',
+    eventId: activity.eventId,
+    payload: { title: updated.title, cancelled },
+  })
+
+  return updated
 }
 
 // Présence à une activité (§3.4). **L'absence est la ligne, la présence est l'absence de

@@ -1,8 +1,21 @@
 import { Hono } from 'hono'
 import { jsonBody } from '../../lib/validator.ts'
 import { requireSession, type SessionVariables } from '../../middleware/session.ts'
-import { attendanceSchema, decisionSchema, updateActivitySchema, voteSchema } from './schema.ts'
-import { castVote, decideActivity, listPresent, setAttendance, updateActivity } from './service.ts'
+import {
+  attendanceSchema,
+  cancelSchema,
+  decisionSchema,
+  updateActivitySchema,
+  voteSchema,
+} from './schema.ts'
+import {
+  cancelActivity,
+  castVote,
+  decideActivity,
+  listPresent,
+  setAttendance,
+  updateActivity,
+} from './service.ts'
 
 export const activitiesRoutes = new Hono<{ Variables: SessionVariables }>()
   .use('*', requireSession)
@@ -24,6 +37,14 @@ export const activitiesRoutes = new Hono<{ Variables: SessionVariables }>()
   })
   .get('/:id/attendance', async (c) => {
     return c.json({ present: await listPresent(c.get('user').id, c.req.param('id')) })
+  })
+  .post('/:id/cancel', jsonBody(cancelSchema), async (c) => {
+    const activity = await cancelActivity(
+      c.get('user').id,
+      c.req.param('id'),
+      c.req.valid('json').cancelled,
+    )
+    return c.json({ activity })
   })
   .post('/:id/decision', jsonBody(decisionSchema), async (c) => {
     const activity = await decideActivity(

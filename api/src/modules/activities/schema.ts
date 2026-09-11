@@ -37,6 +37,12 @@ export const attendanceSchema = z.object({
   present: z.boolean(),
 })
 
+// Un booléen plutôt que deux routes : annuler et rétablir sont le même geste dans les deux
+// sens, et §3.7 n'a pas d'état absorbant à protéger.
+export const cancelSchema = z.object({
+  cancelled: z.boolean(),
+})
+
 export const voteSchema = z.object({
   value: z.enum(['for', 'against']),
 })

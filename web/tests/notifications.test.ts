@@ -69,6 +69,8 @@ it.each([
   ['friend.accepted', { name: 'Bob' }, 'accepté'],
   ['event.invited', { title: 'Week-end' }, 'Week-end'],
   ['activity.proposed', { title: 'Musée' }, 'vote'],
+  ['activity.cancelled', { title: 'Musée', cancelled: true }, 'annulée'],
+  ['activity.cancelled', { title: 'Musée', cancelled: false }, 'rétablie'],
   ['expense.created', { label: 'Taxi' }, 'Taxi'],
   ['settlement.declared', {}, 'Confirmez'],
   ['settlement.confirmed', {}, 'confirmé'],
