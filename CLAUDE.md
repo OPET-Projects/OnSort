@@ -30,16 +30,18 @@ même commit que le code**. Un document qui ment est pire que pas de document.
 
 ## État actuel
 
-Les jalons **M0 à M6** sont terminés côté code : socle et authentification, événement et
-invitations, activités et vote en temps réel, dépenses et règlements, groupes et calendrier
-partagé, carte et géocodage, puis amis et notifications.
+**Tous les jalons, M0 à M7, sont terminés côté code** : socle et authentification, événement
+et invitations, activités et vote en temps réel, dépenses et règlements, groupes et calendrier
+partagé, carte et géocodage, amis et notifications, puis les finitions.
 
 Un utilisateur crée un événement, invite, chacun répond, propose des activités et vote. Les
 dépenses se saisissent, les soldes s'en dérivent, et l'application propose le plus petit jeu
 de virements qui remet tout le monde à zéro. Un groupe superpose les indisponibilités de ses
 membres et fait apparaître les créneaux qui conviennent à tous. Le programme s'affiche sur
 une carte, pins numérotés dans l'ordre. Et chaque geste qui concerne quelqu'un le prévient,
-en direct, sans qu'il recharge.
+en direct, sans qu'il recharge. Une dépense se partage aussi en pourcentage ou en montant
+fixe, le programme se réordonne, et une activité s'annule sans disparaître — ses dépenses
+restent comptées.
 
 **M3 était le point de coupe** de `docs/conception.md` §9 : le produit se défend désormais
 seul.
@@ -55,9 +57,9 @@ chaîne de livraison et l'accès au VPS ne sont pas tranchés. Le même domaine 
 l'envoi de courriel vers des tiers (`docs/decisions-techniques.md` §2.8) et la connexion
 Google en production (§2.12).
 
-Le jalon suivant est **M7 — finitions : partage en pourcentage et en montant fixe,
-réordonnancement des activités, annulation**. Le séquencement complet est en section 9 de
-`docs/conception.md`.
+Le séquencement complet est en section 9 de `docs/conception.md` ; il est entièrement
+parcouru. Les chantiers suivants ne sont plus des jalons : le déploiement ci-dessus, puis ce
+que `docs/journal-decisions.md` range en « points laissés ouverts ».
 
 ## Stack
 

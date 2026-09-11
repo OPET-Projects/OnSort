@@ -701,6 +701,68 @@ un test qui lit l'environnement du développeur teste sa machine, pas le code.
 
 ---
 
+## Jalon M7 — pourcentage, montant fixe, réordonnancement, annulation
+
+**Une annulation se rétablit.** §3.7 ne décrit que la mise en place de `cancelled_at`, mais la
+règle du projet interdit les états absorbants. Annuler par erreur ne doit pas être définitif.
+*Coût si erroné : un bouton de moins, aucune donnée en jeu.*
+
+**Une activité annulée reste dans le programme**, barrée, et son vote se ferme. La retirer de
+la liste reviendrait à la supprimer aux yeux de l'utilisateur, ce que §3.7 refuse.
+*Coût si erroné : un filtre d'une ligne à la lecture.*
+
+**Les dépenses d'une activité annulée ne bougent pas.** §3.7 : « les dépenses associées
+survivent — un acompte non remboursable existe ». Les soldes sont calculés par événement, pas
+par activité : il n'y a donc rien à faire, et c'est justement le point à ne pas « corriger ».
+*Coût si erroné : des soldes faux, découverts tard — d'où un test qui compare les soldes avant
+et après l'annulation.*
+
+**Le réordonnancement reçoit la liste complète des identifiants**, pas un déplacement.
+Envoyer « monte celle-ci d'un cran » ferait dépendre le résultat de l'ordre supposé par le
+client, qui peut être périmé. Une liste complète est vérifiable : elle doit contenir exactement
+les activités de l'événement. *Coût si erroné : un corps de requête plus court, et des
+programmes mélangés sous concurrence.*
+
+**Réordonner et annuler sont réservés à l'administrateur.** §3.8 attribue « trancher le vote »
+et « clore l'événement » à l'administrateur ; l'ordre du programme et l'annulation relèvent de
+la même catégorie — ils engagent le groupe, pas une proposition personnelle. *Coût si erroné :
+deux gardes à retirer.*
+
+**En pourcentage, le reste suit la même règle qu'à parts égales** : les premiers participants
+triés par identifiant reçoivent un centime supplémentaire. Une seconde règle d'arrondi dans le
+même fichier finirait par diverger de la première. Le tri lui-même est devenu commun aux trois
+modes, et c'est **la comparaison par unités de code** d'un `sort()` sans argument, jamais
+`localeCompare` : les deux ne classent pas `'Z'` et `'a'` pareil, et « les premiers
+identifiants triés » désignerait alors des personnes différentes selon le mode. *Coût si
+erroné : un centime attribué à quelqu'un d'autre, et un test qui compare les deux modes le
+dirait.*
+
+**Les pourcentages sont des entiers.** Un pourcentage fractionnaire ferait dépendre le total
+de l'arithmétique flottante — 33,33 + 33,33 + 33,34 ne vaut pas exactement 100 en machine — et
+la vérification « le total fait 100 » perdrait son sens. Le domaine financier n'admet aucun
+flottant, pas même un multiplicateur. *Coût si erroné : un partage 12,5 / 87,5 impossible à
+exprimer autrement qu'en montant fixe, qui le permet déjà.*
+
+**Corriger une dépense ne peut pas être une union discriminée.** `splitMode` y est facultatif :
+réparer une faute de frappe dans un libellé ne doit ni obliger à redire le mode, ni le faire
+retomber sur sa valeur par défaut, ce qui convertirait la dépense en partage égal sans que
+personne l'ait demandé. En contrepartie, changer le **montant** d'une dépense en pourcentage
+sans redonner les pourcentages est refusé (`shares_required`) : les parts sont stockées en
+valeur absolue, et les déduire reviendrait à inventer une intention. *Coût si erroné : une
+correction en deux temps au lieu d'un.*
+
+**L'événement rend désormais l'identifiant de participation de chacun.** Parts, soldes et
+règlements sont tous indexés par participation ; un partage en pourcentage devait pouvoir
+nommer ses bénéficiaires, et le détail de l'événement ne donnait que l'identifiant
+d'utilisateur. Rien de neuf n'est exposé : les soldes portaient déjà ces identifiants vers
+tous les participants. *Coût si erroné : un champ de plus dans une réponse.*
+
+**Pas de glisser-déposer.** Il demanderait une dépendance ; deux flèches font le même travail
+et restent utilisables au clavier et au doigt. *Coût si erroné : un confort en moins sur
+écran large.*
+
+---
+
 ## Points laissés ouverts
 
 - `api/prisma.config.ts` charge `../.env`, chemin relatif au **répertoire courant** et non au
@@ -714,9 +776,6 @@ un test qui lit l'environnement du développeur teste sa machine, pas le code.
 - **Déploiement M1.** `conception.md` §9 et `decisions-techniques.md` §2.10 font du
   déploiement (URL publique + HTTPS) un livrable de M1. Le code est prêt ; la chaîne de
   livraison et l'accès au VPS restent à trancher.
-- **Le partage en pourcentage et en montant fixe reste sans interface.** L'enum `split_mode`
-  porte les trois valeurs et le stockage est déjà identique dans les trois cas ; seul `equal`
-  est proposé à la saisie. §9 range les deux autres en M7.
 - **Aucun moyen de retirer un ami ni de bloquer quelqu'un.** §2.2 ne décrit ni l'un ni
   l'autre. Une amitié est aujourd'hui définitive.
 - **Les notifications ne s'effacent pas.** Elles se marquent lues, la liste est bornée à

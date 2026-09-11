@@ -79,13 +79,13 @@ un programme se réordonne, une activité s'annule sans disparaître.
 **Fichiers :** `api/prisma/schema.prisma`, migration `m7_cancellation`,
 `api/tests/schema-m7.test.ts`.
 
-- [ ] **Test qui échoue** : une activité naît non annulée ; `cancelled_at` accepte une date ;
+- [x] **Test qui échoue** : une activité naît non annulée ; `cancelled_at` accepte une date ;
       annuler ne supprime ni l'activité, ni ses votes, ni ses dépenses.
-- [ ] **Modèle** : `cancelledAt DateTime? @map("cancelled_at")` sur `Activity`.
-- [ ] Migration — **aucune contrainte à ajouter** : une date nulle ou passée sont toutes deux
+- [x] **Modèle** : `cancelledAt DateTime? @map("cancelled_at")` sur `Activity`.
+- [x] Migration — **aucune contrainte à ajouter** : une date nulle ou passée sont toutes deux
       valides, et interdire une date future n'aurait pas de sens pour une annulation
       programmée.
-- [ ] Portes, commit.
+- [x] Portes, commit.
 
 ---
 
@@ -107,7 +107,7 @@ export function splitByFixed(
 ): Share[]
 ```
 
-- [ ] **Test qui échoue** — couvrir :
+- [x] **Test qui échoue** — couvrir :
   - un partage 50/50 sur un montant impair tient l'invariant ;
   - 30/30/40 sur 1000 rend 300/300/400 ;
   - des pourcentages qui ne totalisent pas 100 lèvent ;
@@ -121,7 +121,7 @@ export function splitByFixed(
 > `computeBalances` de ne rien savoir du mode de partage : il additionne des parts, et
 > ignore comment elles ont été obtenues.
 
-- [ ] Implémentation, portes, commit.
+- [x] Implémentation, portes, commit.
 
 ---
 
@@ -130,15 +130,15 @@ export function splitByFixed(
 **Fichiers :** `api/src/modules/expenses/{schema,service}.ts`,
 `api/tests/modules/expense-splits.test.ts`.
 
-- [ ] **Schéma** : `shares` facultatif, une liste de `{ participantId, percent }` ou
+- [x] **Schéma** : `shares` facultatif, une liste de `{ participantId, percent }` ou
       `{ participantId, amountCents }` selon `splitMode`. Une union discriminée sur
       `splitMode` plutôt que trois champs facultatifs : le schéma refuse ainsi les
       combinaisons absurdes au lieu de les laisser au service.
-- [ ] **Test qui échoue** — couvrir les trois modes de bout en bout, l'invariant vérifié en
+- [x] **Test qui échoue** — couvrir les trois modes de bout en bout, l'invariant vérifié en
       base, un mode `percent` sans pourcentages refusé, et un bénéficiaire étranger refusé
       comme en M3.
-- [ ] **Service** : `createExpense` et `updateExpense` choisissent la fonction de partage.
-- [ ] Portes, commit.
+- [x] **Service** : `createExpense` et `updateExpense` choisissent la fonction de partage.
+- [x] Portes, commit.
 
 ---
 
@@ -149,7 +149,7 @@ export function splitByFixed(
 
 **Route :** `PATCH /api/events/:id/activities/order`, corps `{ activityIds: string[] }`.
 
-- [ ] **Test qui échoue** — couvrir :
+- [x] **Test qui échoue** — couvrir :
   - l'ordre demandé devient l'ordre rendu par `GET .../activities` ;
   - une liste incomplète est refusée — le résultat serait ambigu pour les absentes ;
   - une liste contenant une activité d'un autre événement est refusée ;
@@ -160,7 +160,7 @@ export function splitByFixed(
 > Les positions sont réécrites **dans une transaction**. À mi-chemin, deux activités
 > partageraient la même position et le programme aurait deux troisièmes places.
 
-- [ ] Portes, commit.
+- [x] Portes, commit.
 
 ---
 
@@ -171,7 +171,7 @@ export function splitByFixed(
 
 **Route :** `POST /api/activities/:id/cancel`, corps `{ cancelled: boolean }`.
 
-- [ ] **Test qui échoue** — couvrir :
+- [x] **Test qui échoue** — couvrir :
   - annuler renseigne `cancelled_at` sans rien supprimer ;
   - **les dépenses rattachées survivent** et les soldes ne bougent pas (§3.7) ;
   - les votes survivent ;
@@ -181,9 +181,9 @@ export function splitByFixed(
   - `activity.cancelled` est diffusé **et** notifié aux participants ayant accepté, sauf
     l'auteur.
 
-- [ ] Étendre `NotificationType` de `lib/notify.ts` avec `activity.cancelled` : c'était le
+- [x] Étendre `NotificationType` de `lib/notify.ts` avec `activity.cancelled` : c'était le
       dernier des dix types de §2.9 sans déclencheur.
-- [ ] Portes, commit.
+- [x] Portes, commit.
 
 ---
 
@@ -192,34 +192,34 @@ export function splitByFixed(
 **Fichiers :** `web/src/components/ActivityCard.vue`, `ExpenseForm` dans `EventView.vue`,
 `web/src/composables/{useActivities,useExpenses}.ts`, tests.
 
-- [ ] **Dépense** : un sélecteur de mode. En `equal`, rien de plus. En `percent`, un champ
+- [x] **Dépense** : un sélecteur de mode. En `equal`, rien de plus. En `percent`, un champ
       par bénéficiaire avec le total affiché en direct — un formulaire qui n'indique pas
       qu'il manque 3 % se solde par un refus incompréhensible. En `fixed`, idem avec les
       montants et l'écart au total.
-- [ ] **Ordre** : deux flèches par activité, pour l'administrateur seul. Désactivées aux
+- [x] **Ordre** : deux flèches par activité, pour l'administrateur seul. Désactivées aux
       extrémités.
-- [ ] **Annulation** : un bouton **Annuler** pour l'administrateur, **Rétablir** ensuite.
+- [x] **Annulation** : un bouton **Annuler** pour l'administrateur, **Rétablir** ensuite.
       L'activité annulée reste affichée, barrée, son vote fermé, avec un mot expliquant que
       ses dépenses restent comptées.
-- [ ] Tests des composables : les trois modes, l'ordre transmis, l'annulation et le
+- [x] Tests des composables : les trois modes, l'ordre transmis, l'annulation et le
       rétablissement.
 
 ---
 
 ## Tâche 7 : documentation
 
-- [ ] `journal-decisions.md` : les six décisions, avec leur coût.
-- [ ] `conception.md` : §5.1 si la surface a bougé — `POST /activities/:id/cancel` y figure
+- [x] `journal-decisions.md` : les six décisions, avec leur coût.
+- [x] `conception.md` : §5.1 si la surface a bougé — `POST /activities/:id/cancel` y figure
       déjà, vérifier la forme du corps.
-- [ ] `CLAUDE.md`, `README.md`, `workflow.md` : **M7 terminé, tous les jalons livrés.**
-- [ ] Retirer des documents les mentions « arrive en M7 » devenues fausses.
+- [x] `CLAUDE.md`, `README.md`, `workflow.md` : **M7 terminé, tous les jalons livrés.**
+- [x] Retirer des documents les mentions « arrive en M7 » devenues fausses.
 
 ## Vérification finale
 
-- [ ] Les trois portes, `npm run build`.
-- [ ] Une dépense en pourcentage et une en montant fixe, vérification en base que
+- [x] Les trois portes, `npm run build`.
+- [x] Une dépense en pourcentage et une en montant fixe, vérification en base que
       `SUM(parts) = montant` dans les deux.
-- [ ] Un programme réordonné, une activité annulée puis rétablie, ses dépenses toujours dans
+- [x] Un programme réordonné, une activité annulée puis rétablie, ses dépenses toujours dans
       les soldes.
-- [ ] **Vérifier qu'aucun des onze types de §5.2 ni des dix de §2.9 ne reste sans
+- [x] **Vérifier qu'aucun des onze types de §5.2 ni des dix de §2.9 ne reste sans
       déclencheur.** C'est le dernier jalon : la liste doit être complète.

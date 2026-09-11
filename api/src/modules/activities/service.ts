@@ -85,7 +85,8 @@ export async function createActivity(userId: string, eventId: string, input: Cre
   const endsAt = input.endsAt ?? null
   assertPeriod(startsAt, endsAt)
 
-  // La position suit l'ordre de proposition. Le réordonnancement explicite arrive en M7.
+  // La position suit l'ordre de proposition ; `reorderActivities` la réécrit ensuite si
+  // l'administrateur range le programme autrement.
   const position = await prisma.activity.count({ where: { eventId } })
   const { lat, lng } = await locate(input.address)
 

@@ -269,9 +269,9 @@ model ActivityVote {
 // migration : Prisma ne modélise pas les CHECK. Elles sont couvertes par schema-m3.test.ts.
 
 // Les trois modes partagent le **même stockage** : `expense_shares` enregistre des montants
-// absolus dans tous les cas (§2.8 note 3). `percent` et `fixed` ne coûtent que de
-// l'interface, livrée en M7 ; l'enum les porte dès maintenant pour éviter une migration
-// d'enum plus tard.
+// absolus dans tous les cas (§2.8 note 3). L'enum porte les trois valeurs depuis M0 pour
+// éviter une migration d'enum ; `percent` et `fixed` ont reçu leur arithmétique et leur
+// interface en M7.
 enum SplitMode {
   equal
   percent
