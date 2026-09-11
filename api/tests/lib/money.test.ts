@@ -1,5 +1,11 @@
 import { expect, it } from 'vitest'
-import { computeBalances, minimizeTransfers, splitEqually } from '../../src/lib/money.ts'
+import {
+  computeBalances,
+  minimizeTransfers,
+  splitByFixed,
+  splitByPercent,
+  splitEqually,
+} from '../../src/lib/money.ts'
 
 it('partage un montant divisible', () => {
   expect(splitEqually(900, ['a', 'b', 'c'])).toEqual([
@@ -234,4 +240,165 @@ it('est déterministe à égalité de solde', () => {
   ]
 
   expect(minimizeTransfers(balances)).toEqual(minimizeTransfers([...balances].reverse()))
+})
+
+// --- partage en pourcentage (M7) ---------------------------------------------------------
+
+it('partage 30/30/40 sur un montant rond', () => {
+  expect(
+    splitByPercent(1000, [
+      { participantId: 'a', percent: 30 },
+      { participantId: 'b', percent: 30 },
+      { participantId: 'c', percent: 40 },
+    ]),
+  ).toEqual([
+    { participantId: 'a', amountCents: 300 },
+    { participantId: 'b', amountCents: 300 },
+    { participantId: 'c', amountCents: 400 },
+  ])
+})
+
+// Le reste suit la **même** règle qu'à parts égales : les premiers identifiants triés
+// reçoivent un centime. Deux règles d'arrondi dans le même fichier finiraient par diverger.
+it('donne le reste aux premiers identifiants triés', () => {
+  expect(
+    splitByPercent(1001, [
+      { participantId: 'b', percent: 50 },
+      { participantId: 'a', percent: 50 },
+    ]),
+  ).toEqual([
+    { participantId: 'a', amountCents: 501 },
+    { participantId: 'b', amountCents: 500 },
+  ])
+})
+
+it("tient l'invariant SUM(parts) = montant sur mille montants en pourcentage", () => {
+  const weights = [
+    { participantId: 'a', percent: 17 },
+    { participantId: 'b', percent: 33 },
+    { participantId: 'c', percent: 50 },
+  ]
+
+  for (let amount = 1; amount <= 1000; amount += 1) {
+    const total = splitByPercent(amount, weights).reduce((sum, s) => sum + s.amountCents, 0)
+    expect(total).toBe(amount)
+  }
+})
+
+it('accepte un pourcentage nul — quelqu’un peut ne rien devoir', () => {
+  expect(
+    splitByPercent(500, [
+      { participantId: 'a', percent: 100 },
+      { participantId: 'b', percent: 0 },
+    ]),
+  ).toEqual([
+    { participantId: 'a', amountCents: 500 },
+    { participantId: 'b', amountCents: 0 },
+  ])
+})
+
+it('refuse des pourcentages qui ne totalisent pas 100', () => {
+  expect(() =>
+    splitByPercent(1000, [
+      { participantId: 'a', percent: 50 },
+      { participantId: 'b', percent: 30 },
+    ]),
+  ).toThrow(/80/)
+})
+
+it('refuse un pourcentage négatif', () => {
+  expect(() =>
+    splitByPercent(1000, [
+      { participantId: 'a', percent: -10 },
+      { participantId: 'b', percent: 110 },
+    ]),
+  ).toThrow()
+})
+
+// Un pourcentage fractionnaire rendrait le total dépendant de l'arithmétique flottante :
+// 33,33 + 33,33 + 33,34 ne vaut pas exactement 100 en machine.
+it('refuse un pourcentage fractionnaire', () => {
+  expect(() =>
+    splitByPercent(1000, [
+      { participantId: 'a', percent: 33.5 },
+      { participantId: 'b', percent: 66.5 },
+    ]),
+  ).toThrow()
+})
+
+it('refuse une liste de pourcentages vide', () => {
+  expect(() => splitByPercent(1000, [])).toThrow()
+})
+
+// --- partage en montant fixe (M7) --------------------------------------------------------
+
+it('reprend les montants fixés tels quels, triés par identifiant', () => {
+  expect(
+    splitByFixed(1000, [
+      { participantId: 'b', amountCents: 400 },
+      { participantId: 'a', amountCents: 600 },
+    ]),
+  ).toEqual([
+    { participantId: 'a', amountCents: 600 },
+    { participantId: 'b', amountCents: 400 },
+  ])
+})
+
+it('accepte une part nulle — quelqu’un peut ne rien devoir', () => {
+  expect(
+    splitByFixed(1000, [
+      { participantId: 'a', amountCents: 1000 },
+      { participantId: 'b', amountCents: 0 },
+    ]),
+  ).toEqual([
+    { participantId: 'a', amountCents: 1000 },
+    { participantId: 'b', amountCents: 0 },
+  ])
+})
+
+// L'écart figure dans le message : un formulaire qui n'indique pas qu'il manque 3 € se solde
+// par un refus incompréhensible.
+it('refuse une somme différente du total, avec l’écart dans le message', () => {
+  expect(() =>
+    splitByFixed(1000, [
+      { participantId: 'a', amountCents: 400 },
+      { participantId: 'b', amountCents: 300 },
+    ]),
+  ).toThrow(/300/)
+})
+
+it('refuse une part négative', () => {
+  expect(() =>
+    splitByFixed(1000, [
+      { participantId: 'a', amountCents: -100 },
+      { participantId: 'b', amountCents: 1100 },
+    ]),
+  ).toThrow()
+})
+
+it('refuse une part non entière', () => {
+  expect(() =>
+    splitByFixed(1000, [
+      { participantId: 'a', amountCents: 999.5 },
+      { participantId: 'b', amountCents: 0.5 },
+    ]),
+  ).toThrow()
+})
+
+it('refuse une liste de parts vide', () => {
+  expect(() => splitByFixed(1000, [])).toThrow()
+})
+
+// Décision 6 du jalon : « le reste suit la même règle qu'à parts égales ». Des identifiants
+// de casse mixte le prouvent — `localeCompare` et la comparaison par unités de code ne
+// classent pas 'Z' et 'a' pareil, et les deux modes devraient alors désigner des personnes
+// différentes.
+it('désigne les mêmes premiers identifiants que le partage à parts égales', () => {
+  const equal = splitEqually(1001, ['Z', 'a'])
+  const percent = splitByPercent(1001, [
+    { participantId: 'Z', percent: 50 },
+    { participantId: 'a', percent: 50 },
+  ])
+
+  expect(percent).toEqual(equal)
 })
