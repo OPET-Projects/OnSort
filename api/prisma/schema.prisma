@@ -196,10 +196,9 @@ model Invitation {
 // --- M2 : activités et vote ------------------------------------------------------------
 // Modèle : conception.md §2.7.
 //
-// Une colonne de §2.7 reste volontairement absente : `cancelled_at`, qui arrivera en M7 avec
-// l'annulation. « On ne crée pas aujourd'hui des tables que personne n'écrit encore » —
-// docs/workflow.md. `attendance_mode` et `activity_absences`, annoncés ici pour M3, sont
-// arrivés avec ce jalon : voir la section M3 plus bas.
+// `attendance_mode` et `activity_absences`, annoncés ici pour M3, sont arrivés avec ce
+// jalon : voir la section M3 plus bas. `cancelled_at`, la dernière colonne de §2.7 restée
+// absente, est arrivée en M7 avec l'annulation.
 
 enum ActivityStatus {
   proposed
@@ -230,6 +229,9 @@ model Activity {
   endsAt         DateTime?         @map("ends_at")
   position       Int               @default(0)
   status         ActivityStatus    @default(proposed)
+  // Annulation (§3.7) : une date posée, **sans suppression physique**. Nulle tant que
+  // l'activité tient. Le rétablissement la remet à nul — aucun état n'est absorbant.
+  cancelledAt    DateTime?         @map("cancelled_at")
   proposedBy     String            @map("proposed_by")
   proposer       EventParticipant  @relation(fields: [proposedBy], references: [id], onDelete: Cascade)
   createdAt      DateTime          @default(now()) @map("created_at")
