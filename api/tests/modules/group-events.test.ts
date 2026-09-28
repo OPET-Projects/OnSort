@@ -113,12 +113,29 @@ it('rend 404 sur un groupe inconnu', async () => {
   expect(await prisma.event.count()).toBe(0)
 })
 
-it('refuse un identifiant de groupe mal formé', async () => {
+// Les identifiants ne sont pas tous des UUID — le jeu de développement pose
+// `dev-group-coloc`. Un identifiant quelconque est donc accepté, et un groupe inconnu
+// répond 404 comme partout ailleurs.
+it("accepte un identifiant de groupe qui n'est pas un UUID", async () => {
+  const alice = await signIn('alice@example.test')
+  const creator = await userId(alice)
+  await prisma.group.create({
+    data: {
+      id: 'dev-group-test',
+      name: 'G',
+      createdBy: creator,
+      members: { create: { userId: creator } },
+    },
+  })
+
+  expect((await makeEvent(alice, 'dev-group-test')).status).toBe(201)
+  expect((await makeEvent(alice, 'pas-un-groupe')).status).toBe(404)
+})
+
+it('refuse un identifiant de groupe vide', async () => {
   const alice = await signIn('alice@example.test')
 
-  const response = await makeEvent(alice, 'pas-un-uuid')
-
-  expect(response.status).toBe(400)
+  expect((await makeEvent(alice, '')).status).toBe(400)
 })
 
 it('laisse une sortie sans groupe inchangée', async () => {
