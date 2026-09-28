@@ -1,9 +1,59 @@
 <script setup lang="ts">
 import { ref } from 'vue'
+import ConfirmDialog from '../components/ConfirmDialog.vue'
+import { useConfirm } from '../composables/useConfirm'
 import { useFriends } from '../composables/useFriends'
 
-const { state, friends, received, sent, error, requestSent, reload, ask, accept, decline } =
-  useFriends()
+const {
+  state,
+  friends,
+  received,
+  sent,
+  blocked,
+  error,
+  requestSent,
+  reload,
+  ask,
+  accept,
+  decline,
+  remove,
+  block,
+  unblock,
+} = useFriends()
+
+const actionError = ref('')
+const { dialog, ask: askConfirm, answer } = useConfirm()
+
+async function run(action: () => Promise<unknown>): Promise<void> {
+  actionError.value = ''
+  try {
+    await action()
+  } catch (cause) {
+    actionError.value = cause instanceof Error ? cause.message : "L'action a échoué."
+  }
+}
+
+async function removeFriend(userId: string, name: string): Promise<void> {
+  const confirmed = await askConfirm({
+    title: `Retirer ${name} de vos amis ?`,
+    message: 'Vous pourrez lui redemander plus tard.',
+    confirmLabel: 'Retirer',
+  })
+  if (!confirmed) return
+  await run(() => remove(userId))
+}
+
+// Bloquer ne prévient pas l'autre : ses demandes continuent de « partir », sans arriver.
+async function blockUser(userId: string, name: string): Promise<void> {
+  const confirmed = await askConfirm({
+    title: `Bloquer ${name} ?`,
+    message:
+      "Votre amitié et vos demandes en attente disparaissent, et ses demandes d'ami seront ignorées sans qu'il le sache.",
+    confirmLabel: 'Bloquer',
+  })
+  if (!confirmed) return
+  await run(() => block(userId))
+}
 
 const email = ref('')
 const formError = ref('')
@@ -25,7 +75,7 @@ async function submit(): Promise<void> {
 </script>
 
 <template>
-  <main class="mx-auto w-full max-w-2xl px-5 py-7 md:px-8 md:py-9">
+  <main class="mx-auto w-full max-w-2xl px-5 py-7 md:px-8 md:py-9 lg:max-w-6xl lg:px-12">
     <header class="flex flex-col gap-1.5">
       <h1 class="text-[26px] font-bold tracking-tight">Mes amis</h1>
       <p class="text-[13px] leading-relaxed text-muted">
@@ -53,7 +103,7 @@ async function submit(): Promise<void> {
     <template v-else>
       <section v-if="received.length > 0" class="mt-6 flex flex-col gap-2">
         <h2 class="text-[13px] font-semibold text-label">Demandes reçues</h2>
-        <ul class="flex flex-col gap-2">
+        <ul class="grid grid-cols-1 gap-2 lg:grid-cols-2">
           <li
             v-for="request in received"
             :key="request.id"
@@ -83,6 +133,13 @@ async function submit(): Promise<void> {
                   <path d="M6.5 6.5 17.5 17.5M17.5 6.5 6.5 17.5" />
                 </svg>
               </button>
+              <button
+                type="button"
+                class="flex h-11 items-center rounded-control border border-field px-3 text-[13px] font-semibold text-fail-ink"
+                @click="blockUser(request.from.userId, request.from.name)"
+              >
+                Bloquer
+              </button>
             </span>
           </li>
         </ul>
@@ -109,14 +166,31 @@ async function submit(): Promise<void> {
             >
               {{ friend.name.slice(0, 2).toUpperCase() }}
             </span>
-            <span class="text-sm font-medium">{{ friend.name }}</span>
+            <span class="min-w-0 flex-1 truncate text-sm font-medium">{{ friend.name }}</span>
+            <span class="flex shrink-0 gap-1.5">
+              <button
+                type="button"
+                class="flex h-9 items-center rounded-control border border-field px-3 text-[13px] font-semibold"
+                @click="removeFriend(friend.userId, friend.name)"
+              >
+                Retirer
+              </button>
+              <button
+                type="button"
+                class="flex h-9 items-center rounded-control border border-field px-3 text-[13px] font-semibold text-fail-ink"
+                @click="blockUser(friend.userId, friend.name)"
+              >
+                Bloquer
+              </button>
+            </span>
           </li>
         </ul>
+        <p v-if="actionError" class="text-sm text-fail-ink">{{ actionError }}</p>
       </section>
 
       <section v-if="sent.length > 0" class="mt-6 flex flex-col gap-2">
         <h2 class="text-[13px] font-semibold text-label">Demandes envoyées</h2>
-        <ul class="flex flex-col gap-2">
+        <ul class="grid grid-cols-1 gap-2 lg:grid-cols-2">
           <li
             v-for="request in sent"
             :key="request.id"
@@ -124,6 +198,26 @@ async function submit(): Promise<void> {
           >
             <span>{{ request.to.name }}</span>
             <span class="text-xs text-faint">En attente</span>
+          </li>
+        </ul>
+      </section>
+
+      <section v-if="blocked.length > 0" class="mt-6 flex flex-col gap-2">
+        <h2 class="text-[13px] font-semibold text-label">Bloqués</h2>
+        <ul class="grid grid-cols-1 gap-2 lg:grid-cols-2">
+          <li
+            v-for="person in blocked"
+            :key="person.userId"
+            class="flex items-center justify-between gap-3 rounded-field bg-fill px-4 py-3 text-sm text-ink-2"
+          >
+            <span class="truncate">{{ person.name }}</span>
+            <button
+              type="button"
+              class="flex h-9 shrink-0 items-center rounded-control border border-field bg-surface px-3 text-[13px] font-semibold"
+              @click="run(() => unblock(person.userId))"
+            >
+              Débloquer
+            </button>
           </li>
         </ul>
       </section>
@@ -158,5 +252,7 @@ async function submit(): Promise<void> {
         <p v-if="formError" class="text-sm text-fail-ink">{{ formError }}</p>
       </form>
     </template>
+
+    <ConfirmDialog v-bind="dialog" @answer="answer" />
   </main>
 </template>

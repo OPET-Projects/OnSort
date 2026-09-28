@@ -3,6 +3,7 @@ import { computed } from 'vue'
 import { RouterView } from 'vue-router'
 import AppNav from './components/AppNav.vue'
 import NotificationBell from './components/NotificationBell.vue'
+import SignOutButton from './components/SignOutButton.vue'
 import { useSessionStore } from './stores/session'
 
 const session = useSessionStore()
@@ -25,11 +26,19 @@ const signedIn = computed(() => session.status === 'authenticated')
     <div class="min-w-0 flex-1" :class="signedIn ? 'pb-24 md:pb-0' : ''">
       <div
         v-if="signedIn"
-        class="pointer-events-none fixed top-3 right-3 z-20 flex justify-end"
+        class="pointer-events-none fixed top-3 right-3 z-20 flex justify-end gap-2"
       >
         <div class="pointer-events-auto">
           <NotificationBell />
         </div>
+        <!--
+          Sur téléphone seulement : au-delà de `md`, la carte de compte de la barre latérale
+          porte déjà ce bouton. En haut plutôt que dans la barre basse, où il côtoierait les
+          onglets et se toucherait par mégarde.
+        -->
+        <SignOutButton
+          class="pointer-events-auto h-11 w-11 rounded-field border border-line bg-surface text-ink-2 shadow-rest md:hidden"
+        />
       </div>
 
       <RouterView />

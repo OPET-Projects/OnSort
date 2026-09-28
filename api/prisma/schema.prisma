@@ -30,6 +30,8 @@ model User {
   friendRequestsGot   FriendRequest[]    @relation("FriendRequestTo")
   friendshipsAsA      Friendship[]       @relation("FriendshipA")
   friendshipsAsB      Friendship[]       @relation("FriendshipB")
+  blocksGiven         UserBlock[]        @relation("BlockGiven")
+  blocksReceived      UserBlock[]        @relation("BlockReceived")
   notifications       Notification[]
 
   @@map("user")
@@ -119,6 +121,7 @@ enum InvitationStatus {
 model Event {
   id           String             @id @default(uuid())
   groupId      String?            @map("group_id")
+  group        Group?             @relation(fields: [groupId], references: [id], onDelete: SetNull)
   title        String
   description  String             @default("")
   startsAt     DateTime           @map("starts_at")
@@ -371,6 +374,7 @@ model Group {
   creator   User          @relation("GroupCreator", fields: [createdBy], references: [id])
   createdAt DateTime      @default(now()) @map("created_at")
   members   GroupMember[]
+  events    Event[]
 
   @@map("groups")
 }
@@ -449,6 +453,20 @@ model Friendship {
   @@id([userAId, userBId])
   @@index([userBId])
   @@map("friendships")
+}
+
+// Blocage (spec « membres et amis »). Orienté : bloquer n'est pas réciproque. Sa seule
+// portée est la demande d'ami, ignorée en silence dans les deux sens.
+model UserBlock {
+  blockerId String   @map("blocker_id")
+  blocker   User     @relation("BlockGiven", fields: [blockerId], references: [id], onDelete: Cascade)
+  blockedId String   @map("blocked_id")
+  blocked   User     @relation("BlockReceived", fields: [blockedId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@id([blockerId, blockedId])
+  @@index([blockedId])
+  @@map("user_blocks")
 }
 
 // `payload` porte de quoi afficher une ligne, et rien de plus : un titre, un prénom. Une

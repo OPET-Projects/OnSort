@@ -35,7 +35,7 @@ const rsvpTone: Record<string, string> = {
 </script>
 
 <template>
-  <main class="mx-auto w-full max-w-2xl px-5 py-7 md:px-8 md:py-9">
+  <main class="mx-auto w-full max-w-2xl px-5 py-7 md:px-8 md:py-9 lg:max-w-6xl lg:px-12">
     <header class="flex flex-col gap-5 md:flex-row md:items-start md:justify-between md:gap-6">
       <div class="flex flex-col gap-1">
         <h1 class="text-[26px] font-bold tracking-tight">Bonjour {{ session.user?.name }}</h1>
@@ -90,11 +90,11 @@ const rsvpTone: Record<string, string> = {
         </p>
       </div>
 
-      <ul v-else class="flex flex-col gap-2.5">
+      <ul v-else class="grid grid-cols-1 gap-2.5 lg:grid-cols-2 xl:grid-cols-3">
         <li v-for="event in events" :key="event.id">
           <RouterLink
             :to="`/events/${event.id}`"
-            class="flex flex-col gap-2.5 rounded-card border border-line bg-surface p-4 shadow-rest transition-colors hover:border-field"
+            class="flex h-full flex-col gap-2.5 rounded-card border border-line bg-surface p-4 shadow-rest transition-colors hover:border-field"
             :class="event.status === 'closed' ? 'opacity-70' : ''"
           >
             <span class="flex items-start justify-between gap-2.5">
@@ -108,6 +108,9 @@ const rsvpTone: Record<string, string> = {
             </span>
             <span class="text-[13px] text-ink-2">
               {{ formatPeriod(event.startsAt, event.endsAt) }}
+            </span>
+            <span v-if="event.groupName" class="text-xs text-muted">
+              {{ event.groupName }}
             </span>
             <span class="text-[13px]" :class="rsvpTone[event.rsvp]">
               {{ rsvpLabel[event.rsvp] }}

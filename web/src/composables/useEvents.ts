@@ -7,6 +7,7 @@ export type EventSummary = {
   startsAt: string
   endsAt: string
   status: 'draft' | 'active' | 'closed'
+  groupName: string | null
   role: 'admin' | 'member'
   rsvp: 'invited' | 'accepted' | 'declined'
 }

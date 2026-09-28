@@ -634,6 +634,14 @@ Participants et programme retenu y sont répétés pendant qu'on saisit une dép
 téléphone, cette colonne redirait mot pour mot l'onglet ouvert juste à côté : elle est
 simplement absente.
 
+**Au-delà de `lg`, les vues s'élargissent et les listes passent en grille.** Une colonne de
+672 px au centre d'un écran de bureau faisait lire l'application comme un téléphone posé sur
+une table. Les conteneurs montent à `max-w-6xl` ; les listes de cartes — sorties, groupes,
+créneaux libres, indisponibilités, demandes d'ami — passent à deux colonnes, trois en `xl` ;
+sur la fiche d'un groupe, sorties et membres se rangent côte à côte. Les listes encadrées à
+séparateurs internes restent en une colonne : leurs traits ne se découpent pas en grille.
+Sous `lg`, rien ne change. *Coût si erroné : des classes à retirer, aucune logique en jeu.*
+
 ---
 
 ## Connexion — sortir le courriel du chemin critique
@@ -761,36 +769,109 @@ tous les participants. *Coût si erroné : un champ de plus dans une réponse.*
 et restent utilisables au clavier et au doigt. *Coût si erroné : un confort en moins sur
 écran large.*
 
+## Événements de groupe — du créneau libre à la sortie
+
+Conception : `docs/plans/2026-09-28-evenements-de-groupe-conception.md`.
+
+**Les membres sont invités d'office, pas inscrits comme présents.** Une participation
+`member/invited` par membre, et une notification. L'adhésion au groupe a été consentie, la
+sortie reste à accepter ou décliner : la règle de M4 — on ne rejoint jamais sans l'avoir
+accepté — tient. Une adhésion libre sans invitation laisserait passer la sortie inaperçue.
+*Coût si erroné : une invitation de trop, qui se décline.*
+
+**Un nouvel arrivant rejoint les sorties pas encore commencées.** `starts_at > maintenant` :
+un séjour en cours n'est plus une invitation. Le membre voit la sortie dans le groupe, avec
+une réponse nulle. *Coût si erroné : une inscription manuelle pour qui arrive en cours de
+séjour.*
+
+**Tout membre crée une sortie de groupe**, et en devient seul administrateur. Donner aussi
+ce rôle aux administrateurs du groupe ferait deux sources de droits à tenir cohérentes.
+*Coût si erroné : un administrateur de groupe qui ne peut modérer une sortie.*
+
+**Un verrou de ligne sur `groups` ordonne création et arrivée.** Sans lui, les deux
+transactions pouvaient s'ignorer et laisser le nouveau membre hors de la sortie ; le test de
+course échoue trois fois sur trois quand on retire le verrou. *Coût si erroné : une attente
+brève entre deux écritures sur le même groupe.*
+
+**`ON DELETE SET NULL` et non `CASCADE`.** Aucun geste ne supprime encore un groupe ; le jour
+où il existera, ses sorties survivront, dépenses comprises. *Coût si erroné : des sorties
+orphelines à nettoyer à la main.*
+
+**Pas de pagination sur les sorties d'un groupe.** Non mesuré : le volume d'un groupe d'amis
+ne la justifie pas. *Coût si erroné : une liste longue sur un groupe très ancien.*
+
+**`participant.joined` n'est émis que par l'arrivée dans un groupe.** Entrer directement
+dans un événement par lien ne publie toujours rien sur son flux ; l'aligner sort du
+périmètre. *Coût si erroné : un participant qui n'apparaît qu'au rechargement.*
+
+## Membres d'un groupe — renommer, rôles, départs
+
+Conception : `docs/plans/2026-09-28-membres-et-amis-conception.md`.
+
+**Le dernier admin qui part promeut le membre le plus ancien.** Refuser son départ tant qu'il
+n'a pas nommé quelqu'un l'aurait coincé : un état absorbant, que les règles du projet
+interdisent. *Coût si erroné : un admin désigné par l'ancienneté plutôt que par choix — il
+peut rétrograder aussitôt.*
+
+**Le dernier membre qui part supprime le groupe.** Un groupe vide n'est plus visible de
+personne. Ses sorties survivent en ad hoc, dépenses comprises, grâce au `SET NULL`.
+*Coût si erroné : un groupe à recréer.*
+
+**Quitter le groupe ne quitte pas ses sorties.** Une participation peut porter des parts de
+dépense figées ; la retirer toucherait à l'argent. Qui part décline les sorties qu'il ne veut
+plus. *Coût si erroné : des invitations en attente chez un ancien membre.*
+
+**Une seule route pour quitter et retirer.** `DELETE /groups/:id/members/:userId` : l'appelant
+lui-même, c'est un départ ouvert à tous ; un autre, c'est un retrait réservé aux admins.
+*Coût si erroné : une route à scinder.*
+
+**Départs et rétrogradations prennent le verrou du groupe.** Sans lui, deux admins qui partent
+ensemble laissaient le groupe sans admin : le test échoue trois fois sur trois quand on
+retire le verrou. *Coût si erroné : une attente brève entre deux écritures sur un groupe.*
+
+**Aucune notification nouvelle.** Un membre retiré ne l'apprend qu'en ne voyant plus le
+groupe. Les dix types de §2.9 restent la liste. *Coût si erroné : un type à ajouter.*
+
+## Amis — retirer et bloquer
+
+**Une demande entre deux personnes bloquées reçoit la réponse habituelle.** Rien n'est écrit,
+personne n'est notifié. Un refus explicite dirait au bloqué qu'il l'est. Le silence vaut dans
+les deux sens : le bloqueur qui demande le bloqué n'aboutit pas non plus, il débloque d'abord.
+*Coût si erroné : un bloqueur surpris que sa demande n'arrive pas.*
+
+**Bloquer efface l'amitié et les demandes en attente des deux sens.** Une demande du bloqué
+laissée en attente resterait acceptable par erreur. *Coût si erroné : une demande à refaire
+après un déblocage.*
+
+**Un 404 sur un identifiant d'utilisateur n'est pas un oracle.** Retirer ou bloquer prend un
+identifiant, jamais une adresse ; l'appelant ne le tient que d'une liste qu'on lui a déjà
+montrée. L'anti-énumération porte sur les adresses. *Coût si erroné : aucun, les
+identifiants sont des chaînes aléatoires que rien ne permet de deviner.*
+
+**Les routes de blocage vivent sous `/friends/blocks`.** Pas de module de plus pour trois
+routes ; déclarées avant `/friends/:userId`, qui sinon lirait « blocks » comme un
+identifiant. *Coût si erroné : un déplacement de routes.*
+
 ---
 
 ## Points laissés ouverts
 
-- `api/prisma.config.ts` charge `../.env`, chemin relatif au **répertoire courant** et non au
-  fichier. Une commande Prisma lancée depuis la racine échoue sur « Connection url is empty ».
-  Les scripts npm ne sont pas affectés, la CI non plus. Correction propre : résoudre le chemin
-  relativement au fichier de configuration.
 - La branche d'envoi réel de courriel n'est couverte par aucun test : la tester exigerait un
   appel réseau ou une bibliothèque de simulation, tous deux exclus.
 - Le parcours cliqué dans un navigateur et l'ergonomie au pouce à 375 px n'ont pas été validés
   automatiquement — ils demandent un humain.
-- **Déploiement M1 — chaîne tranchée, mise en service à faire.** `decisions-techniques.md`
-  §2.10 retient Docker Compose derrière le nginx du VPS ; les images, la pile, le workflow et
-  le mode d'emploi sont écrits et éprouvés en local. Reste à cloner le dépôt sur la machine,
-  y compléter `.env.production`, ajouter le bloc nginx et créer les secrets GitHub — des
-  gestes qui demandent les accès, pas du code.
-- **Aucun moyen de retirer un ami ni de bloquer quelqu'un.** §2.2 ne décrit ni l'un ni
-  l'autre. Une amitié est aujourd'hui définitive.
+- **Déploiement groupé.** L'application est en ligne sur `https://onsort.eliott-b.fr`
+  (Docker Compose derrière le nginx du VPS, `decisions-techniques.md` §2.10). Les évolutions
+  s'accumulent sur la branche `feature` et partent ensemble, pour ménager les ressources de
+  la machine.
+- **Un blocage n'empêche pas les invitations de groupe ou de sortie.** Sa portée s'arrête
+  aux demandes d'ami ; un admin peut encore inviter par adresse quelqu'un qu'il a bloqué, ou
+  qui l'a bloqué.
 - **Les notifications ne s'effacent pas.** Elles se marquent lues, la liste est bornée à
   cinquante, mais rien ne purge l'ancien.
 - **La recherche de lieu par nom n'existe pas.** §2.7 l'écarte au MVP : Photon demande 8 à
   16 Go de RAM. L'autocomplétion d'adresse la remplace en pratique, mais chercher « le Louvre »
   ne marche pas — il faut une adresse.
-- **`events.group_id` reste inutilisé.** Créer un événement depuis un créneau libre est la
-  suite naturelle de M4, mais §9 borne le jalon à « groupes, calendrier partagé,
-  superposition ». Le lien demande une décision de produit qui n'a pas été prise.
-- **Un groupe ne se quitte pas, ne se renomme pas, et personne n'en est retiré.** §2.3 ne
-  décrit que la table ; les gestes d'administration au-delà de l'invitation n'ont pas de
-  spécification.
 - **Un solde est recalculé à chaque lecture**, sans cache. C'est délibéré et non mesuré : les
   volumes d'une sortie entre amis ne le justifient pas. À reconsidérer seulement avec un
   profil sous les yeux.

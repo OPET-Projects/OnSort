@@ -30,7 +30,7 @@ async function submit(): Promise<void> {
 </script>
 
 <template>
-  <main class="mx-auto w-full max-w-2xl px-5 py-7 md:px-8 md:py-9">
+  <main class="mx-auto w-full max-w-2xl px-5 py-7 md:px-8 md:py-9 lg:max-w-6xl lg:px-12">
     <header class="flex flex-col gap-1.5">
       <h1 class="text-[26px] font-bold tracking-tight">Mes indisponibilités</h1>
       <p class="text-[13px] leading-relaxed text-muted">
@@ -64,7 +64,7 @@ async function submit(): Promise<void> {
         vos groupes.
       </p>
 
-      <ul v-else class="mt-6 flex flex-col gap-2">
+      <ul v-else class="mt-6 grid grid-cols-1 gap-2 lg:grid-cols-2">
         <li
           v-for="row in unavailability"
           :key="row.id"

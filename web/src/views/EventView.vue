@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onUnmounted, ref } from 'vue'
-import { useRoute } from 'vue-router'
+import { RouterLink, useRoute } from 'vue-router'
 import ActivityCard from '../components/ActivityCard.vue'
 import BalanceSheet from '../components/BalanceSheet.vue'
 import ExpenseCard from '../components/ExpenseCard.vue'
@@ -361,7 +361,7 @@ async function sendEmailInvite(): Promise<void> {
     </p>
   </div>
 
-  <main class="mx-auto w-full max-w-2xl md:max-w-5xl">
+  <main class="mx-auto w-full max-w-2xl md:max-w-5xl lg:max-w-6xl">
     <p v-if="state === 'loading'" class="px-5 py-7 text-sm text-muted">Chargement…</p>
 
     <div
@@ -397,6 +397,16 @@ async function sendEmailInvite(): Promise<void> {
           <h1 class="text-2xl font-bold tracking-tight md:text-[26px]">{{ event.title }}</h1>
           <p class="text-[13px] text-ink-2">
             {{ formatPeriod(event.startsAt, event.endsAt) }}
+          </p>
+          <RouterLink
+            v-if="event.group?.viewerIsMember"
+            :to="`/groups/${event.group.id}`"
+            class="self-start text-[13px] font-semibold text-accent"
+          >
+            Groupe {{ event.group.name }}
+          </RouterLink>
+          <p v-else-if="event.group" class="text-[13px] text-muted">
+            Groupe {{ event.group.name }}
           </p>
           <p v-if="event.description" class="mt-2 text-sm leading-relaxed whitespace-pre-line">
             {{ event.description }}

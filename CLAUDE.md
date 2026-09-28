@@ -38,9 +38,10 @@ partagé, carte et géocodage, amis et notifications, puis les finitions.
 Un utilisateur crée un événement, invite, chacun répond, propose des activités et vote. Les
 dépenses se saisissent, les soldes s'en dérivent, et l'application propose le plus petit jeu
 de virements qui remet tout le monde à zéro. Un groupe superpose les indisponibilités de ses
-membres et fait apparaître les créneaux qui conviennent à tous. Le programme s'affiche sur
-une carte, pins numérotés dans l'ordre. Et chaque geste qui concerne quelqu'un le prévient,
-en direct, sans qu'il recharge. Une dépense se partage aussi en pourcentage ou en montant
+membres et fait apparaître les créneaux qui conviennent à tous ; un créneau libre devient une
+sortie de groupe, où chaque membre, même arrivé après coup, est invité d'office. Le
+programme s'affiche sur une carte, pins numérotés dans l'ordre. Et chaque geste qui concerne
+quelqu'un le prévient, en direct, sans qu'il recharge. Une dépense se partage aussi en pourcentage ou en montant
 fixe, le programme se réordonne, et une activité s'annule sans disparaître — ses dépenses
 restent comptées.
 
@@ -53,15 +54,16 @@ dessous) — et la connexion accepte **Google** à côté du lien magique, ce qu
 du chemin critique. Le jeu de développement (`npm run db:seed`) pose un événement complet,
 votes, dépenses et virement en attente compris.
 
-**Reste dû, hors code :** le déploiement sur une URL publique HTTPS, livrable de M1. La
-chaîne est tranchée et outillée — Docker Compose derrière le nginx du VPS, voir
-`docs/deploiement.md` — mais l'application ne tourne encore nulle part publiquement. Le même
-domaine débloquerait l'envoi de courriel vers des tiers (`docs/decisions-techniques.md` §2.8)
-et la connexion Google en production (§2.12).
+**En ligne** sur `https://onsort.eliott-b.fr` — Docker Compose derrière le nginx du VPS, voir
+`docs/deploiement.md`.
+
+**Branches.** Le travail se fait sur des branches `feat/*` tirées de `feature`, et y revient.
+`feature` part en production d'un bloc, pas à chaque fusion : on ménage les ressources du
+VPS. Ne tire jamais une branche de travail de `main`.
 
 Le séquencement complet est en section 9 de `docs/conception.md` ; il est entièrement
-parcouru. Les chantiers suivants ne sont plus des jalons : le déploiement ci-dessus, puis ce
-que `docs/journal-decisions.md` range en « points laissés ouverts ».
+parcouru. Les chantiers suivants ne sont plus des jalons : ce que
+`docs/journal-decisions.md` range en « points laissés ouverts ».
 
 Monorepo `npm workspaces`, deux espaces : `api/` et `web/`. Stack, versions exactes et scripts
 disponibles : voir `package.json` et `docs/versions.md`.
@@ -118,9 +120,9 @@ de Vite le lit. Change les deux ensemble : `PORT` **et** `BETTER_AUTH_URL`.
 `schema.prisma` — Prisma 7 la refuse — mais dans `api/prisma.config.ts`, qui charge `.env`
 lui-même. Le client s'instancie avec un adaptateur de pilote.
 
-**Le chemin `../.env` de `api/prisma.config.ts` est relatif au répertoire courant.** Une
-commande Prisma lancée depuis la racine échoue sur « Connection url is empty ». Passe par les
-scripts npm, qui s'exécutent depuis `api/`. Correction propre en attente.
+**La CLI Prisma cherche `prisma.config.ts` dans le répertoire courant.** Lance-la depuis
+`api/`, ou depuis la racine avec `--config api/prisma.config.ts`. Le fichier charge `.env` par
+un chemin résolu depuis lui-même : les deux marchent.
 
 **Biome n'analyse pas les gabarits Vue.** Toute liaison — variable **ou import** — utilisée
 uniquement dans un `<template>` lui paraît morte. Les règles `noUnusedVariables` **et**
@@ -177,7 +179,7 @@ passent.
 
 Écrire une migration sans `migrate dev`, donc : créer `api/prisma/migrations/<horodatage>_<nom>/migration.sql`
 à la main — le SQL est celui que Prisma aurait émis, prendre les migrations existantes pour
-modèle — puis, **depuis `api/`** (le chemin `../.env` en dépend), `npx prisma migrate deploy`
+modèle — puis, **depuis `api/`** (où la CLI trouve sa configuration), `npx prisma migrate deploy`
 et `npm run db:generate`. Vérifier par `npx prisma migrate status`, qui doit dire
 « Database schema is up to date! ». Un humain peut confirmer l'absence de dérive avec
 `npx prisma migrate dev` : « Already in sync » signifie que le `.sql` écrit à la main dit
