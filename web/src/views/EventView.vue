@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onUnmounted, ref } from 'vue'
-import { useRoute } from 'vue-router'
+import { RouterLink, useRoute } from 'vue-router'
 import ActivityCard from '../components/ActivityCard.vue'
 import BalanceSheet from '../components/BalanceSheet.vue'
 import ExpenseCard from '../components/ExpenseCard.vue'
@@ -398,6 +398,13 @@ async function sendEmailInvite(): Promise<void> {
           <p class="text-[13px] text-ink-2">
             {{ formatPeriod(event.startsAt, event.endsAt) }}
           </p>
+          <RouterLink
+            v-if="event.group"
+            :to="`/groups/${event.group.id}`"
+            class="self-start text-[13px] font-semibold text-accent"
+          >
+            Groupe {{ event.group.name }}
+          </RouterLink>
           <p v-if="event.description" class="mt-2 text-sm leading-relaxed whitespace-pre-line">
             {{ event.description }}
           </p>
