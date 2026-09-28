@@ -4,9 +4,12 @@ import { requireSession, type SessionVariables } from '../../middleware/session.
 import { friendRequestSchema } from './schema.ts'
 import {
   acceptFriendRequest,
+  blockUser,
   declineFriendRequest,
   listFriends,
+  removeFriend,
   requestFriendship,
+  unblockUser,
 } from './service.ts'
 
 export const friendsRoutes = new Hono<{ Variables: SessionVariables }>()
@@ -22,4 +25,14 @@ export const friendsRoutes = new Hono<{ Variables: SessionVariables }>()
   })
   .post('/requests/:id/decline', async (c) => {
     return c.json(await declineFriendRequest(c.get('user').id, c.req.param('id')))
+  })
+  // `/blocks/:userId` avant `/:userId` : sinon « blocks » serait lu comme un identifiant.
+  .post('/blocks/:userId', async (c) => {
+    return c.json(await blockUser(c.get('user').id, c.req.param('userId')))
+  })
+  .delete('/blocks/:userId', async (c) => {
+    return c.json(await unblockUser(c.get('user').id, c.req.param('userId')))
+  })
+  .delete('/:userId', async (c) => {
+    return c.json(await removeFriend(c.get('user').id, c.req.param('userId')))
   })
