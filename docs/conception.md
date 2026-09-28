@@ -66,6 +66,13 @@ group_members(
 )
 ```
 
+**Administration.** Un admin renomme le groupe, promeut et rétrograde ; on ne rétrograde pas
+le dernier admin. Tout membre quitte le groupe ; un admin en retire un autre membre. Aucun
+départ ne bloque le groupe : s'il ne reste aucun admin, le membre le plus ancien est promu ;
+s'il ne reste personne, le groupe est supprimé et ses sorties deviennent ad hoc. Partir ne
+touche pas aux participations : quitter le groupe ne quitte pas ses sorties. Les départs et
+les changements de rôle prennent le verrou de la ligne du groupe.
+
 ### 2.4 Calendrier personnel
 
 ```sql
@@ -418,6 +425,9 @@ POST   /friends/requests/:id/decline
 
 GET    /groups                     POST   /groups
 GET    /groups/:id                 POST   /groups/:id/members
+PATCH  /groups/:id                 renommer, administrateur
+PATCH  /groups/:id/members/:userId rôle, administrateur
+DELETE /groups/:id/members/:userId quitter soi-même, ou retirer, administrateur
                                    GET /groups/:id rend aussi les sorties du groupe
 GET    /groups/:id/calendar        superposition, fenêtre from/to
 

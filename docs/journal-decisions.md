@@ -804,6 +804,34 @@ ne la justifie pas. *Coût si erroné : une liste longue sur un groupe très anc
 dans un événement par lien ne publie toujours rien sur son flux ; l'aligner sort du
 périmètre. *Coût si erroné : un participant qui n'apparaît qu'au rechargement.*
 
+## Membres d'un groupe — renommer, rôles, départs
+
+Conception : `docs/plans/2026-09-28-membres-et-amis-conception.md`.
+
+**Le dernier admin qui part promeut le membre le plus ancien.** Refuser son départ tant qu'il
+n'a pas nommé quelqu'un l'aurait coincé : un état absorbant, que les règles du projet
+interdisent. *Coût si erroné : un admin désigné par l'ancienneté plutôt que par choix — il
+peut rétrograder aussitôt.*
+
+**Le dernier membre qui part supprime le groupe.** Un groupe vide n'est plus visible de
+personne. Ses sorties survivent en ad hoc, dépenses comprises, grâce au `SET NULL`.
+*Coût si erroné : un groupe à recréer.*
+
+**Quitter le groupe ne quitte pas ses sorties.** Une participation peut porter des parts de
+dépense figées ; la retirer toucherait à l'argent. Qui part décline les sorties qu'il ne veut
+plus. *Coût si erroné : des invitations en attente chez un ancien membre.*
+
+**Une seule route pour quitter et retirer.** `DELETE /groups/:id/members/:userId` : l'appelant
+lui-même, c'est un départ ouvert à tous ; un autre, c'est un retrait réservé aux admins.
+*Coût si erroné : une route à scinder.*
+
+**Départs et rétrogradations prennent le verrou du groupe.** Sans lui, deux admins qui partent
+ensemble laissaient le groupe sans admin : le test échoue trois fois sur trois quand on
+retire le verrou. *Coût si erroné : une attente brève entre deux écritures sur un groupe.*
+
+**Aucune notification nouvelle.** Un membre retiré ne l'apprend qu'en ne voyant plus le
+groupe. Les dix types de §2.9 restent la liste. *Coût si erroné : un type à ajouter.*
+
 ---
 
 ## Points laissés ouverts
@@ -827,9 +855,6 @@ périmètre. *Coût si erroné : un participant qui n'apparaît qu'au rechargeme
 - **La recherche de lieu par nom n'existe pas.** §2.7 l'écarte au MVP : Photon demande 8 à
   16 Go de RAM. L'autocomplétion d'adresse la remplace en pratique, mais chercher « le Louvre »
   ne marche pas — il faut une adresse.
-- **Un groupe ne se quitte pas, ne se renomme pas, et personne n'en est retiré.** §2.3 ne
-  décrit que la table ; les gestes d'administration au-delà de l'invitation n'ont pas de
-  spécification.
 - **Un solde est recalculé à chaque lecture**, sans cache. C'est délibéré et non mesuré : les
   volumes d'une sortie entre amis ne le justifient pas. À reconsidérer seulement avec un
   profil sous les yeux.
