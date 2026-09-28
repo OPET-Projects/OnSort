@@ -1,3 +1,4 @@
+import { flushPromises } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { useAuthProviders } from '../src/composables/useAuthProviders.ts'
@@ -74,7 +75,7 @@ it('n’annonce aucun fournisseur quand l’API ne répond pas', async () => {
   )
 
   const { google } = useAuthProviders()
-  await new Promise((resolve) => setTimeout(resolve, 0))
+  await flushPromises()
 
   expect(google.value).toBe(false)
 })
