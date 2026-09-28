@@ -175,6 +175,7 @@ Dépôt → *Settings* → *Secrets and variables* → *Actions*.
 | --- | --- | --- |
 | `DEPLOY_SSH_KEY` | secret | clé privée d'une paire dédiée au déploiement, sans phrase de passe |
 | `DEPLOY_HOST` | secret | nom ou adresse du VPS |
+| `DEPLOY_PORT` | secret | port SSH du VPS, s'il n'est pas 22 |
 | `DEPLOY_USER` | secret | utilisateur SSH |
 | `DEPLOY_PATH` | secret | chemin du dépôt sur le VPS, par exemple `/home/utilisateur/onsort` |
 | `APP_PUBLIC_URL` | **variable** | `https://onsort.eliott-b.fr` |

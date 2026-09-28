@@ -52,14 +52,14 @@ jobs:
         # protection contre un intercepteur.
         run: |
           mkdir -p ~/.ssh
-          ssh-keyscan -H "${{ secrets.DEPLOY_HOST }}" >> ~/.ssh/known_hosts
+          ssh-keyscan -p "${{ secrets.DEPLOY_PORT }}" -H "${{ secrets.DEPLOY_HOST }}" >> ~/.ssh/known_hosts
 
       - name: Mettre à jour et relancer la pile
         # Le dépôt est cloné une fois à la main sur le VPS ; le déploiement n'en fait que la
         # mise à jour. `.env.production` vit sur la machine et n'est jamais transmis d'ici :
         # aucun secret d'exécution ne transite par GitHub Actions.
         run: |
-          ssh -o BatchMode=yes \
+          ssh -o BatchMode=yes -p "${{ secrets.DEPLOY_PORT }}" \
             "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}" \
             "set -euo pipefail
              cd '${{ secrets.DEPLOY_PATH }}'
