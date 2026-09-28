@@ -7,6 +7,7 @@ import { notify } from '../../lib/notify.ts'
 import { canManageEvent, type ParticipantRole } from '../../lib/permissions.ts'
 import { publish } from '../../lib/sse.ts'
 import { generateInviteToken, hashInviteToken } from '../../lib/tokens.ts'
+import { lockGroup } from '../groups/enrollment.ts'
 import type { CreateEventInput, InviteInput, UpdateEventInput } from './schema.ts'
 
 // Règles métier des événements (conception §2.5, §3.1, §3.2). Ce fichier ne connaît pas
@@ -23,17 +24,67 @@ function assertPeriod(startsAt: Date, endsAt: Date): void {
 export async function createEvent(userId: string, input: CreateEventInput) {
   assertPeriod(input.startsAt, input.endsAt)
 
+  const fields = {
+    title: input.title,
+    description: input.description,
+    startsAt: input.startsAt,
+    endsAt: input.endsAt,
+    createdBy: userId,
+  }
+
   // Le créateur est d'emblée administrateur et présent (conception §3.2).
-  return prisma.event.create({
-    data: {
-      title: input.title,
-      description: input.description,
-      startsAt: input.startsAt,
-      endsAt: input.endsAt,
-      createdBy: userId,
-      participants: { create: { userId, role: 'admin', rsvp: 'accepted' } },
-    },
+  if (input.groupId === undefined) {
+    return prisma.event.create({
+      data: { ...fields, participants: { create: { userId, role: 'admin', rsvp: 'accepted' } } },
+    })
+  }
+
+  const groupId = input.groupId
+
+  // Dans un groupe, chaque autre membre est invité d'office. Le verrou ordonne cette
+  // création face à une arrivée simultanée dans le groupe (voir `enrollment.ts`).
+  const { event, invitedIds } = await prisma.$transaction(async (tx) => {
+    if (!(await lockGroup(tx, groupId))) {
+      throw new ApiError('group_not_found', 404, 'Groupe introuvable.')
+    }
+
+    const members = await tx.groupMember.findMany({ where: { groupId }, select: { userId: true } })
+
+    if (!members.some((member) => member.userId === userId)) {
+      throw new ApiError('not_a_member', 403, 'Vous ne faites pas partie de ce groupe.')
+    }
+
+    const others = members.map((member) => member.userId).filter((id) => id !== userId)
+
+    const created = await tx.event.create({
+      data: {
+        ...fields,
+        groupId,
+        participants: {
+          create: [
+            { userId, role: 'admin', rsvp: 'accepted' },
+            ...others.map((id) => ({
+              userId: id,
+              role: 'member' as const,
+              rsvp: 'invited' as const,
+            })),
+          ],
+        },
+      },
+    })
+
+    return { event: created, invitedIds: others }
   })
+
+  // Hors transaction : une notification qui échoue n'échoue pas l'action (lib/notify.ts).
+  await notify({
+    userIds: invitedIds,
+    type: 'event.invited',
+    eventId: event.id,
+    payload: { title: event.title },
+  })
+
+  return event
 }
 
 export async function listEvents(userId: string) {

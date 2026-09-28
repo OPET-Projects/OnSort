@@ -9,6 +9,8 @@ export const createEventSchema = z.object({
   description: z.string().max(5000).default(''),
   startsAt: z.coerce.date(),
   endsAt: z.coerce.date(),
+  // Facultatif : absent, la sortie est ad hoc (conception §2.5).
+  groupId: z.uuid().optional(),
 })
 
 export const updateEventSchema = z
