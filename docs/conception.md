@@ -121,6 +121,14 @@ event_participants(
 `group_id` nul désigne un événement ad hoc. `period` couvre aussi bien une date précise
 (période courte) qu'un séjour de plusieurs jours.
 
+**Événement de groupe.** `group_id` porte une clé étrangère `ON DELETE SET NULL` : un groupe
+qui disparaîtrait laisserait ses sorties, et leurs dépenses, en ad hoc. Tout membre du
+groupe peut y créer un événement ; il en devient administrateur, et chaque autre membre y
+entre en `member`, `invited`. Entrer ensuite dans le groupe inscrit de même aux événements
+**pas encore commencés** (`starts_at > maintenant`), sans toucher une participation qui
+existe déjà. Le groupe est fixé à la création. Création et arrivée verrouillent la ligne du
+groupe pour ne jamais s'ignorer mutuellement.
+
 La date est **fixée par le créateur**. Il n'existe pas de vote sur les dates : les invités
 acceptent ou déclinent.
 
@@ -410,6 +418,7 @@ POST   /friends/requests/:id/decline
 
 GET    /groups                     POST   /groups
 GET    /groups/:id                 POST   /groups/:id/members
+                                   GET /groups/:id rend aussi les sorties du groupe
 GET    /groups/:id/calendar        superposition, fenêtre from/to
 
 GET    /me/unavailability          POST   /me/unavailability
@@ -417,6 +426,7 @@ DELETE /me/unavailability/:id
 
 GET    /events                     événements de l'appelant, triés par date
 POST   /events                     GET    /events/:id
+                                   POST /events accepte un groupId facultatif
 PATCH  /events/:id
 POST   /events/:id/invitations     lien ou adresse e-mail
 GET    /invitations/:token         aperçu avant de rejoindre
@@ -468,8 +478,12 @@ Types diffusés :
 participant.rsvp     activity.created     activity.decided
 activity.updated     activity.vote        activity.cancelled
 expense.created      expense.updated      settlement.declared
-settlement.confirmed
+settlement.confirmed participant.joined
 ```
+
+`participant.joined` est venu avec les événements de groupe : il est émis quand une arrivée
+dans un groupe inscrit quelqu'un à l'un de ses événements, pour que la liste des
+participants se mette à jour sans rechargement.
 
 `activity.updated` a été ajouté à cette liste au jalon M2 : une activité modifiée doit se
 propager comme une activité créée, et `expense.updated` prouve que la symétrie création /
