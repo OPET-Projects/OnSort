@@ -78,9 +78,16 @@ it('efface la session et prévient l’API à la déconnexion', async () => {
 
   await store.signOut()
 
+  // Better Auth refuse une requête sans Content-Type par un 415 : sans lui, le cookie de
+  // session n'est jamais effacé côté serveur, et l'écran se croit déconnecté à tort.
   expect(fetchMock).toHaveBeenCalledWith(
     '/api/auth/sign-out',
-    expect.objectContaining({ method: 'POST', credentials: 'include' }),
+    expect.objectContaining({
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'content-type': 'application/json' },
+      body: '{}',
+    }),
   )
   expect(store.status).toBe('anonymous')
   expect(store.user).toBeNull()
