@@ -6,7 +6,13 @@ import { ApiError } from '../../lib/http.ts'
 import { mailer } from '../../lib/mailer.ts'
 import { notify } from '../../lib/notify.ts'
 import { canManageGroup } from '../../lib/permissions.ts'
-import type { CalendarWindowInput, CreateGroupInput, InviteMemberInput } from './schema.ts'
+import { lockGroup } from './enrollment.ts'
+import type {
+  CalendarWindowInput,
+  CreateGroupInput,
+  InviteMemberInput,
+  MemberRoleInput,
+} from './schema.ts'
 
 // Règles métier des groupes (conception §2.3, §2.4). Ce fichier ne connaît pas Hono : il
 // reçoit l'identifiant de l'appelant en argument et lève des `ApiError`.
@@ -98,6 +104,60 @@ export async function getGroup(userId: string, groupId: string) {
     })),
     viewer: { role: membership.role },
   }
+}
+
+async function loadAdminMembership(userId: string, groupId: string) {
+  const membership = await loadMembership(userId, groupId)
+
+  if (!canManageGroup(membership.role)) {
+    throw new ApiError('forbidden', 403, 'Seul un administrateur du groupe peut faire cela.')
+  }
+
+  return membership
+}
+
+export async function renameGroup(userId: string, groupId: string, input: CreateGroupInput) {
+  await loadAdminMembership(userId, groupId)
+  await prisma.group.update({ where: { id: groupId }, data: { name: input.name } })
+  return { ok: true as const }
+}
+
+// Sous verrou : deux admins qui se rétrogradent l'un l'autre au même instant liraient
+// chacun « il reste un autre admin », et le groupe finirait sans aucun.
+export async function setMemberRole(
+  userId: string,
+  groupId: string,
+  targetId: string,
+  input: MemberRoleInput,
+) {
+  await loadAdminMembership(userId, groupId)
+
+  await prisma.$transaction(async (tx) => {
+    await lockGroup(tx, groupId)
+
+    const target = await tx.groupMember.findUnique({
+      where: { groupId_userId: { groupId, userId: targetId } },
+    })
+
+    if (target === null) {
+      throw new ApiError('member_not_found', 404, "Cette personne n'est pas membre du groupe.")
+    }
+
+    if (target.role === 'admin' && input.role === 'member') {
+      const admins = await tx.groupMember.count({ where: { groupId, role: 'admin' } })
+
+      if (admins === 1) {
+        throw new ApiError('last_admin', 409, 'Le groupe doit garder au moins un administrateur.')
+      }
+    }
+
+    await tx.groupMember.update({
+      where: { groupId_userId: { groupId, userId: targetId } },
+      data: { role: input.role },
+    })
+  })
+
+  return { ok: true as const }
 }
 
 function inviteUrl(token: string): string {
