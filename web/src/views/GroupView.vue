@@ -3,6 +3,8 @@ import { ref } from 'vue'
 import { RouterLink, useRoute } from 'vue-router'
 import FreeSlots from '../components/FreeSlots.vue'
 import { useGroup } from '../composables/useGroup'
+import { formatPeriod } from '../lib/dates'
+import { newEventLink } from '../lib/event-draft'
 
 const route = useRoute()
 const id = String(route.params.id)
@@ -26,6 +28,18 @@ async function submitInvite(): Promise<void> {
 
 async function applyWindow(): Promise<void> {
   await reload()
+}
+
+const rsvpLabel: Record<string, string> = {
+  invited: 'À confirmer',
+  accepted: 'Vous participez',
+  declined: 'Vous avez décliné',
+}
+
+const rsvpTone: Record<string, string> = {
+  invited: 'text-wait-ink',
+  accepted: 'text-muted',
+  declined: 'text-muted',
 }
 </script>
 
@@ -104,7 +118,41 @@ async function applyWindow(): Promise<void> {
           </button>
         </div>
 
-        <FreeSlots :free="calendar.free" :busy="calendar.busy" :window-days="windowDays" />
+        <FreeSlots :group-id="group.id" :free="calendar.free" :busy="calendar.busy" :window-days="windowDays" />
+
+        <section class="flex flex-col gap-2">
+          <div class="flex items-center justify-between gap-3">
+            <h2 class="text-[13px] font-semibold text-label">Sorties du groupe</h2>
+            <RouterLink
+              :to="newEventLink(group.id)"
+              class="flex h-10 items-center rounded-control bg-accent px-4 text-sm font-semibold text-white"
+            >
+              Nouvelle sortie
+            </RouterLink>
+          </div>
+
+          <p v-if="group.events.length === 0" class="text-[13px] text-muted">
+            Aucune sortie pour l'instant. Choisissez un créneau libre ci-dessus.
+          </p>
+
+          <ul v-else class="flex flex-col rounded-card border border-line bg-surface">
+            <li
+              v-for="event in group.events"
+              :key="event.id"
+              class="border-b border-line-soft last:border-b-0"
+            >
+              <RouterLink :to="`/events/${event.id}`" class="flex flex-col gap-0.5 px-4 py-3">
+                <span class="text-sm font-medium">{{ event.title }}</span>
+                <span class="text-xs text-muted">
+                  {{ formatPeriod(event.startsAt, event.endsAt) }}
+                </span>
+                <span v-if="event.rsvp" class="text-xs" :class="rsvpTone[event.rsvp]">
+                  {{ rsvpLabel[event.rsvp] }}
+                </span>
+              </RouterLink>
+            </li>
+          </ul>
+        </section>
 
         <section class="flex flex-col gap-2">
           <h2 class="text-[13px] font-semibold text-label">Membres</h2>

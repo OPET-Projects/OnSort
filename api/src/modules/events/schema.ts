@@ -9,6 +9,9 @@ export const createEventSchema = z.object({
   description: z.string().max(5000).default(''),
   startsAt: z.coerce.date(),
   endsAt: z.coerce.date(),
+  // Facultatif : absent, la sortie est ad hoc (conception §2.5). Pas `z.uuid()` : tous
+  // les identifiants ne sont pas des UUID, et un groupe inconnu répond 404 en service.
+  groupId: z.string().min(1).optional(),
 })
 
 export const updateEventSchema = z

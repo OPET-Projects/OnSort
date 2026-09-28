@@ -29,6 +29,7 @@ export type EventDetail = {
   endsAt: string
   status: 'draft' | 'active' | 'closed'
   createdBy: string
+  group: { id: string; name: string; viewerIsMember: boolean } | null
   participants: Participant[]
   pendingInvitations: PendingInvitation[]
   viewer: {

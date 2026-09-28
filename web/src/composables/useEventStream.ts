@@ -13,7 +13,7 @@ const ACTIVITY_TYPES = [
   'activity.decided',
   'activity.cancelled',
 ] as const
-const PARTICIPANT_TYPES = ['participant.rsvp'] as const
+const PARTICIPANT_TYPES = ['participant.rsvp', 'participant.joined'] as const
 // Les quatre messages financiers déclenchent le même rechargement : dépenses et soldes
 // voyagent ensemble, et un virement confirmé bouge les deux.
 const EXPENSE_TYPES = [

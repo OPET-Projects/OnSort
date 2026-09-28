@@ -8,11 +8,22 @@ export type GroupMember = {
   joinedAt: string
 }
 
+export type GroupEvent = {
+  id: string
+  title: string
+  startsAt: string
+  endsAt: string
+  status: 'draft' | 'active' | 'closed'
+  // Nul : l'appelant voit la sortie sans y participer, arrivé après qu'elle a commencé.
+  rsvp: 'invited' | 'accepted' | 'declined' | null
+}
+
 export type GroupDetail = {
   id: string
   name: string
   createdBy: string
   members: GroupMember[]
+  events: GroupEvent[]
   viewer: { role: 'admin' | 'member' }
 }
 

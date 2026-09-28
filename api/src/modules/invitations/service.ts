@@ -1,6 +1,9 @@
 import { prisma } from '../../db.ts'
 import { ApiError } from '../../lib/http.ts'
+import { notify } from '../../lib/notify.ts'
+import { publish } from '../../lib/sse.ts'
 import { hashInviteToken } from '../../lib/tokens.ts'
+import { enrollInUpcomingEvents, lockGroup } from '../groups/enrollment.ts'
 import type { RespondInput } from './schema.ts'
 
 // Consommation d'un jeton d'invitation (conception §2.6, §3.2). Le jeton désigne soit un
@@ -58,18 +61,34 @@ async function joinEvent(
 
 // Un groupe n'a pas de RSVP : on en est membre ou non. « Je ne sais pas » n'a donc pas de
 // sens ici, et l'interface ne le propose pas pour une invitation de groupe.
+//
+// Entrer dans un groupe, c'est aussi être invité à ses sorties **pas encore commencées** :
+// point de passage unique des trois canaux (lien, adresse, invitation interne), c'est ici
+// que l'inscription vit. Le verrou ordonne cette arrivée face à une création simultanée.
 async function joinGroup(userId: string, groupId: string): Promise<void> {
-  const group = await prisma.group.findUnique({ where: { id: groupId }, select: { id: true } })
+  const enrolled = await prisma.$transaction(async (tx) => {
+    if (!(await lockGroup(tx, groupId))) {
+      throw new ApiError('group_not_found', 404, 'Groupe introuvable.')
+    }
 
-  if (group === null) {
-    throw new ApiError('group_not_found', 404, 'Groupe introuvable.')
-  }
+    await tx.groupMember.upsert({
+      where: { groupId_userId: { groupId, userId } },
+      create: { groupId, userId, role: 'member' },
+      update: {},
+    })
 
-  await prisma.groupMember.upsert({
-    where: { groupId_userId: { groupId, userId } },
-    create: { groupId, userId, role: 'member' },
-    update: {},
+    return enrollInUpcomingEvents(tx, groupId, userId)
   })
+
+  for (const participation of enrolled) {
+    await notify({
+      userIds: [userId],
+      type: 'event.invited',
+      eventId: participation.eventId,
+      payload: { title: participation.title },
+    })
+    publish(participation.eventId, { type: 'participant.joined', id: participation.participantId })
+  }
 }
 
 async function resolveViaLink(token: string): Promise<Resolved | null> {

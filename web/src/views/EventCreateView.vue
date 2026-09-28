@@ -1,15 +1,29 @@
 <script setup lang="ts">
-import { ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { computed, ref } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
+import { useGroups } from '../composables/useGroups'
 import { localInputToIso } from '../lib/dates'
+import { readEventDraft } from '../lib/event-draft'
 import { ApiFetchError, apiFetch } from '../lib/http'
 
 const router = useRouter()
+const draft = readEventDraft(useRoute().query)
+
+// Venu d'un groupe, le groupe est fixé : le sélecteur n'aurait rien à choisir.
+const lockedGroupId = draft.groupId
+const { groups } = useGroups()
+const selectedGroupId = ref('')
+const groupId = computed(() => lockedGroupId ?? (selectedGroupId.value || null))
+// `null` tant que la liste charge, ou si le lien vise un groupe dont on n'est pas membre :
+// aucun groupe n'est alors nommé, et l'API tranche par un 403 à l'envoi.
+const lockedGroupName = computed(
+  () => groups.value.find((group) => group.id === lockedGroupId)?.name ?? null,
+)
 
 const title = ref('')
 const description = ref('')
-const startsAt = ref('')
-const endsAt = ref('')
+const startsAt = ref(draft.startsAt)
+const endsAt = ref(draft.endsAt)
 const state = ref<'idle' | 'sending' | 'error'>('idle')
 const message = ref('')
 const periodError = ref('')
@@ -27,6 +41,7 @@ async function submit(): Promise<void> {
         description: description.value,
         startsAt: localInputToIso(startsAt.value),
         endsAt: localInputToIso(endsAt.value),
+        groupId: groupId.value ?? undefined,
       }),
     })
     await router.push(`/events/${id}`)
@@ -34,6 +49,10 @@ async function submit(): Promise<void> {
     state.value = 'error'
     if (cause instanceof ApiFetchError && cause.code === 'invalid_period') {
       periodError.value = 'La fin doit être postérieure au début.'
+      return
+    }
+    if (cause instanceof ApiFetchError && cause.code === 'not_a_member') {
+      message.value = "Vous ne faites pas partie de ce groupe : la sortie n'a pas été créée."
       return
     }
     message.value = cause instanceof Error ? cause.message : 'La création a échoué.'
@@ -80,6 +99,30 @@ async function submit(): Promise<void> {
           rows="3"
           class="rounded-field border border-field bg-surface p-3.5 text-[15px] leading-relaxed shadow-rest outline-none focus:border-accent focus:ring-4 focus:ring-accent/15"
         />
+      </label>
+
+      <p
+        v-if="lockedGroupId && lockedGroupName"
+        class="rounded-field border border-line bg-surface p-3.5 text-[13px] leading-relaxed"
+      >
+        Sortie du groupe <span class="font-semibold">{{ lockedGroupName }}</span> : tous ses
+        membres seront invités.
+      </p>
+
+      <label v-else-if="!lockedGroupId && groups.length > 0" class="flex flex-col gap-1.5">
+        <span class="text-[13px] font-semibold text-label">Groupe</span>
+        <select
+          v-model="selectedGroupId"
+          class="h-13 rounded-field border border-field bg-surface px-3.5 text-[15px] shadow-rest outline-none focus:border-accent focus:ring-4 focus:ring-accent/15"
+        >
+          <option value="">Aucun (sortie ad hoc)</option>
+          <option v-for="group in groups" :key="group.id" :value="group.id">
+            {{ group.name }}
+          </option>
+        </select>
+        <span v-if="selectedGroupId" class="text-xs text-faint">
+          Tous les membres du groupe seront invités.
+        </span>
       </label>
 
       <div class="flex flex-col gap-4.5 sm:flex-row sm:gap-3">

@@ -109,6 +109,9 @@ const rsvpTone: Record<string, string> = {
             <span class="text-[13px] text-ink-2">
               {{ formatPeriod(event.startsAt, event.endsAt) }}
             </span>
+            <span v-if="event.groupName" class="text-xs text-muted">
+              {{ event.groupName }}
+            </span>
             <span class="text-[13px]" :class="rsvpTone[event.rsvp]">
               {{ rsvpLabel[event.rsvp] }}
             </span>

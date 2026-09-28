@@ -761,6 +761,41 @@ tous les participants. *Coût si erroné : un champ de plus dans une réponse.*
 et restent utilisables au clavier et au doigt. *Coût si erroné : un confort en moins sur
 écran large.*
 
+## Événements de groupe — du créneau libre à la sortie
+
+Conception : `docs/plans/2026-09-28-evenements-de-groupe-conception.md`.
+
+**Les membres sont invités d'office, pas inscrits comme présents.** Une participation
+`member/invited` par membre, et une notification. L'adhésion au groupe a été consentie, la
+sortie reste à accepter ou décliner : la règle de M4 — on ne rejoint jamais sans l'avoir
+accepté — tient. Une adhésion libre sans invitation laisserait passer la sortie inaperçue.
+*Coût si erroné : une invitation de trop, qui se décline.*
+
+**Un nouvel arrivant rejoint les sorties pas encore commencées.** `starts_at > maintenant` :
+un séjour en cours n'est plus une invitation. Le membre voit la sortie dans le groupe, avec
+une réponse nulle. *Coût si erroné : une inscription manuelle pour qui arrive en cours de
+séjour.*
+
+**Tout membre crée une sortie de groupe**, et en devient seul administrateur. Donner aussi
+ce rôle aux administrateurs du groupe ferait deux sources de droits à tenir cohérentes.
+*Coût si erroné : un administrateur de groupe qui ne peut modérer une sortie.*
+
+**Un verrou de ligne sur `groups` ordonne création et arrivée.** Sans lui, les deux
+transactions pouvaient s'ignorer et laisser le nouveau membre hors de la sortie ; le test de
+course échoue trois fois sur trois quand on retire le verrou. *Coût si erroné : une attente
+brève entre deux écritures sur le même groupe.*
+
+**`ON DELETE SET NULL` et non `CASCADE`.** Aucun geste ne supprime encore un groupe ; le jour
+où il existera, ses sorties survivront, dépenses comprises. *Coût si erroné : des sorties
+orphelines à nettoyer à la main.*
+
+**Pas de pagination sur les sorties d'un groupe.** Non mesuré : le volume d'un groupe d'amis
+ne la justifie pas. *Coût si erroné : une liste longue sur un groupe très ancien.*
+
+**`participant.joined` n'est émis que par l'arrivée dans un groupe.** Entrer directement
+dans un événement par lien ne publie toujours rien sur son flux ; l'aligner sort du
+périmètre. *Coût si erroné : un participant qui n'apparaît qu'au rechargement.*
+
 ---
 
 ## Points laissés ouverts
@@ -773,11 +808,10 @@ et restent utilisables au clavier et au doigt. *Coût si erroné : un confort en
   appel réseau ou une bibliothèque de simulation, tous deux exclus.
 - Le parcours cliqué dans un navigateur et l'ergonomie au pouce à 375 px n'ont pas été validés
   automatiquement — ils demandent un humain.
-- **Déploiement M1 — chaîne tranchée, mise en service à faire.** `decisions-techniques.md`
-  §2.10 retient Docker Compose derrière le nginx du VPS ; les images, la pile, le workflow et
-  le mode d'emploi sont écrits et éprouvés en local. Reste à cloner le dépôt sur la machine,
-  y compléter `.env.production`, ajouter le bloc nginx et créer les secrets GitHub — des
-  gestes qui demandent les accès, pas du code.
+- **Déploiement groupé.** L'application est en ligne sur `https://onsort.eliott-b.fr`
+  (Docker Compose derrière le nginx du VPS, `decisions-techniques.md` §2.10). Les évolutions
+  s'accumulent sur la branche `feature` et partent ensemble, pour ménager les ressources de
+  la machine.
 - **Aucun moyen de retirer un ami ni de bloquer quelqu'un.** §2.2 ne décrit ni l'un ni
   l'autre. Une amitié est aujourd'hui définitive.
 - **Les notifications ne s'effacent pas.** Elles se marquent lues, la liste est bornée à
@@ -785,9 +819,6 @@ et restent utilisables au clavier et au doigt. *Coût si erroné : un confort en
 - **La recherche de lieu par nom n'existe pas.** §2.7 l'écarte au MVP : Photon demande 8 à
   16 Go de RAM. L'autocomplétion d'adresse la remplace en pratique, mais chercher « le Louvre »
   ne marche pas — il faut une adresse.
-- **`events.group_id` reste inutilisé.** Créer un événement depuis un créneau libre est la
-  suite naturelle de M4, mais §9 borne le jalon à « groupes, calendrier partagé,
-  superposition ». Le lien demande une décision de produit qui n'a pas été prise.
 - **Un groupe ne se quitte pas, ne se renomme pas, et personne n'en est retiré.** §2.3 ne
   décrit que la table ; les gestes d'administration au-delà de l'invitation n'ont pas de
   spécification.

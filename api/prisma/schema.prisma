@@ -119,6 +119,7 @@ enum InvitationStatus {
 model Event {
   id           String             @id @default(uuid())
   groupId      String?            @map("group_id")
+  group        Group?             @relation(fields: [groupId], references: [id], onDelete: SetNull)
   title        String
   description  String             @default("")
   startsAt     DateTime           @map("starts_at")
@@ -371,6 +372,7 @@ model Group {
   creator   User          @relation("GroupCreator", fields: [createdBy], references: [id])
   createdAt DateTime      @default(now()) @map("created_at")
   members   GroupMember[]
+  events    Event[]
 
   @@map("groups")
 }
