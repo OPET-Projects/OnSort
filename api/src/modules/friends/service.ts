@@ -23,13 +23,25 @@ const SAME_ANSWER = { status: 'sent' as const }
 //
 // L'`upsert` reste idempotent : deux acceptations concurrentes ne doivent pas heurter la
 // clé primaire du couple.
+//
+// La demande peut disparaître entre sa lecture et ici — un blocage efface les demandes en
+// attente. `updateMany` le dit par un compte nul plutôt que par une exception Prisma, qui
+// remonterait en erreur 500.
 async function acceptAndSeal(requestId: string, firstUserId: string, secondUserId: string) {
   const pair = normalisePair(firstUserId, secondUserId)
 
-  await prisma.$transaction([
-    prisma.friendRequest.update({ where: { id: requestId }, data: { status: 'accepted' } }),
-    prisma.friendship.upsert({ where: { userAId_userBId: pair }, create: pair, update: {} }),
-  ])
+  await prisma.$transaction(async (tx) => {
+    const accepted = await tx.friendRequest.updateMany({
+      where: { id: requestId },
+      data: { status: 'accepted' },
+    })
+
+    if (accepted.count === 0) {
+      throw new ApiError('friend_request_not_found', 404, 'Demande introuvable.')
+    }
+
+    await tx.friendship.upsert({ where: { userAId_userBId: pair }, create: pair, update: {} })
+  })
 }
 
 // Un blocage, dans un sens ou dans l'autre, rend toute demande entre deux personnes

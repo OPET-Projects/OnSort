@@ -153,3 +153,25 @@ it('refuse de se bloquer soi-même et un identifiant inconnu', async () => {
   expect(unknown.status).toBe(404)
   expect(await unknown.json()).toMatchObject({ code: 'user_not_found' })
 })
+
+// Course accepter / bloquer : le blocage efface la demande entre sa lecture et son
+// acceptation. On glisse cet effacement juste avant la transaction, de façon déterministe.
+it('rend 404, pas 500, quand la demande disparaît pendant l’acceptation', async () => {
+  const alice = await signIn('alice@example.test')
+  const bob = await signIn('bob@example.test')
+  await ask(bob, 'alice@example.test')
+  const [request] = (await listFriends(alice)).received
+  if (request === undefined) throw new Error('demande attendue')
+
+  const original = prisma.$transaction.bind(prisma)
+  vi.spyOn(prisma, '$transaction').mockImplementationOnce(async (...args: unknown[]) => {
+    await prisma.friendRequest.delete({ where: { id: request.id } })
+    return (original as (...a: unknown[]) => Promise<unknown>)(...args)
+  })
+
+  const response = await send('POST', `/api/friends/requests/${request.id}/accept`, alice)
+
+  expect(response.status).toBe(404)
+  expect(await response.json()).toMatchObject({ code: 'friend_request_not_found' })
+  expect(await prisma.friendship.count()).toBe(0)
+})
