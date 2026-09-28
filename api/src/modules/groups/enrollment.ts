@@ -14,3 +14,41 @@ export async function lockGroup(tx: Prisma.TransactionClient, groupId: string): 
   `
   return rows.length > 0
 }
+
+// Inscrit `userId` aux événements du groupe **pas encore commencés**. Un participant
+// existant — invité à titre individuel avant d'entrer dans le groupe, voire administrateur —
+// garde son rôle et sa réponse : `skipDuplicates` s'appuie sur l'unicité `(event_id,
+// user_id)`, et seules les lignes réellement créées reviennent.
+export async function enrollInUpcomingEvents(
+  tx: Prisma.TransactionClient,
+  groupId: string,
+  userId: string,
+) {
+  const upcoming = await tx.event.findMany({
+    where: { groupId, startsAt: { gt: new Date() } },
+    select: { id: true, title: true },
+  })
+
+  if (upcoming.length === 0) {
+    return []
+  }
+
+  const created = await tx.eventParticipant.createManyAndReturn({
+    data: upcoming.map((event) => ({
+      eventId: event.id,
+      userId,
+      role: 'member' as const,
+      rsvp: 'invited' as const,
+    })),
+    skipDuplicates: true,
+    select: { id: true, eventId: true },
+  })
+
+  const titleOf = new Map(upcoming.map((event) => [event.id, event.title]))
+
+  return created.map((row) => ({
+    participantId: row.id,
+    eventId: row.eventId,
+    title: titleOf.get(row.eventId) ?? '',
+  }))
+}

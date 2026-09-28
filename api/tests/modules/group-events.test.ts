@@ -1,6 +1,8 @@
 import { expect, it } from 'vitest'
 import { prisma } from '../../src/db.ts'
+import { subscribe } from '../../src/lib/sse.ts'
 import { app } from '../../src/main.ts'
+import { acceptInvitation } from '../../src/modules/invitations/service.ts'
 import { signIn } from '../helpers/auth.ts'
 
 async function send(method: string, path: string, headers: Headers, body?: unknown) {
@@ -127,4 +129,152 @@ it('laisse une sortie sans groupe inchangée', async () => {
   const event = await prisma.event.findUniqueOrThrow({ where: { id: eventId } })
   expect(event.groupId).toBeNull()
   expect(await prisma.eventParticipant.count({ where: { eventId } })).toBe(1)
+})
+
+// Entrée par le chemin réel des trois canaux : une invitation nominative acceptée.
+async function join(groupId: string, headers: Headers, email: string) {
+  const invitation = await prisma.invitation.create({
+    data: { scope: 'group', targetId: groupId, invitedEmail: email, invitedBy: 'unused' },
+  })
+  await acceptInvitation({ id: await userId(headers), email }, invitation.id)
+}
+
+it('ajoute un nouvel arrivant aux événements à venir du groupe', async () => {
+  const alice = await signIn('alice@example.test')
+  const bob = await signIn('bob@example.test')
+  const groupId = await makeGroup(alice)
+  const upcoming = await eventIdOf(await makeEvent(alice, groupId, 7))
+
+  await join(groupId, bob, 'bob@example.test')
+
+  const row = await prisma.eventParticipant.findUniqueOrThrow({
+    where: { eventId_userId: { eventId: upcoming, userId: await userId(bob) } },
+  })
+  expect(row).toMatchObject({ role: 'member', rsvp: 'invited' })
+})
+
+it("ne l'ajoute ni aux événements passés ni à ceux déjà commencés", async () => {
+  const alice = await signIn('alice@example.test')
+  const bob = await signIn('bob@example.test')
+  const groupId = await makeGroup(alice)
+  const past = await eventIdOf(await makeEvent(alice, groupId, -7))
+  // Commencé hier, se termine dans trois jours : un séjour en cours.
+  const started = await prisma.event.create({
+    data: {
+      title: 'Séjour',
+      startsAt: new Date(Date.now() - DAY),
+      endsAt: new Date(Date.now() + 3 * DAY),
+      createdBy: await userId(alice),
+      groupId,
+    },
+  })
+
+  await join(groupId, bob, 'bob@example.test')
+
+  const bobId = await userId(bob)
+  expect(await prisma.eventParticipant.count({ where: { userId: bobId, eventId: past } })).toBe(0)
+  expect(
+    await prisma.eventParticipant.count({ where: { userId: bobId, eventId: started.id } }),
+  ).toBe(0)
+})
+
+it('laisse intact un participant déjà présent à titre individuel', async () => {
+  const alice = await signIn('alice@example.test')
+  const bob = await signIn('bob@example.test')
+  const groupId = await makeGroup(alice)
+  const eventId = await eventIdOf(await makeEvent(alice, groupId))
+  await prisma.eventParticipant.create({
+    data: { eventId, userId: await userId(bob), role: 'admin', rsvp: 'declined' },
+  })
+
+  await join(groupId, bob, 'bob@example.test')
+
+  const row = await prisma.eventParticipant.findUniqueOrThrow({
+    where: { eventId_userId: { eventId, userId: await userId(bob) } },
+  })
+  expect(row).toMatchObject({ role: 'admin', rsvp: 'declined' })
+  expect(await prisma.notification.count({ where: { type: 'event.invited' } })).toBe(0)
+})
+
+it('est idempotent quand on rejoint deux fois', async () => {
+  const alice = await signIn('alice@example.test')
+  const bob = await signIn('bob@example.test')
+  const groupId = await makeGroup(alice)
+  const eventId = await eventIdOf(await makeEvent(alice, groupId))
+
+  await join(groupId, bob, 'bob@example.test')
+  await join(groupId, bob, 'bob@example.test')
+
+  expect(await prisma.eventParticipant.count({ where: { eventId } })).toBe(2)
+  expect(await prisma.notification.count({ where: { type: 'event.invited' } })).toBe(1)
+})
+
+it('notifie le nouvel arrivant et publie sur le flux de chaque événement', async () => {
+  const alice = await signIn('alice@example.test')
+  const bob = await signIn('bob@example.test')
+  const groupId = await makeGroup(alice)
+  const eventId = await eventIdOf(await makeEvent(alice, groupId))
+  const received: unknown[] = []
+  const unsubscribe = subscribe(eventId, (message) => received.push(message))
+
+  try {
+    await join(groupId, bob, 'bob@example.test')
+  } finally {
+    unsubscribe()
+  }
+
+  const notification = await prisma.notification.findFirstOrThrow({
+    where: { type: 'event.invited' },
+  })
+  expect(notification).toMatchObject({ userId: await userId(bob), eventId })
+  expect(received).toEqual([{ type: 'participant.joined', id: expect.any(String) }])
+})
+
+it("ne notifie rien quand le groupe n'a aucun événement à venir", async () => {
+  const alice = await signIn('alice@example.test')
+  const bob = await signIn('bob@example.test')
+  const groupId = await makeGroup(alice)
+
+  await join(groupId, bob, 'bob@example.test')
+
+  expect(await prisma.notification.count({ where: { type: 'event.invited' } })).toBe(0)
+})
+
+it("laisse intactes les parts d'une dépense antérieure", async () => {
+  const alice = await signIn('alice@example.test')
+  const bob = await signIn('bob@example.test')
+  const groupId = await makeGroup(alice)
+  const eventId = await eventIdOf(await makeEvent(alice, groupId))
+  const expense = await send('POST', `/api/events/${eventId}/expenses`, alice, {
+    label: 'Fromage',
+    amountCents: 3000,
+    splitMode: 'equal',
+  })
+  expect(expense.status).toBe(201)
+  const before = await prisma.expenseShare.findMany({ orderBy: { id: 'asc' } })
+
+  await join(groupId, bob, 'bob@example.test')
+
+  expect(await prisma.expenseShare.findMany({ orderBy: { id: 'asc' } })).toEqual(before)
+})
+
+// Probabiliste : il peut passer par chance sans le verrou. Vérifié une fois en retirant
+// le verrou — il échoue alors dans la plupart des exécutions.
+it('inscrit toujours le membre quand création et arrivée se croisent', async () => {
+  for (let round = 0; round < 5; round += 1) {
+    const alice = await signIn(`alice-${round}@example.test`)
+    const bob = await signIn(`bob-${round}@example.test`)
+    const groupId = await makeGroup(alice)
+
+    const [created] = await Promise.all([
+      makeEvent(alice, groupId),
+      join(groupId, bob, `bob-${round}@example.test`),
+    ])
+    const eventId = await eventIdOf(created)
+
+    const count = await prisma.eventParticipant.count({
+      where: { eventId, userId: await userId(bob) },
+    })
+    expect(count).toBe(1)
+  }
 })
