@@ -1,0 +1,9 @@
+node_modules
+**/node_modules
+api/dist
+web/dist
+api/src/generated
+.git
+.env
+.env.production
+*.log

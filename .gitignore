@@ -34,3 +34,6 @@ Thumbs.db
 .idea/
 .vscode/*
 !.vscode/extensions.json
+
+# Variables de production, complétées sur le VPS
+.env.production
