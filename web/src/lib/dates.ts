@@ -24,3 +24,12 @@ export function formatPeriod(startsAt: string, endsAt: string): string {
 export function localInputToIso(value: string): string {
   return new Date(value).toISOString()
 }
+
+// Inverse de `localInputToIso` : ISO 8601 → valeur d'un <input type="datetime-local">, en
+// heure locale. `toISOString` rendrait l'heure UTC, décalée d'autant que le fuseau.
+export function isoToLocalInput(iso: string): string {
+  const date = new Date(iso)
+  const pad = (value: number) => String(value).padStart(2, '0')
+
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`
+}
