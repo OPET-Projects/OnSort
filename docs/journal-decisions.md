@@ -832,6 +832,26 @@ retire le verrou. *Coût si erroné : une attente brève entre deux écritures s
 **Aucune notification nouvelle.** Un membre retiré ne l'apprend qu'en ne voyant plus le
 groupe. Les dix types de §2.9 restent la liste. *Coût si erroné : un type à ajouter.*
 
+## Amis — retirer et bloquer
+
+**Une demande entre deux personnes bloquées reçoit la réponse habituelle.** Rien n'est écrit,
+personne n'est notifié. Un refus explicite dirait au bloqué qu'il l'est. Le silence vaut dans
+les deux sens : le bloqueur qui demande le bloqué n'aboutit pas non plus, il débloque d'abord.
+*Coût si erroné : un bloqueur surpris que sa demande n'arrive pas.*
+
+**Bloquer efface l'amitié et les demandes en attente des deux sens.** Une demande du bloqué
+laissée en attente resterait acceptable par erreur. *Coût si erroné : une demande à refaire
+après un déblocage.*
+
+**Un 404 sur un identifiant d'utilisateur n'est pas un oracle.** Retirer ou bloquer prend un
+identifiant, jamais une adresse ; l'appelant ne le tient que d'une liste qu'on lui a déjà
+montrée. L'anti-énumération porte sur les adresses. *Coût si erroné : aucun, les
+identifiants sont des chaînes aléatoires que rien ne permet de deviner.*
+
+**Les routes de blocage vivent sous `/friends/blocks`.** Pas de module de plus pour trois
+routes ; déclarées avant `/friends/:userId`, qui sinon lirait « blocks » comme un
+identifiant. *Coût si erroné : un déplacement de routes.*
+
 ---
 
 ## Points laissés ouverts
@@ -848,8 +868,9 @@ groupe. Les dix types de §2.9 restent la liste. *Coût si erroné : un type à 
   (Docker Compose derrière le nginx du VPS, `decisions-techniques.md` §2.10). Les évolutions
   s'accumulent sur la branche `feature` et partent ensemble, pour ménager les ressources de
   la machine.
-- **Aucun moyen de retirer un ami ni de bloquer quelqu'un.** §2.2 ne décrit ni l'un ni
-  l'autre. Une amitié est aujourd'hui définitive.
+- **Un blocage n'empêche pas les invitations de groupe ou de sortie.** Sa portée s'arrête
+  aux demandes d'ami ; un admin peut encore inviter par adresse quelqu'un qu'il a bloqué, ou
+  qui l'a bloqué.
 - **Les notifications ne s'effacent pas.** Elles se marquent lues, la liste est bornée à
   cinquante, mais rien ne purge l'ancien.
 - **La recherche de lieu par nom n'existe pas.** §2.7 l'écarte au MVP : Photon demande 8 à

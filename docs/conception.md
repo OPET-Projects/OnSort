@@ -53,6 +53,20 @@ friendships(
 La contrainte `user_a_id < user_b_id` normalise le couple : une amitié occupe une seule
 ligne, et le test « sommes-nous amis » est une lecture directe sans disjonction.
 
+```sql
+user_blocks(
+  blocker_id, blocked_id, created_at,
+  PRIMARY KEY (blocker_id, blocked_id),
+  CHECK (blocker_id <> blocked_id)
+)
+```
+
+Une amitié se retire ; on peut ensuite redemander. Bloquer est orienté : cela efface
+l'amitié et les demandes en attente dans les deux sens, puis rend silencieuse toute demande
+entre les deux personnes, dans un sens comme dans l'autre — même réponse, rien d'écrit,
+personne de notifié. Le bloqué ne peut pas savoir qu'il l'est. La portée s'arrête aux
+demandes d'ami.
+
 ### 2.3 Groupes
 
 ```sql
@@ -422,6 +436,8 @@ L'URL de connexion vit dans `api/prisma.config.ts`, et le client s'instancie ave
 GET    /friends                    POST   /friends/requests
 POST   /friends/requests/:id/accept
 POST   /friends/requests/:id/decline
+DELETE /friends/:userId            retirer un ami
+POST   /friends/blocks/:userId     DELETE /friends/blocks/:userId
 
 GET    /groups                     POST   /groups
 GET    /groups/:id                 POST   /groups/:id/members
