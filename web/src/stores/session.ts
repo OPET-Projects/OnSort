@@ -78,5 +78,18 @@ export const useSessionStore = defineStore('session', () => {
     return body.url
   }
 
-  return { user, status, fetchSession, requestMagicLink, startGoogleSignIn }
+  async function signOut(): Promise<void> {
+    try {
+      await fetch('/api/auth/sign-out', { method: 'POST', credentials: 'include' })
+    } catch {
+      // Le geste de l'utilisateur reste honoré côté client même si l'API est injoignable :
+      // le cookie de session expirera de lui-même, et le laisser connecté à l'écran serait
+      // pire que de le renvoyer se reconnecter pour rien.
+    }
+
+    user.value = null
+    status.value = 'anonymous'
+  }
+
+  return { user, status, fetchSession, requestMagicLink, startGoogleSignIn, signOut }
 })

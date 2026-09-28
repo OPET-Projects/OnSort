@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { RouterLink, useRoute } from 'vue-router'
+import { RouterLink, useRoute, useRouter } from 'vue-router'
 import { useSessionStore } from '../stores/session'
 
 type Destination = {
@@ -12,6 +12,12 @@ type Destination = {
 
 const session = useSessionStore()
 const route = useRoute()
+const router = useRouter()
+
+async function signOut() {
+  await session.signOut()
+  await router.push({ name: 'login' })
+}
 
 // Un événement appartient aux sorties, un groupe aux groupes : sans cette correspondance,
 // ouvrir un événement éteindrait l'onglet courant et l'utilisateur perdrait sa position.
@@ -108,10 +114,23 @@ const initials = computed(() => {
       <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-accent text-xs font-semibold text-white">
         {{ initials }}
       </span>
-      <span class="min-w-0">
+      <span class="min-w-0 flex-1">
         <span class="block text-[13px] font-semibold">{{ session.user?.name }}</span>
         <span class="block truncate text-[11px] text-faint">{{ session.user?.email }}</span>
       </span>
+      <button
+        type="button"
+        aria-label="Se déconnecter"
+        title="Se déconnecter"
+        class="flex h-8 w-8 shrink-0 items-center justify-center rounded-control text-ink-2 hover:bg-fill"
+        @click="signOut"
+      >
+        <svg viewBox="0 0 24 24" class="h-4.5 w-4.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M9 4H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h3" />
+          <path d="M15 16l4-4-4-4" />
+          <path d="M19 12H9" />
+        </svg>
+      </button>
     </div>
   </aside>
 

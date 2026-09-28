@@ -1,6 +1,6 @@
-import { mount } from '@vue/test-utils'
+import { flushPromises, mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
-import { beforeEach, expect, it } from 'vitest'
+import { beforeEach, expect, it, vi } from 'vitest'
 import { createMemoryHistory, createRouter } from 'vue-router'
 import AppNav from '../src/components/AppNav.vue'
 import { useSessionStore } from '../src/stores/session.ts'
@@ -73,4 +73,27 @@ it('réduit le nom de la session à deux initiales', async () => {
 
   expect(wrapper.text()).toContain('TG')
   expect(wrapper.text()).toContain('theo@efrei.net')
+})
+
+it('efface la session et renvoie au login à la déconnexion', async () => {
+  const fetchMock = vi.fn(async () => new Response(null, { status: 200 }))
+  vi.stubGlobal('fetch', fetchMock)
+
+  const session = useSessionStore()
+  session.user = { id: 'u1', name: 'Théo Gillet', email: 'theo@efrei.net' }
+  session.status = 'authenticated'
+
+  const router = createRouter({
+    history: createMemoryHistory(),
+    routes: [...routes, { path: '/login', name: 'login', component: blank }],
+  })
+  await router.push('/')
+  await router.isReady()
+  const wrapper = mount(AppNav, { global: { plugins: [router] } })
+
+  await wrapper.get('button[aria-label="Se déconnecter"]').trigger('click')
+  await flushPromises()
+
+  expect(session.status).toBe('anonymous')
+  expect(router.currentRoute.value.path).toBe('/login')
 })
