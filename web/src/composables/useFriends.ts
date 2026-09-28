@@ -19,10 +19,16 @@ export type OutgoingRequest = {
   createdAt: string
 }
 
+export type BlockedUser = {
+  userId: string
+  name: string
+}
+
 type FriendsBody = {
   friends: Friend[]
   received: IncomingRequest[]
   sent: OutgoingRequest[]
+  blocked: BlockedUser[]
 }
 
 export function useFriends() {
@@ -30,6 +36,7 @@ export function useFriends() {
   const friends = ref<Friend[]>([])
   const received = ref<IncomingRequest[]>([])
   const sent = ref<OutgoingRequest[]>([])
+  const blocked = ref<BlockedUser[]>([])
   const error = ref('')
   const requestSent = ref(false)
 
@@ -39,6 +46,7 @@ export function useFriends() {
       friends.value = body.friends
       received.value = body.received
       sent.value = body.sent
+      blocked.value = body.blocked
       state.value = 'ready'
     } catch (cause) {
       error.value = cause instanceof Error ? cause.message : 'Chargement impossible.'
@@ -64,7 +72,37 @@ export function useFriends() {
     await reload()
   }
 
+  async function remove(friendId: string): Promise<void> {
+    await apiFetch(`/api/friends/${friendId}`, { method: 'DELETE' })
+    await reload()
+  }
+
+  async function block(targetId: string): Promise<void> {
+    await apiFetch(`/api/friends/blocks/${targetId}`, { method: 'POST' })
+    await reload()
+  }
+
+  async function unblock(targetId: string): Promise<void> {
+    await apiFetch(`/api/friends/blocks/${targetId}`, { method: 'DELETE' })
+    await reload()
+  }
+
   onMounted(reload)
 
-  return { state, friends, received, sent, error, requestSent, reload, ask, accept, decline }
+  return {
+    state,
+    friends,
+    received,
+    sent,
+    blocked,
+    error,
+    requestSent,
+    reload,
+    ask,
+    accept,
+    decline,
+    remove,
+    block,
+    unblock,
+  }
 }

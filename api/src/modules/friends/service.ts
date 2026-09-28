@@ -23,13 +23,40 @@ const SAME_ANSWER = { status: 'sent' as const }
 //
 // L'`upsert` reste idempotent : deux acceptations concurrentes ne doivent pas heurter la
 // clé primaire du couple.
+//
+// La demande peut disparaître entre sa lecture et ici — un blocage efface les demandes en
+// attente. `updateMany` le dit par un compte nul plutôt que par une exception Prisma, qui
+// remonterait en erreur 500.
 async function acceptAndSeal(requestId: string, firstUserId: string, secondUserId: string) {
   const pair = normalisePair(firstUserId, secondUserId)
 
-  await prisma.$transaction([
-    prisma.friendRequest.update({ where: { id: requestId }, data: { status: 'accepted' } }),
-    prisma.friendship.upsert({ where: { userAId_userBId: pair }, create: pair, update: {} }),
-  ])
+  await prisma.$transaction(async (tx) => {
+    const accepted = await tx.friendRequest.updateMany({
+      where: { id: requestId },
+      data: { status: 'accepted' },
+    })
+
+    if (accepted.count === 0) {
+      throw new ApiError('friend_request_not_found', 404, 'Demande introuvable.')
+    }
+
+    await tx.friendship.upsert({ where: { userAId_userBId: pair }, create: pair, update: {} })
+  })
+}
+
+// Un blocage, dans un sens ou dans l'autre, rend toute demande entre deux personnes
+// silencieuse : même réponse, rien d'écrit, personne de notifié. Le bloqué ne doit pas
+// pouvoir déduire qu'il l'est.
+async function blockedEitherWay(first: string, second: string): Promise<boolean> {
+  const count = await prisma.userBlock.count({
+    where: {
+      OR: [
+        { blockerId: first, blockedId: second },
+        { blockerId: second, blockedId: first },
+      ],
+    },
+  })
+  return count > 0
 }
 
 export async function requestFriendship(userId: string, input: FriendRequestInput) {
@@ -64,6 +91,10 @@ export async function requestFriendship(userId: string, input: FriendRequestInpu
         console.error(`Invitation d'ami à ${input.email} non envoyée :`, error)
       })
 
+    return SAME_ANSWER
+  }
+
+  if (await blockedEitherWay(userId, target.id)) {
     return SAME_ANSWER
   }
 
@@ -148,8 +179,62 @@ export async function declineFriendRequest(userId: string, requestId: string) {
   return { ok: true }
 }
 
+export async function removeFriend(userId: string, friendId: string) {
+  if (userId === friendId) {
+    throw new ApiError('friendship_not_found', 404, 'Amitié introuvable.')
+  }
+
+  const removed = await prisma.friendship.deleteMany({ where: normalisePair(userId, friendId) })
+
+  if (removed.count === 0) {
+    throw new ApiError('friendship_not_found', 404, 'Amitié introuvable.')
+  }
+
+  return { ok: true as const }
+}
+
+// Bloquer efface d'un geste tout ce qui liait les deux : l'amitié, et les demandes encore en
+// attente dans les deux sens. Laisser une demande du bloqué en attente la rendrait
+// acceptable par erreur.
+export async function blockUser(userId: string, targetId: string) {
+  if (userId === targetId) {
+    throw new ApiError('self_block', 400, 'On ne se bloque pas soi-même.')
+  }
+
+  const target = await prisma.user.findUnique({ where: { id: targetId }, select: { id: true } })
+
+  if (target === null) {
+    throw new ApiError('user_not_found', 404, 'Utilisateur introuvable.')
+  }
+
+  await prisma.$transaction([
+    prisma.userBlock.upsert({
+      where: { blockerId_blockedId: { blockerId: userId, blockedId: targetId } },
+      create: { blockerId: userId, blockedId: targetId },
+      update: {},
+    }),
+    prisma.friendship.deleteMany({ where: normalisePair(userId, targetId) }),
+    prisma.friendRequest.deleteMany({
+      where: {
+        status: 'pending',
+        OR: [
+          { fromUserId: userId, toUserId: targetId },
+          { fromUserId: targetId, toUserId: userId },
+        ],
+      },
+    }),
+  ])
+
+  return { ok: true as const }
+}
+
+export async function unblockUser(userId: string, targetId: string) {
+  await prisma.userBlock.deleteMany({ where: { blockerId: userId, blockedId: targetId } })
+  return { ok: true as const }
+}
+
 export async function listFriends(userId: string) {
-  const [friendships, received, sent] = await Promise.all([
+  const [friendships, received, sent, blocks] = await Promise.all([
     prisma.friendship.findMany({
       where: { OR: [{ userAId: userId }, { userBId: userId }] },
       include: { userA: true, userB: true },
@@ -163,6 +248,11 @@ export async function listFriends(userId: string) {
     prisma.friendRequest.findMany({
       where: { fromUserId: userId, status: 'pending' },
       include: { toUser: true },
+      orderBy: { createdAt: 'desc' },
+    }),
+    prisma.userBlock.findMany({
+      where: { blockerId: userId },
+      include: { blocked: true },
       orderBy: { createdAt: 'desc' },
     }),
   ])
@@ -184,5 +274,6 @@ export async function listFriends(userId: string) {
       to: { userId: request.toUserId, name: request.toUser.name },
       createdAt: request.createdAt,
     })),
+    blocked: blocks.map((block) => ({ userId: block.blockedId, name: block.blocked.name })),
   }
 }
