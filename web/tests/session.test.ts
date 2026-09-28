@@ -67,3 +67,38 @@ it('passe en anonyme sans propager d’exception quand l’API est injoignable',
   expect(store.status).toBe('anonymous')
   expect(store.user).toBeNull()
 })
+
+it('efface la session et prévient l’API à la déconnexion', async () => {
+  const fetchMock = vi.fn(async () => new Response(null, { status: 200 }))
+  vi.stubGlobal('fetch', fetchMock)
+
+  const store = useSessionStore()
+  store.user = { id: 'u1', email: 'alice@example.test', name: 'Alice' }
+  store.status = 'authenticated'
+
+  await store.signOut()
+
+  expect(fetchMock).toHaveBeenCalledWith(
+    '/api/auth/sign-out',
+    expect.objectContaining({ method: 'POST', credentials: 'include' }),
+  )
+  expect(store.status).toBe('anonymous')
+  expect(store.user).toBeNull()
+})
+
+it('efface quand même la session locale si l’appel de déconnexion échoue', async () => {
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async () => {
+      throw new Error('network error')
+    }),
+  )
+
+  const store = useSessionStore()
+  store.user = { id: 'u1', email: 'alice@example.test', name: 'Alice' }
+  store.status = 'authenticated'
+
+  await expect(store.signOut()).resolves.toBeUndefined()
+  expect(store.status).toBe('anonymous')
+  expect(store.user).toBeNull()
+})
