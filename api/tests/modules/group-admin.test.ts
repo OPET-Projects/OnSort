@@ -1,8 +1,12 @@
 // api/tests/modules/group-admin.test.ts
-import { expect, it } from 'vitest'
+import { afterEach, expect, it, vi } from 'vitest'
 import { prisma } from '../../src/db.ts'
 import { app } from '../../src/main.ts'
 import { signIn } from '../helpers/auth.ts'
+
+afterEach(() => {
+  vi.restoreAllMocks()
+})
 
 async function send(method: string, path: string, headers: Headers, body?: unknown) {
   return app.request(path, {
@@ -242,4 +246,63 @@ it("dit à l'appelant qui il est dans la fiche du groupe", async () => {
   }
 
   expect(group.viewer).toEqual({ userId: await userId(alice), role: 'admin' })
+})
+
+// Un admin rétrogradé entre sa vérification de droits et la prise du verrou ne doit plus
+// pouvoir agir : la rétrogradation est glissée juste avant la transaction.
+it('refuse un retrait à un admin rétrogradé au même instant', async () => {
+  const alice = await signIn('alice@example.test')
+  const bob = await signIn('bob@example.test')
+  const carla = await signIn('carla@example.test')
+  const groupId = await makeGroup(alice)
+  await addMember(groupId, bob, 'admin')
+  await addMember(groupId, carla)
+  const bobId = await userId(bob)
+
+  const original = prisma.$transaction.bind(prisma)
+  vi.spyOn(prisma, '$transaction').mockImplementationOnce(async (...args: unknown[]) => {
+    await prisma.groupMember.update({
+      where: { groupId_userId: { groupId, userId: bobId } },
+      data: { role: 'member' },
+    })
+    return (original as (...a: unknown[]) => Promise<unknown>)(...args)
+  })
+
+  const response = await send(
+    'DELETE',
+    `/api/groups/${groupId}/members/${await userId(carla)}`,
+    bob,
+  )
+
+  expect(response.status).toBe(403)
+  expect(await prisma.groupMember.count({ where: { groupId } })).toBe(3)
+})
+
+it('refuse un changement de rôle à un admin rétrogradé au même instant', async () => {
+  const alice = await signIn('alice@example.test')
+  const bob = await signIn('bob@example.test')
+  const carla = await signIn('carla@example.test')
+  const groupId = await makeGroup(alice)
+  await addMember(groupId, bob, 'admin')
+  await addMember(groupId, carla)
+  const bobId = await userId(bob)
+
+  const original = prisma.$transaction.bind(prisma)
+  vi.spyOn(prisma, '$transaction').mockImplementationOnce(async (...args: unknown[]) => {
+    await prisma.groupMember.update({
+      where: { groupId_userId: { groupId, userId: bobId } },
+      data: { role: 'member' },
+    })
+    return (original as (...a: unknown[]) => Promise<unknown>)(...args)
+  })
+
+  const response = await send(
+    'PATCH',
+    `/api/groups/${groupId}/members/${await userId(carla)}`,
+    bob,
+    { role: 'admin' },
+  )
+
+  expect(response.status).toBe(403)
+  expect(await roleOf(groupId, carla)).toBe('member')
 })

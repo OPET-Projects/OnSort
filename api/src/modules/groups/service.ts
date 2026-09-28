@@ -1,11 +1,12 @@
 import { config } from '../../config.ts'
 import { prisma } from '../../db.ts'
+import type { Prisma } from '../../generated/prisma/client.ts'
 import { freeSlots } from '../../lib/calendar.ts'
 import { renderEmail } from '../../lib/email.ts'
 import { ApiError } from '../../lib/http.ts'
 import { mailer } from '../../lib/mailer.ts'
 import { notify } from '../../lib/notify.ts'
-import { canManageGroup } from '../../lib/permissions.ts'
+import { canManageGroup, type GroupRole } from '../../lib/permissions.ts'
 import { lockGroup } from './enrollment.ts'
 import type {
   CalendarWindowInput,
@@ -106,19 +107,36 @@ export async function getGroup(userId: string, groupId: string) {
   }
 }
 
-async function loadAdminMembership(userId: string, groupId: string) {
-  const membership = await loadMembership(userId, groupId)
+// Verrouille le groupe **puis** lit l'adhésion de l'appelant. Dans l'autre ordre, un admin
+// rétrogradé ou retiré entre la lecture et le verrou agirait encore avec ses anciens droits.
+async function lockMembership(tx: Prisma.TransactionClient, userId: string, groupId: string) {
+  if (!(await lockGroup(tx, groupId))) {
+    throw new ApiError('group_not_found', 404, 'Groupe introuvable.')
+  }
 
-  if (!canManageGroup(membership.role)) {
-    throw new ApiError('forbidden', 403, 'Seul un administrateur du groupe peut faire cela.')
+  const membership = await tx.groupMember.findUnique({
+    where: { groupId_userId: { groupId, userId } },
+  })
+
+  if (membership === null) {
+    throw new ApiError('not_a_member', 403, 'Vous ne faites pas partie de ce groupe.')
   }
 
   return membership
 }
 
+function assertAdmin(role: GroupRole, message: string): void {
+  if (!canManageGroup(role)) {
+    throw new ApiError('forbidden', 403, message)
+  }
+}
+
 export async function renameGroup(userId: string, groupId: string, input: CreateGroupInput) {
-  await loadAdminMembership(userId, groupId)
-  await prisma.group.update({ where: { id: groupId }, data: { name: input.name } })
+  await prisma.$transaction(async (tx) => {
+    const membership = await lockMembership(tx, userId, groupId)
+    assertAdmin(membership.role, 'Seul un administrateur du groupe peut le renommer.')
+    await tx.group.update({ where: { id: groupId }, data: { name: input.name } })
+  })
   return { ok: true as const }
 }
 
@@ -130,10 +148,9 @@ export async function setMemberRole(
   targetId: string,
   input: MemberRoleInput,
 ) {
-  await loadAdminMembership(userId, groupId)
-
   await prisma.$transaction(async (tx) => {
-    await lockGroup(tx, groupId)
+    const membership = await lockMembership(tx, userId, groupId)
+    assertAdmin(membership.role, 'Seul un administrateur du groupe peut changer un rôle.')
 
     const target = await tx.groupMember.findUnique({
       where: { groupId_userId: { groupId, userId: targetId } },
@@ -167,15 +184,12 @@ export async function setMemberRole(
 // membre ne se voit plus. Le premier promeut le plus ancien, le second disparaît — ses
 // sorties restent, détachées (`ON DELETE SET NULL`).
 export async function removeMember(userId: string, groupId: string, targetId: string) {
-  const membership = await loadMembership(userId, groupId)
-  const leaving = targetId === userId
-
-  if (!leaving && !canManageGroup(membership.role)) {
-    throw new ApiError('forbidden', 403, 'Seul un administrateur du groupe peut retirer un membre.')
-  }
-
   return prisma.$transaction(async (tx) => {
-    await lockGroup(tx, groupId)
+    const membership = await lockMembership(tx, userId, groupId)
+
+    if (targetId !== userId) {
+      assertAdmin(membership.role, 'Seul un administrateur du groupe peut retirer un membre.')
+    }
 
     const removed = await tx.groupMember.deleteMany({ where: { groupId, userId: targetId } })
 
