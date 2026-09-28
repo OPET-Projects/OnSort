@@ -278,3 +278,60 @@ it('inscrit toujours le membre quand création et arrivée se croisent', async (
     expect(count).toBe(1)
   }
 })
+
+it("liste les sorties du groupe avec la réponse de l'appelant", async () => {
+  const alice = await signIn('alice@example.test')
+  const bob = await signIn('bob@example.test')
+  const groupId = await makeGroup(alice)
+  await addMember(groupId, bob)
+  const later = await eventIdOf(await makeEvent(alice, groupId, 14))
+  const sooner = await eventIdOf(await makeEvent(alice, groupId, 3))
+
+  const response = await app.request(`/api/groups/${groupId}`, { headers: bob })
+  const { group } = (await response.json()) as {
+    group: { events: { id: string; rsvp: string | null }[] }
+  }
+
+  expect(group.events.map((event) => event.id)).toEqual([sooner, later])
+  expect(group.events.every((event) => event.rsvp === 'invited')).toBe(true)
+})
+
+// Un membre arrivé pendant un séjour en cours voit la sortie sans y être inscrit.
+it('rend une réponse nulle pour une sortie à laquelle on ne participe pas', async () => {
+  const alice = await signIn('alice@example.test')
+  const bob = await signIn('bob@example.test')
+  const groupId = await makeGroup(alice)
+  await makeEvent(alice, groupId)
+  await addMember(groupId, bob)
+
+  const response = await app.request(`/api/groups/${groupId}`, { headers: bob })
+  const { group } = (await response.json()) as { group: { events: { rsvp: string | null }[] } }
+
+  expect(group.events[0]?.rsvp).toBeNull()
+})
+
+it("expose le groupe d'une sortie et son nom dans la liste", async () => {
+  const alice = await signIn('alice@example.test')
+  const groupId = await makeGroup(alice)
+  const inGroup = await eventIdOf(await makeEvent(alice, groupId))
+  const adHoc = await eventIdOf(await makeEvent(alice))
+
+  const detail = (await (
+    await app.request(`/api/events/${inGroup}`, { headers: alice })
+  ).json()) as {
+    event: { group: unknown }
+  }
+  expect(detail.event.group).toEqual({ id: groupId, name: 'Les copains' })
+
+  const adHocDetail = (await (
+    await app.request(`/api/events/${adHoc}`, { headers: alice })
+  ).json()) as { event: { group: unknown } }
+  expect(adHocDetail.event.group).toBeNull()
+
+  const list = (await (await app.request('/api/events', { headers: alice })).json()) as {
+    events: { id: string; groupName: string | null }[]
+  }
+  const nameOf = new Map(list.events.map((event) => [event.id, event.groupName]))
+  expect(nameOf.get(inGroup)).toBe('Les copains')
+  expect(nameOf.get(adHoc)).toBeNull()
+})

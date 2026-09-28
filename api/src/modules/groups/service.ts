@@ -68,6 +68,14 @@ export async function getGroup(userId: string, groupId: string) {
     include: { members: { include: { user: true }, orderBy: { joinedAt: 'asc' } } },
   })
 
+  // Pas de pagination : le volume d'un groupe d'amis ne la justifie pas. Choix non mesuré,
+  // consigné comme tel au journal.
+  const events = await prisma.event.findMany({
+    where: { groupId },
+    orderBy: { startsAt: 'asc' },
+    include: { participants: { where: { userId }, select: { rsvp: true } } },
+  })
+
   return {
     id: group.id,
     name: group.name,
@@ -77,6 +85,16 @@ export async function getGroup(userId: string, groupId: string) {
       name: member.user.name,
       role: member.role,
       joinedAt: member.joinedAt,
+    })),
+    // `rsvp` nul : l'appelant voit la sortie sans y participer — arrivé dans le groupe
+    // après qu'elle a commencé.
+    events: events.map((event) => ({
+      id: event.id,
+      title: event.title,
+      startsAt: event.startsAt,
+      endsAt: event.endsAt,
+      status: event.status,
+      rsvp: event.participants[0]?.rsvp ?? null,
     })),
     viewer: { role: membership.role },
   }

@@ -90,7 +90,7 @@ export async function createEvent(userId: string, input: CreateEventInput) {
 export async function listEvents(userId: string) {
   const rows = await prisma.eventParticipant.findMany({
     where: { userId },
-    include: { event: true },
+    include: { event: { include: { group: { select: { name: true } } } } },
     orderBy: { event: { startsAt: 'asc' } },
   })
 
@@ -100,6 +100,7 @@ export async function listEvents(userId: string) {
     startsAt: row.event.startsAt,
     endsAt: row.event.endsAt,
     status: row.event.status,
+    groupName: row.event.group?.name ?? null,
     role: row.role,
     rsvp: row.rsvp,
   }))
@@ -110,6 +111,7 @@ export async function getEvent(userId: string, eventId: string) {
     where: { id: eventId },
     include: {
       participants: { include: { user: true }, orderBy: { joinedAt: 'asc' } },
+      group: { select: { id: true, name: true } },
     },
   })
 
@@ -131,6 +133,7 @@ export async function getEvent(userId: string, eventId: string) {
     endsAt: event.endsAt,
     status: event.status,
     createdBy: event.createdBy,
+    group: event.group,
     pendingInvitations: await pendingInvitationsFor(event, viewer.role),
     participants: event.participants.map((participant) => ({
       // L'identifiant de **participation**, et non celui de l'utilisateur : parts de dépense,
