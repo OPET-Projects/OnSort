@@ -57,7 +57,12 @@ et calendrier partagé, carte et géocodage, amis et notifications, puis les fin
 en pourcentage et en montant fixe, réordonnancement du programme, annulation d'une activité.
 Le paragraphe ci-dessus décrit le MVP visé : il est atteint.
 
-Reste dû, hors code : le déploiement sur une URL publique, livrable du jalon M1.
+Depuis, hors jalons : une sortie naît dans un groupe — depuis un créneau libre — et ses
+membres y sont invités d'office, arrivants tardifs compris ; un groupe se renomme, se quitte
+et s'administre ; une amitié se retire et une personne se bloque ; l'interface occupe la
+largeur d'un écran de bureau.
+
+L'application est **en ligne** sur <https://onsort.eliott-b.fr>.
 
 ### Reporté en V2
 
@@ -256,6 +261,20 @@ fait passer devant la carte.
 Le motif d'une indisponibilité ne franchit jamais la route du calendrier partagé : un test
 échoue si un libellé apparaît dans la réponse.
 
+### Du créneau à la sortie
+
+La suite du créneau libre : en faire une sortie, sans réinviter tout le monde à la main.
+
+1. Sur la page du groupe, **toucher un créneau libre** : le formulaire s'ouvre, dates
+   pré-remplies, et rappelle que tous les membres seront invités.
+2. Créer la sortie : chaque autre membre y entre « invité » et reçoit une notification. Il
+   accepte ou décline comme pour toute invitation.
+3. Inviter une nouvelle personne dans le groupe : dès qu'elle accepte, elle est invitée aux
+   sorties **pas encore commencées** du groupe — pas à celles qui ont déjà eu lieu.
+4. Un admin **renomme** le groupe, **promeut** ou **rétrograde** un membre, le **retire**.
+   Quand le dernier admin part, le membre le plus ancien prend le relais ; quand le dernier
+   membre part, le groupe disparaît et ses sorties restent.
+
 ### Le programme sur une carte
 
 C'est la démonstration du jalon M5.
@@ -295,6 +314,9 @@ se voit tout de suite à l'usage : votre propre cloche ne bouge pas quand vous a
 La réponse à une demande d'ami est identique que l'adresse ait un compte ou non — c'est la
 même règle anti-énumération que pour les invitations : l'application n'est jamais un oracle
 qui dit qui est inscrit.
+
+Une amitié se **retire**, une personne se **bloque** depuis **Mes amis**. Un bloqué qui
+redemande reçoit la réponse habituelle, et rien n'arrive : il ne peut pas savoir qu'il l'est.
 
 ### Déploiement
 

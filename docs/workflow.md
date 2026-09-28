@@ -116,8 +116,14 @@ ni emoji, ni lien de session. Le message se termine sur sa dernière ligne de co
 
 ## Branches
 
-Une branche par jalon, nommée `feat/<jalon>`. La CI s'exécute sur les pull requests et sur les
-poussées vers `main`.
+Les jalons sont parcourus ; le travail avance désormais par lots. Chaque chantier a sa branche
+`feat/<sujet>` (ou `fix/<sujet>`), tirée de **`feature`** et fusionnée dans `feature` par pull
+request. Quand le lot est prêt, une seule pull request `feature` → `main` le livre :
+**fusionner dans `main` déploie**, puisque `deploy.yml` suit la CI de `main`. Un déploiement
+par lot plutôt qu'un par fusion ménage les ressources du VPS.
+
+Une branche qui dépend d'une autre encore ouverte est tirée d'elle, et sa pull request le dit
+en tête. La CI s'exécute sur les pull requests et sur les poussées vers `main`.
 
 N'ouvre pas de pull request sans qu'on te l'ait demandé.
 

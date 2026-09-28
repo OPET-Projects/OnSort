@@ -48,10 +48,12 @@ restent comptées.
 **M3 était le point de coupe** de `docs/conception.md` §9 : le produit se défend désormais
 seul.
 
-Depuis, deux chantiers hors jalons : le front porte un **système de design** — jetons dans
+Depuis, hors jalons : le front porte un **système de design** — jetons dans
 `web/src/style.css`, coque de navigation (barre latérale au-delà de `md`, barre basse en
-dessous) — et la connexion accepte **Google** à côté du lien magique, ce qui sort le courriel
-du chemin critique. Le jeu de développement (`npm run db:seed`) pose un événement complet,
+dessous), vues élargies et listes en grille au-delà de `lg`, confirmations dans une popup
+maison (`ConfirmDialog`, `useConfirm`) — et la connexion accepte **Google** à côté du lien
+magique, ce qui sort le courriel du chemin critique. Un groupe se renomme, se quitte et
+s'administre ; une amitié se retire et une personne se bloque (`user_blocks`). Le jeu de développement (`npm run db:seed`) pose un événement complet,
 votes, dépenses et virement en attente compris.
 
 **En ligne** sur `https://onsort.eliott-b.fr` — Docker Compose derrière le nginx du VPS, voir
