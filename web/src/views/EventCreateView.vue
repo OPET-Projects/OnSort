@@ -61,7 +61,7 @@ async function submit(): Promise<void> {
 </script>
 
 <template>
-  <main class="mx-auto w-full max-w-md">
+  <main class="mx-auto w-full max-w-md lg:max-w-3xl">
     <header class="flex items-center gap-3 border-b border-line bg-surface px-5 py-4">
       <button
         type="button"

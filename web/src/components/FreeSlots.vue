@@ -29,11 +29,11 @@ defineProps<{
         Élargissez la fenêtre, ou raccourcissez la durée minimale.
       </p>
 
-      <ul v-else class="flex flex-col gap-2">
+      <ul v-else class="grid grid-cols-1 gap-2 lg:grid-cols-2 xl:grid-cols-3">
         <li v-for="slot in free" :key="slot.startsAt">
           <RouterLink
             :to="newEventLink(groupId, slot)"
-            class="flex flex-wrap items-center justify-between gap-2 rounded-field border border-free-line bg-free px-4 py-3 transition-colors hover:border-free-ink"
+            class="flex h-full flex-wrap items-center justify-between gap-2 rounded-field border border-free-line bg-free px-4 py-3 transition-colors hover:border-free-ink"
             :aria-label="`Organiser une sortie ${formatSlot(slot.startsAt, slot.endsAt)}`"
           >
             <span class="text-sm font-semibold text-free-ink-strong">

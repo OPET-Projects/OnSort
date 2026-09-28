@@ -634,6 +634,14 @@ Participants et programme retenu y sont répétés pendant qu'on saisit une dép
 téléphone, cette colonne redirait mot pour mot l'onglet ouvert juste à côté : elle est
 simplement absente.
 
+**Au-delà de `lg`, les vues s'élargissent et les listes passent en grille.** Une colonne de
+672 px au centre d'un écran de bureau faisait lire l'application comme un téléphone posé sur
+une table. Les conteneurs montent à `max-w-6xl` ; les listes de cartes — sorties, groupes,
+créneaux libres, indisponibilités, demandes d'ami — passent à deux colonnes, trois en `xl` ;
+sur la fiche d'un groupe, sorties et membres se rangent côte à côte. Les listes encadrées à
+séparateurs internes restent en une colonne : leurs traits ne se découpent pas en grille.
+Sous `lg`, rien ne change. *Coût si erroné : des classes à retirer, aucune logique en jeu.*
+
 ---
 
 ## Connexion — sortir le courriel du chemin critique

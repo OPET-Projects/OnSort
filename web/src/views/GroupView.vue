@@ -44,7 +44,7 @@ const rsvpTone: Record<string, string> = {
 </script>
 
 <template>
-  <main class="mx-auto w-full max-w-2xl">
+  <main class="mx-auto w-full max-w-2xl lg:max-w-6xl">
     <p v-if="state === 'loading'" class="px-5 py-7 text-sm text-muted">Chargement…</p>
 
     <div
@@ -120,53 +120,55 @@ const rsvpTone: Record<string, string> = {
 
         <FreeSlots :group-id="group.id" :free="calendar.free" :busy="calendar.busy" :window-days="windowDays" />
 
-        <section class="flex flex-col gap-2">
-          <div class="flex items-center justify-between gap-3">
-            <h2 class="text-[13px] font-semibold text-label">Sorties du groupe</h2>
-            <RouterLink
-              :to="newEventLink(group.id)"
-              class="flex h-10 items-center rounded-control bg-accent px-4 text-sm font-semibold text-white"
-            >
-              Nouvelle sortie
-            </RouterLink>
-          </div>
-
-          <p v-if="group.events.length === 0" class="text-[13px] text-muted">
-            Aucune sortie pour l'instant. Choisissez un créneau libre ci-dessus.
-          </p>
-
-          <ul v-else class="flex flex-col rounded-card border border-line bg-surface">
-            <li
-              v-for="event in group.events"
-              :key="event.id"
-              class="border-b border-line-soft last:border-b-0"
-            >
-              <RouterLink :to="`/events/${event.id}`" class="flex flex-col gap-0.5 px-4 py-3">
-                <span class="text-sm font-medium">{{ event.title }}</span>
-                <span class="text-xs text-muted">
-                  {{ formatPeriod(event.startsAt, event.endsAt) }}
-                </span>
-                <span v-if="event.rsvp" class="text-xs" :class="rsvpTone[event.rsvp]">
-                  {{ rsvpLabel[event.rsvp] }}
-                </span>
+        <div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
+          <section class="flex flex-col gap-2">
+            <div class="flex items-center justify-between gap-3">
+              <h2 class="text-[13px] font-semibold text-label">Sorties du groupe</h2>
+              <RouterLink
+                :to="newEventLink(group.id)"
+                class="flex h-10 items-center rounded-control bg-accent px-4 text-sm font-semibold text-white"
+              >
+                Nouvelle sortie
               </RouterLink>
-            </li>
-          </ul>
-        </section>
+            </div>
 
-        <section class="flex flex-col gap-2">
-          <h2 class="text-[13px] font-semibold text-label">Membres</h2>
-          <ul class="flex flex-col rounded-card border border-line bg-surface">
-            <li
-              v-for="member in group.members"
-              :key="member.userId"
-              class="flex items-center justify-between gap-3 border-b border-line-soft px-4 py-3 last:border-b-0"
-            >
-              <span class="text-sm font-medium">{{ member.name }}</span>
-              <span v-if="member.role === 'admin'" class="text-xs text-faint">admin</span>
-            </li>
-          </ul>
-        </section>
+            <p v-if="group.events.length === 0" class="text-[13px] text-muted">
+              Aucune sortie pour l'instant. Choisissez un créneau libre ci-dessus.
+            </p>
+
+            <ul v-else class="flex flex-col rounded-card border border-line bg-surface">
+              <li
+                v-for="event in group.events"
+                :key="event.id"
+                class="border-b border-line-soft last:border-b-0"
+              >
+                <RouterLink :to="`/events/${event.id}`" class="flex flex-col gap-0.5 px-4 py-3">
+                  <span class="text-sm font-medium">{{ event.title }}</span>
+                  <span class="text-xs text-muted">
+                    {{ formatPeriod(event.startsAt, event.endsAt) }}
+                  </span>
+                  <span v-if="event.rsvp" class="text-xs" :class="rsvpTone[event.rsvp]">
+                    {{ rsvpLabel[event.rsvp] }}
+                  </span>
+                </RouterLink>
+              </li>
+            </ul>
+          </section>
+
+          <section class="flex flex-col gap-2">
+            <h2 class="text-[13px] font-semibold text-label">Membres</h2>
+            <ul class="flex flex-col rounded-card border border-line bg-surface">
+              <li
+                v-for="member in group.members"
+                :key="member.userId"
+                class="flex items-center justify-between gap-3 border-b border-line-soft px-4 py-3 last:border-b-0"
+              >
+                <span class="text-sm font-medium">{{ member.name }}</span>
+                <span v-if="member.role === 'admin'" class="text-xs text-faint">admin</span>
+              </li>
+            </ul>
+          </section>
+        </div>
 
         <section
           v-if="group.viewer.role === 'admin'"
