@@ -1,7 +1,9 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { RouterLink, useRoute, useRouter } from 'vue-router'
+import ConfirmDialog from '../components/ConfirmDialog.vue'
 import FreeSlots from '../components/FreeSlots.vue'
+import { useConfirm } from '../composables/useConfirm'
 import { useGroup } from '../composables/useGroup'
 import { formatPeriod } from '../lib/dates'
 import { newEventLink } from '../lib/event-draft'
@@ -25,6 +27,7 @@ const {
 } = useGroup(id)
 
 const router = useRouter()
+const { dialog, ask, answer } = useConfirm()
 const actionError = ref('')
 const renaming = ref(false)
 const draftName = ref('')
@@ -51,7 +54,12 @@ async function submitRename(): Promise<void> {
 }
 
 async function removeOther(userId: string, name: string): Promise<void> {
-  if (!window.confirm(`Retirer ${name} du groupe ?`)) return
+  const confirmed = await ask({
+    title: `Retirer ${name} du groupe ?`,
+    message: 'Ses sorties restent inchangées. Un admin pourra le réinviter.',
+    confirmLabel: 'Retirer',
+  })
+  if (!confirmed) return
   await run(async () => {
     await removeMember(userId)
     await reload()
@@ -60,7 +68,12 @@ async function removeOther(userId: string, name: string): Promise<void> {
 
 // Quitter renvoie à la liste : le groupe n'est plus lisible, qu'il existe encore ou non.
 async function leaveGroup(): Promise<void> {
-  if (!window.confirm('Quitter ce groupe ? Vos sorties restent inchangées.')) return
+  const confirmed = await ask({
+    title: 'Quitter ce groupe ?',
+    message: 'Vos sorties restent inchangées. Il faudra une invitation pour revenir.',
+    confirmLabel: 'Quitter',
+  })
+  if (!confirmed) return
   await run(async () => {
     if (group.value) await removeMember(group.value.viewer.userId)
     await router.push('/groups')
@@ -334,5 +347,7 @@ const rsvpTone: Record<string, string> = {
         </button>
       </div>
     </template>
+
+    <ConfirmDialog v-bind="dialog" @answer="answer" />
   </main>
 </template>
