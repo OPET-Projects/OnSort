@@ -166,7 +166,7 @@ it('rend les amis et les demandes en attente', async () => {
   const body = await listFriends(alice)
 
   expect(body.friends).toHaveLength(1)
-  expect(body.friends[0]?.name).toBeTruthy()
+  expect(body.friends[0]?.name).toBe('Bob')
   expect(body.received).toHaveLength(1)
   expect(body.received[0]?.from.userId).toBe(await userId(carla))
 })
