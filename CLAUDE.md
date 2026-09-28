@@ -120,9 +120,9 @@ de Vite le lit. Change les deux ensemble : `PORT` **et** `BETTER_AUTH_URL`.
 `schema.prisma` — Prisma 7 la refuse — mais dans `api/prisma.config.ts`, qui charge `.env`
 lui-même. Le client s'instancie avec un adaptateur de pilote.
 
-**Le chemin `../.env` de `api/prisma.config.ts` est relatif au répertoire courant.** Une
-commande Prisma lancée depuis la racine échoue sur « Connection url is empty ». Passe par les
-scripts npm, qui s'exécutent depuis `api/`. Correction propre en attente.
+**La CLI Prisma cherche `prisma.config.ts` dans le répertoire courant.** Lance-la depuis
+`api/`, ou depuis la racine avec `--config api/prisma.config.ts`. Le fichier charge `.env` par
+un chemin résolu depuis lui-même : les deux marchent.
 
 **Biome n'analyse pas les gabarits Vue.** Toute liaison — variable **ou import** — utilisée
 uniquement dans un `<template>` lui paraît morte. Les règles `noUnusedVariables` **et**
@@ -179,7 +179,7 @@ passent.
 
 Écrire une migration sans `migrate dev`, donc : créer `api/prisma/migrations/<horodatage>_<nom>/migration.sql`
 à la main — le SQL est celui que Prisma aurait émis, prendre les migrations existantes pour
-modèle — puis, **depuis `api/`** (le chemin `../.env` en dépend), `npx prisma migrate deploy`
+modèle — puis, **depuis `api/`** (où la CLI trouve sa configuration), `npx prisma migrate deploy`
 et `npm run db:generate`. Vérifier par `npx prisma migrate status`, qui doit dire
 « Database schema is up to date! ». Un humain peut confirmer l'absence de dérive avec
 `npx prisma migrate dev` : « Already in sync » signifie que le `.sql` écrit à la main dit

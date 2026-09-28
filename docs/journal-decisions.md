@@ -808,10 +808,6 @@ périmètre. *Coût si erroné : un participant qui n'apparaît qu'au rechargeme
 
 ## Points laissés ouverts
 
-- `api/prisma.config.ts` charge `../.env`, chemin relatif au **répertoire courant** et non au
-  fichier. Une commande Prisma lancée depuis la racine échoue sur « Connection url is empty ».
-  Les scripts npm ne sont pas affectés, la CI non plus. Correction propre : résoudre le chemin
-  relativement au fichier de configuration.
 - La branche d'envoi réel de courriel n'est couverte par aucun test : la tester exigerait un
   appel réseau ou une bibliothèque de simulation, tous deux exclus.
 - Le parcours cliqué dans un navigateur et l'ergonomie au pouce à 375 px n'ont pas été validés
