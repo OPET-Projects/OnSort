@@ -24,7 +24,7 @@ export type GroupDetail = {
   createdBy: string
   members: GroupMember[]
   events: GroupEvent[]
-  viewer: { role: 'admin' | 'member' }
+  viewer: { userId: string; role: 'admin' | 'member' }
 }
 
 export type BusySpan = {
@@ -101,6 +101,26 @@ export function useGroup(groupId: string) {
     inviteSent.value = true
   }
 
+  async function rename(name: string): Promise<void> {
+    await apiFetch(`/api/groups/${groupId}`, { method: 'PATCH', body: JSON.stringify({ name }) })
+    await reload()
+  }
+
+  async function setRole(userId: string, role: 'admin' | 'member'): Promise<void> {
+    await apiFetch(`/api/groups/${groupId}/members/${userId}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ role }),
+    })
+    await reload()
+  }
+
+  // Rend `groupDeleted` : la vue en déduit où renvoyer, sans relire un groupe disparu.
+  async function removeMember(userId: string): Promise<{ groupDeleted: boolean }> {
+    return apiFetch<{ groupDeleted: boolean }>(`/api/groups/${groupId}/members/${userId}`, {
+      method: 'DELETE',
+    })
+  }
+
   onMounted(reload)
 
   return {
@@ -113,5 +133,8 @@ export function useGroup(groupId: string) {
     minimumMinutes,
     reload,
     invite,
+    rename,
+    setRole,
+    removeMember,
   }
 }
