@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import { ref } from 'vue'
+import ConfirmDialog from '../components/ConfirmDialog.vue'
+import { useConfirm } from '../composables/useConfirm'
 import { useFriends } from '../composables/useFriends'
 
 const {
@@ -20,6 +22,7 @@ const {
 } = useFriends()
 
 const actionError = ref('')
+const { dialog, ask: askConfirm, answer } = useConfirm()
 
 async function run(action: () => Promise<unknown>): Promise<void> {
   actionError.value = ''
@@ -31,13 +34,24 @@ async function run(action: () => Promise<unknown>): Promise<void> {
 }
 
 async function removeFriend(userId: string, name: string): Promise<void> {
-  if (!window.confirm(`Retirer ${name} de vos amis ?`)) return
+  const confirmed = await askConfirm({
+    title: `Retirer ${name} de vos amis ?`,
+    message: 'Vous pourrez lui redemander plus tard.',
+    confirmLabel: 'Retirer',
+  })
+  if (!confirmed) return
   await run(() => remove(userId))
 }
 
 // Bloquer ne prévient pas l'autre : ses demandes continuent de « partir », sans arriver.
 async function blockUser(userId: string, name: string): Promise<void> {
-  if (!window.confirm(`Bloquer ${name} ? Ses demandes d'ami seront ignorées.`)) return
+  const confirmed = await askConfirm({
+    title: `Bloquer ${name} ?`,
+    message:
+      "Votre amitié et vos demandes en attente disparaissent, et ses demandes d'ami seront ignorées sans qu'il le sache.",
+    confirmLabel: 'Bloquer',
+  })
+  if (!confirmed) return
   await run(() => block(userId))
 }
 
@@ -238,5 +252,7 @@ async function submit(): Promise<void> {
         <p v-if="formError" class="text-sm text-fail-ink">{{ formError }}</p>
       </form>
     </template>
+
+    <ConfirmDialog v-bind="dialog" @answer="answer" />
   </main>
 </template>
