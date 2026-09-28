@@ -1,5 +1,6 @@
 import { config } from '../../config.ts'
 import { prisma } from '../../db.ts'
+import { renderEmail } from '../../lib/email.ts'
 import { ApiError } from '../../lib/http.ts'
 import { mailer } from '../../lib/mailer.ts'
 import { notify } from '../../lib/notify.ts'
@@ -191,14 +192,14 @@ export async function createInvitation(userId: string, eventId: string, input: I
     .send({
       to: input.email,
       subject: `Invitation à « ${event.title} » sur On Sort ?`,
-      text: [
-        'Bonjour,',
-        '',
-        `Vous êtes invité·e à rejoindre « ${event.title} ». Ouvrez ce lien pour répondre :`,
-        inviteUrl(invitation.id),
-        '',
-        "Si vous n'attendiez pas cette invitation, ignorez ce message.",
-      ].join('\n'),
+      ...renderEmail({
+        heading: `Vous êtes invité·e à « ${event.title} »`,
+        paragraphs: [
+          `Vous êtes invité·e à rejoindre « ${event.title} ». Ouvrez ce lien pour répondre :`,
+        ],
+        action: { label: 'Répondre à l’invitation', url: inviteUrl(invitation.id) },
+        note: "Si vous n'attendiez pas cette invitation, ignorez ce message.",
+      }),
     })
     .catch((error: unknown) => {
       console.error(`Envoi de l'invitation ${invitation.id} échoué :`, error)

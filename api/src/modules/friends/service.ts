@@ -1,5 +1,6 @@
 import { config } from '../../config.ts'
 import { prisma } from '../../db.ts'
+import { renderEmail } from '../../lib/email.ts'
 import { normalisePair } from '../../lib/friendship.ts'
 import { ApiError } from '../../lib/http.ts'
 import { mailer } from '../../lib/mailer.ts'
@@ -50,15 +51,14 @@ export async function requestFriendship(userId: string, input: FriendRequestInpu
       .send({
         to: input.email,
         subject: `${me.name} vous invite à le rejoindre sur On Sort ?`,
-        text: [
-          'Bonjour,',
-          '',
-          `${me.name} aimerait vous compter parmi ses amis sur On Sort ?, l'application qui`,
-          'organise les sorties de groupe. Créez votre compte ici :',
-          config.appUrl,
-          '',
-          "Si vous n'attendiez pas ce message, ignorez-le.",
-        ].join('\n'),
+        ...renderEmail({
+          heading: `${me.name} vous invite sur On sort ?`,
+          paragraphs: [
+            `${me.name} aimerait vous compter parmi ses amis sur On Sort ?, l'application qui organise les sorties de groupe. Créez votre compte ici :`,
+          ],
+          action: { label: 'Créer mon compte', url: config.appUrl },
+          note: "Si vous n'attendiez pas ce message, ignorez-le.",
+        }),
       })
       .catch((error: unknown) => {
         console.error(`Invitation d'ami à ${input.email} non envoyée :`, error)

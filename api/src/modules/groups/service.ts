@@ -1,6 +1,7 @@
 import { config } from '../../config.ts'
 import { prisma } from '../../db.ts'
 import { freeSlots } from '../../lib/calendar.ts'
+import { renderEmail } from '../../lib/email.ts'
 import { ApiError } from '../../lib/http.ts'
 import { mailer } from '../../lib/mailer.ts'
 import { notify } from '../../lib/notify.ts'
@@ -125,14 +126,14 @@ export async function inviteToGroup(userId: string, groupId: string, input: Invi
     .send({
       to: input.email,
       subject: `Invitation à rejoindre « ${group.name} » sur On Sort ?`,
-      text: [
-        'Bonjour,',
-        '',
-        `Vous êtes invité·e à rejoindre le groupe « ${group.name} ». Ouvrez ce lien pour répondre :`,
-        inviteUrl(invitation.id),
-        '',
-        "Si vous n'attendiez pas cette invitation, ignorez ce message.",
-      ].join('\n'),
+      ...renderEmail({
+        heading: `Rejoignez le groupe « ${group.name} »`,
+        paragraphs: [
+          `Vous êtes invité·e à rejoindre le groupe « ${group.name} ». Ouvrez ce lien pour répondre :`,
+        ],
+        action: { label: 'Répondre à l’invitation', url: inviteUrl(invitation.id) },
+        note: "Si vous n'attendiez pas cette invitation, ignorez ce message.",
+      }),
     })
     .catch((error: unknown) => {
       console.error(`Envoi de l'invitation de groupe ${invitation.id} échoué :`, error)

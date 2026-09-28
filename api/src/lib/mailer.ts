@@ -5,6 +5,7 @@ export type Mail = {
   to: string
   subject: string
   text: string
+  html?: string
 }
 
 export type Mailer = {
@@ -47,6 +48,7 @@ export function createMailer({ apiKey, from, logger }: Options): Mailer {
         to: mail.to,
         subject: mail.subject,
         text: mail.text,
+        ...(mail.html === undefined ? {} : { html: mail.html }),
       })
 
       if (error) {

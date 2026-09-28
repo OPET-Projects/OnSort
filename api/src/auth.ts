@@ -3,6 +3,7 @@ import { prismaAdapter } from 'better-auth/adapters/prisma'
 import { magicLink } from 'better-auth/plugins'
 import { config } from './config.ts'
 import { prisma } from './db.ts'
+import { renderEmail } from './lib/email.ts'
 import { displayNameFromEmail } from './lib/identity.ts'
 import { mailer } from './lib/mailer.ts'
 
@@ -61,14 +62,12 @@ export const auth = betterAuth({
         await mailer.send({
           to: email,
           subject: 'Votre lien de connexion à On Sort ?',
-          text: [
-            'Bonjour,',
-            '',
-            'Voici votre lien de connexion. Il expire dans quinze minutes :',
-            url,
-            '',
-            "Si vous n'êtes pas à l'origine de cette demande, ignorez ce message.",
-          ].join('\n'),
+          ...renderEmail({
+            heading: 'Votre lien de connexion',
+            paragraphs: ['Voici votre lien de connexion. Il expire dans quinze minutes :'],
+            action: { label: 'Me connecter', url },
+            note: "Si vous n'êtes pas à l'origine de cette demande, ignorez ce message.",
+          }),
         })
       },
     }),
