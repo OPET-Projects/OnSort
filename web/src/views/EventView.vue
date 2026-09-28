@@ -361,7 +361,7 @@ async function sendEmailInvite(): Promise<void> {
     </p>
   </div>
 
-  <main class="mx-auto w-full max-w-2xl md:max-w-5xl">
+  <main class="mx-auto w-full max-w-2xl md:max-w-5xl lg:max-w-6xl">
     <p v-if="state === 'loading'" class="px-5 py-7 text-sm text-muted">Chargement…</p>
 
     <div

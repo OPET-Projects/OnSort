@@ -25,7 +25,7 @@ async function submit(): Promise<void> {
 </script>
 
 <template>
-  <main class="mx-auto w-full max-w-2xl px-5 py-7 md:px-8 md:py-9">
+  <main class="mx-auto w-full max-w-2xl px-5 py-7 md:px-8 md:py-9 lg:max-w-6xl lg:px-12">
     <header class="flex flex-col gap-1.5">
       <h1 class="text-[26px] font-bold tracking-tight">Mes amis</h1>
       <p class="text-[13px] leading-relaxed text-muted">
@@ -53,7 +53,7 @@ async function submit(): Promise<void> {
     <template v-else>
       <section v-if="received.length > 0" class="mt-6 flex flex-col gap-2">
         <h2 class="text-[13px] font-semibold text-label">Demandes reçues</h2>
-        <ul class="flex flex-col gap-2">
+        <ul class="grid grid-cols-1 gap-2 lg:grid-cols-2">
           <li
             v-for="request in received"
             :key="request.id"
@@ -116,7 +116,7 @@ async function submit(): Promise<void> {
 
       <section v-if="sent.length > 0" class="mt-6 flex flex-col gap-2">
         <h2 class="text-[13px] font-semibold text-label">Demandes envoyées</h2>
-        <ul class="flex flex-col gap-2">
+        <ul class="grid grid-cols-1 gap-2 lg:grid-cols-2">
           <li
             v-for="request in sent"
             :key="request.id"
