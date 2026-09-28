@@ -63,39 +63,8 @@ Le séquencement complet est en section 9 de `docs/conception.md` ; il est enti�
 parcouru. Les chantiers suivants ne sont plus des jalons : le déploiement ci-dessus, puis ce
 que `docs/journal-decisions.md` range en « points laissés ouverts ».
 
-## Stack
-
-Monorepo `npm workspaces`, deux espaces : `api/` et `web/`.
-
-| Couche | Choix |
-|---|---|
-| Runtime | Node 24 LTS — version exacte dans `.nvmrc` |
-| API | Hono, servi par `@hono/node-server` |
-| Base | PostgreSQL 17 en conteneur, accès par Prisma 7 + `@prisma/adapter-pg` |
-| Authentification | Better Auth : greffon `magicLink` + Google en option, **compte obligatoire** |
-| Front | Vue 3 + Vite, SPA, Pinia, Vue Router, Tailwind |
-| Types partagés | Hono RPC — `web` importe `AppType` et `SessionUser` depuis le paquet `api` |
-| Carte | Leaflet, tuiles OpenStreetMap, géocodage Base Adresse Nationale — sans clé |
-| Courriel | Resend, avec repli console quand aucune clé n'est configurée |
-| Qualité | Biome, Vitest, GitHub Actions |
-
-Versions exactes et raisons dans `docs/versions.md`.
-
-## Commandes
-
-```sh
-npm run db:up          # PostgreSQL en conteneur
-npm run db:migrate     # migrations Prisma
-npm run db:seed        # comptes de développement
-npm run dev            # API et front en parallèle
-
-npm run lint           # Biome
-npm run typecheck      # tsc et vue-tsc
-npm test               # Vitest sur les deux espaces
-npm run build
-
-docker compose -f docker-compose.prod.yml --env-file .env.production up -d --build  # production
-```
+Monorepo `npm workspaces`, deux espaces : `api/` et `web/`. Stack, versions exactes et scripts
+disponibles : voir `package.json` et `docs/versions.md`.
 
 ## Portes de vérification — obligatoires
 
