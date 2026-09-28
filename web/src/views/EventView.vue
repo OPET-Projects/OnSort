@@ -399,12 +399,15 @@ async function sendEmailInvite(): Promise<void> {
             {{ formatPeriod(event.startsAt, event.endsAt) }}
           </p>
           <RouterLink
-            v-if="event.group"
+            v-if="event.group?.viewerIsMember"
             :to="`/groups/${event.group.id}`"
             class="self-start text-[13px] font-semibold text-accent"
           >
             Groupe {{ event.group.name }}
           </RouterLink>
+          <p v-else-if="event.group" class="text-[13px] text-muted">
+            Groupe {{ event.group.name }}
+          </p>
           <p v-if="event.description" class="mt-2 text-sm leading-relaxed whitespace-pre-line">
             {{ event.description }}
           </p>

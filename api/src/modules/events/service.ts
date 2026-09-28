@@ -111,7 +111,13 @@ export async function getEvent(userId: string, eventId: string) {
     where: { id: eventId },
     include: {
       participants: { include: { user: true }, orderBy: { joinedAt: 'asc' } },
-      group: { select: { id: true, name: true } },
+      group: {
+        select: {
+          id: true,
+          name: true,
+          members: { where: { userId }, select: { userId: true } },
+        },
+      },
     },
   })
 
@@ -133,7 +139,16 @@ export async function getEvent(userId: string, eventId: string) {
     endsAt: event.endsAt,
     status: event.status,
     createdBy: event.createdBy,
-    group: event.group,
+    // Un participant invité hors du groupe voit à quel groupe la sortie appartient, sans
+    // pouvoir l'ouvrir : `viewerIsMember` évite de lui tendre un lien qui mène à un 403.
+    group:
+      event.group === null
+        ? null
+        : {
+            id: event.group.id,
+            name: event.group.name,
+            viewerIsMember: event.group.members.length > 0,
+          },
     pendingInvitations: await pendingInvitationsFor(event, viewer.role),
     participants: event.participants.map((participant) => ({
       // L'identifiant de **participation**, et non celui de l'utilisateur : parts de dépense,

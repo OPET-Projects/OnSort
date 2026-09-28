@@ -321,7 +321,7 @@ it("expose le groupe d'une sortie et son nom dans la liste", async () => {
   ).json()) as {
     event: { group: unknown }
   }
-  expect(detail.event.group).toEqual({ id: groupId, name: 'Les copains' })
+  expect(detail.event.group).toEqual({ id: groupId, name: 'Les copains', viewerIsMember: true })
 
   const adHocDetail = (await (
     await app.request(`/api/events/${adHoc}`, { headers: alice })
@@ -334,4 +334,20 @@ it("expose le groupe d'une sortie et son nom dans la liste", async () => {
   const nameOf = new Map(list.events.map((event) => [event.id, event.groupName]))
   expect(nameOf.get(inGroup)).toBe('Les copains')
   expect(nameOf.get(adHoc)).toBeNull()
+})
+
+// Un invité extérieur au groupe voit à quel groupe appartient la sortie, mais ne peut pas
+// ouvrir ce groupe : l'interface doit le savoir pour ne pas lui tendre un lien qui mène à un 403.
+it("dit à un participant extérieur qu'il n'est pas membre du groupe", async () => {
+  const alice = await signIn('alice@example.test')
+  const dan = await signIn('dan@example.test')
+  const groupId = await makeGroup(alice)
+  const eventId = await eventIdOf(await makeEvent(alice, groupId))
+  await prisma.eventParticipant.create({ data: { eventId, userId: await userId(dan) } })
+
+  const detail = (await (await app.request(`/api/events/${eventId}`, { headers: dan })).json()) as {
+    event: { group: unknown }
+  }
+
+  expect(detail.event.group).toEqual({ id: groupId, name: 'Les copains', viewerIsMember: false })
 })
