@@ -1,8 +1,23 @@
 import { Hono } from 'hono'
 import { jsonBody, queryParams } from '../../lib/validator.ts'
 import { requireSession, type SessionVariables } from '../../middleware/session.ts'
-import { calendarWindowSchema, createGroupSchema, inviteMemberSchema } from './schema.ts'
-import { createGroup, getGroup, getGroupCalendar, inviteToGroup, listGroups } from './service.ts'
+import {
+  calendarWindowSchema,
+  createGroupSchema,
+  inviteMemberSchema,
+  memberRoleSchema,
+  renameGroupSchema,
+} from './schema.ts'
+import {
+  createGroup,
+  getGroup,
+  getGroupCalendar,
+  inviteToGroup,
+  listGroups,
+  removeMember,
+  renameGroup,
+  setMemberRole,
+} from './service.ts'
 
 export const groupsRoutes = new Hono<{ Variables: SessionVariables }>()
   .use('*', requireSession)
@@ -15,6 +30,17 @@ export const groupsRoutes = new Hono<{ Variables: SessionVariables }>()
   })
   .get('/:id', async (c) => {
     return c.json({ group: await getGroup(c.get('user').id, c.req.param('id')) })
+  })
+  .patch('/:id', jsonBody(renameGroupSchema), async (c) => {
+    return c.json(await renameGroup(c.get('user').id, c.req.param('id'), c.req.valid('json')))
+  })
+  .patch('/:id/members/:userId', jsonBody(memberRoleSchema), async (c) => {
+    const { id, userId } = c.req.param()
+    return c.json(await setMemberRole(c.get('user').id, id, userId, c.req.valid('json')))
+  })
+  .delete('/:id/members/:userId', async (c) => {
+    const { id, userId } = c.req.param()
+    return c.json(await removeMember(c.get('user').id, id, userId))
   })
   .post('/:id/members', jsonBody(inviteMemberSchema), async (c) => {
     const result = await inviteToGroup(c.get('user').id, c.req.param('id'), c.req.valid('json'))

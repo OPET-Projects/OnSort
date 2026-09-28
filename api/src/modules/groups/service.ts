@@ -1,12 +1,19 @@
 import { config } from '../../config.ts'
 import { prisma } from '../../db.ts'
+import type { Prisma } from '../../generated/prisma/client.ts'
 import { freeSlots } from '../../lib/calendar.ts'
 import { renderEmail } from '../../lib/email.ts'
 import { ApiError } from '../../lib/http.ts'
 import { mailer } from '../../lib/mailer.ts'
 import { notify } from '../../lib/notify.ts'
-import { canManageGroup } from '../../lib/permissions.ts'
-import type { CalendarWindowInput, CreateGroupInput, InviteMemberInput } from './schema.ts'
+import { canManageGroup, type GroupRole } from '../../lib/permissions.ts'
+import { lockGroup } from './enrollment.ts'
+import type {
+  CalendarWindowInput,
+  CreateGroupInput,
+  InviteMemberInput,
+  MemberRoleInput,
+} from './schema.ts'
 
 // Règles métier des groupes (conception §2.3, §2.4). Ce fichier ne connaît pas Hono : il
 // reçoit l'identifiant de l'appelant en argument et lève des `ApiError`.
@@ -96,8 +103,121 @@ export async function getGroup(userId: string, groupId: string) {
       status: event.status,
       rsvp: event.participants[0]?.rsvp ?? null,
     })),
-    viewer: { role: membership.role },
+    viewer: { userId, role: membership.role },
   }
+}
+
+// Verrouille le groupe **puis** lit l'adhésion de l'appelant. Dans l'autre ordre, un admin
+// rétrogradé ou retiré entre la lecture et le verrou agirait encore avec ses anciens droits.
+async function lockMembership(tx: Prisma.TransactionClient, userId: string, groupId: string) {
+  if (!(await lockGroup(tx, groupId))) {
+    throw new ApiError('group_not_found', 404, 'Groupe introuvable.')
+  }
+
+  const membership = await tx.groupMember.findUnique({
+    where: { groupId_userId: { groupId, userId } },
+  })
+
+  if (membership === null) {
+    throw new ApiError('not_a_member', 403, 'Vous ne faites pas partie de ce groupe.')
+  }
+
+  return membership
+}
+
+function assertAdmin(role: GroupRole, message: string): void {
+  if (!canManageGroup(role)) {
+    throw new ApiError('forbidden', 403, message)
+  }
+}
+
+export async function renameGroup(userId: string, groupId: string, input: CreateGroupInput) {
+  await prisma.$transaction(async (tx) => {
+    const membership = await lockMembership(tx, userId, groupId)
+    assertAdmin(membership.role, 'Seul un administrateur du groupe peut le renommer.')
+    await tx.group.update({ where: { id: groupId }, data: { name: input.name } })
+  })
+  return { ok: true as const }
+}
+
+// Sous verrou : deux admins qui se rétrogradent l'un l'autre au même instant liraient
+// chacun « il reste un autre admin », et le groupe finirait sans aucun.
+export async function setMemberRole(
+  userId: string,
+  groupId: string,
+  targetId: string,
+  input: MemberRoleInput,
+) {
+  await prisma.$transaction(async (tx) => {
+    const membership = await lockMembership(tx, userId, groupId)
+    assertAdmin(membership.role, 'Seul un administrateur du groupe peut changer un rôle.')
+
+    const target = await tx.groupMember.findUnique({
+      where: { groupId_userId: { groupId, userId: targetId } },
+    })
+
+    if (target === null) {
+      throw new ApiError('member_not_found', 404, "Cette personne n'est pas membre du groupe.")
+    }
+
+    if (target.role === 'admin' && input.role === 'member') {
+      const admins = await tx.groupMember.count({ where: { groupId, role: 'admin' } })
+
+      if (admins === 1) {
+        throw new ApiError('last_admin', 409, 'Le groupe doit garder au moins un administrateur.')
+      }
+    }
+
+    await tx.groupMember.update({
+      where: { groupId_userId: { groupId, userId: targetId } },
+      data: { role: input.role },
+    })
+  })
+
+  return { ok: true as const }
+}
+
+// Quitter et retirer sont un même geste vu de deux côtés (spec « membres et amis »). Sous
+// verrou : deux admins qui partent ensemble liraient chacun « il reste un admin ».
+//
+// Aucun état absorbant (§3.1) : un groupe sans admin ne se gère plus, un groupe sans
+// membre ne se voit plus. Le premier promeut le plus ancien, le second disparaît — ses
+// sorties restent, détachées (`ON DELETE SET NULL`).
+export async function removeMember(userId: string, groupId: string, targetId: string) {
+  return prisma.$transaction(async (tx) => {
+    const membership = await lockMembership(tx, userId, groupId)
+
+    if (targetId !== userId) {
+      assertAdmin(membership.role, 'Seul un administrateur du groupe peut retirer un membre.')
+    }
+
+    const removed = await tx.groupMember.deleteMany({ where: { groupId, userId: targetId } })
+
+    if (removed.count === 0) {
+      throw new ApiError('member_not_found', 404, "Cette personne n'est pas membre du groupe.")
+    }
+
+    const remaining = await tx.groupMember.findMany({
+      where: { groupId },
+      orderBy: { joinedAt: 'asc' },
+    })
+
+    const [oldest] = remaining
+
+    if (oldest === undefined) {
+      await tx.group.delete({ where: { id: groupId } })
+      return { groupDeleted: true }
+    }
+
+    if (!remaining.some((member) => member.role === 'admin')) {
+      await tx.groupMember.update({
+        where: { groupId_userId: { groupId, userId: oldest.userId } },
+        data: { role: 'admin' },
+      })
+    }
+
+    return { groupDeleted: false }
+  })
 }
 
 function inviteUrl(token: string): string {

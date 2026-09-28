@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref } from 'vue'
-import { RouterLink, useRoute } from 'vue-router'
+import { RouterLink, useRoute, useRouter } from 'vue-router'
 import FreeSlots from '../components/FreeSlots.vue'
 import { useGroup } from '../composables/useGroup'
 import { formatPeriod } from '../lib/dates'
@@ -9,8 +9,63 @@ import { newEventLink } from '../lib/event-draft'
 const route = useRoute()
 const id = String(route.params.id)
 
-const { state, group, calendar, error, inviteSent, windowDays, minimumMinutes, reload, invite } =
-  useGroup(id)
+const {
+  state,
+  group,
+  calendar,
+  error,
+  inviteSent,
+  windowDays,
+  minimumMinutes,
+  reload,
+  invite,
+  rename,
+  setRole,
+  removeMember,
+} = useGroup(id)
+
+const router = useRouter()
+const actionError = ref('')
+const renaming = ref(false)
+const draftName = ref('')
+
+async function run(action: () => Promise<unknown>): Promise<void> {
+  actionError.value = ''
+  try {
+    await action()
+  } catch (cause) {
+    actionError.value = cause instanceof Error ? cause.message : "L'action a échoué."
+  }
+}
+
+function startRename(): void {
+  draftName.value = group.value?.name ?? ''
+  renaming.value = true
+}
+
+async function submitRename(): Promise<void> {
+  await run(async () => {
+    await rename(draftName.value)
+    renaming.value = false
+  })
+}
+
+async function removeOther(userId: string, name: string): Promise<void> {
+  if (!window.confirm(`Retirer ${name} du groupe ?`)) return
+  await run(async () => {
+    await removeMember(userId)
+    await reload()
+  })
+}
+
+// Quitter renvoie à la liste : le groupe n'est plus lisible, qu'il existe encore ou non.
+async function leaveGroup(): Promise<void> {
+  if (!window.confirm('Quitter ce groupe ? Vos sorties restent inchangées.')) return
+  await run(async () => {
+    if (group.value) await removeMember(group.value.viewer.userId)
+    await router.push('/groups')
+  })
+}
 
 const email = ref('')
 const inviteError = ref('')
@@ -73,13 +128,50 @@ const rsvpTone: Record<string, string> = {
             <path d="M14.5 5 8 12l6.5 7" />
           </svg>
         </button>
-        <span class="flex min-w-0 flex-col gap-0.5">
-          <h1 class="truncate text-lg font-bold tracking-tight">{{ group.name }}</h1>
-          <span class="text-xs text-muted">
-            {{ group.members.length }}
-            {{ group.members.length > 1 ? 'membres' : 'membre' }}
+        <form
+          v-if="renaming"
+          class="flex min-w-0 flex-1 flex-wrap items-center gap-2"
+          @submit.prevent="submitRename"
+        >
+          <input
+            v-model="draftName"
+            type="text"
+            required
+            maxlength="120"
+            aria-label="Nom du groupe"
+            class="h-10 min-w-0 flex-1 rounded-control border border-field bg-surface px-3 text-[15px] outline-none focus:border-accent focus:ring-4 focus:ring-accent/15"
+          />
+          <button
+            type="submit"
+            class="flex h-10 items-center rounded-control bg-accent px-3.5 text-[13px] font-semibold text-white"
+          >
+            Enregistrer
+          </button>
+          <button
+            type="button"
+            class="flex h-10 items-center rounded-control border border-field px-3.5 text-[13px] font-semibold"
+            @click="renaming = false"
+          >
+            Annuler
+          </button>
+        </form>
+        <template v-else>
+          <span class="flex min-w-0 flex-1 flex-col gap-0.5">
+            <h1 class="truncate text-lg font-bold tracking-tight">{{ group.name }}</h1>
+            <span class="text-xs text-muted">
+              {{ group.members.length }}
+              {{ group.members.length > 1 ? 'membres' : 'membre' }}
+            </span>
           </span>
-        </span>
+          <button
+            v-if="group.viewer.role === 'admin'"
+            type="button"
+            class="flex h-9 shrink-0 items-center rounded-control border border-field px-3 text-[13px] font-semibold"
+            @click="startRename"
+          >
+            Renommer
+          </button>
+        </template>
       </header>
 
       <div class="flex flex-col gap-6 px-5 py-6">
@@ -163,10 +255,32 @@ const rsvpTone: Record<string, string> = {
                 :key="member.userId"
                 class="flex items-center justify-between gap-3 border-b border-line-soft px-4 py-3 last:border-b-0"
               >
-                <span class="text-sm font-medium">{{ member.name }}</span>
-                <span v-if="member.role === 'admin'" class="text-xs text-faint">admin</span>
+                <span class="flex min-w-0 items-baseline gap-2">
+                  <span class="truncate text-sm font-medium">{{ member.name }}</span>
+                  <span v-if="member.role === 'admin'" class="text-xs text-faint">admin</span>
+                </span>
+                <span
+                  v-if="group.viewer.role === 'admin' && member.userId !== group.viewer.userId"
+                  class="flex shrink-0 gap-1.5"
+                >
+                  <button
+                    type="button"
+                    class="flex h-9 items-center rounded-control border border-field px-3 text-[13px] font-semibold"
+                    @click="run(() => setRole(member.userId, member.role === 'admin' ? 'member' : 'admin'))"
+                  >
+                    {{ member.role === 'admin' ? 'Rétrograder' : 'Promouvoir' }}
+                  </button>
+                  <button
+                    type="button"
+                    class="flex h-9 items-center rounded-control border border-field px-3 text-[13px] font-semibold text-fail-ink"
+                    @click="removeOther(member.userId, member.name)"
+                  >
+                    Retirer
+                  </button>
+                </span>
               </li>
             </ul>
+            <p v-if="actionError" class="text-sm text-fail-ink">{{ actionError }}</p>
           </section>
         </div>
 
@@ -210,6 +324,14 @@ const rsvpTone: Record<string, string> = {
         <RouterLink to="/me/calendar" class="text-sm font-semibold text-accent">
           Déclarer mes indisponibilités
         </RouterLink>
+
+        <button
+          type="button"
+          class="self-start text-sm font-semibold text-fail-ink"
+          @click="leaveGroup"
+        >
+          Quitter le groupe
+        </button>
       </div>
     </template>
   </main>
