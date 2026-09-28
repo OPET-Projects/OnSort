@@ -80,7 +80,14 @@ export const useSessionStore = defineStore('session', () => {
 
   async function signOut(): Promise<void> {
     try {
-      await fetch('/api/auth/sign-out', { method: 'POST', credentials: 'include' })
+      // Better Auth refuse une requête sans Content-Type par un 415 : sans lui, le cookie de
+      // session n'est jamais effacé côté serveur, quel que soit le fournisseur de connexion.
+      await fetch('/api/auth/sign-out', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'content-type': 'application/json' },
+        body: '{}',
+      })
     } catch {
       // Le geste de l'utilisateur reste honoré côté client même si l'API est injoignable :
       // le cookie de session expirera de lui-même, et le laisser connecté à l'écran serait
