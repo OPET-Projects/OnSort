@@ -642,6 +642,17 @@ sur la fiche d'un groupe, sorties et membres se rangent côte à côte. Les list
 séparateurs internes restent en une colonne : leurs traits ne se découpent pas en grille.
 Sous `lg`, rien ne change. *Coût si erroné : des classes à retirer, aucune logique en jeu.*
 
+
+**Les confirmations passent par une popup maison, jamais par `window.confirm`.** La boîte du
+navigateur jurait avec le reste et ne pouvait pas signaler un geste destructif. `ConfirmDialog`
+reprend l'habillage de la popup d'invitation ; le focus part sur « Annuler », pour qu'Entrée
+ne confirme jamais par accident. *Coût si erroné : un composant à remplacer.*
+
+**La page d'un groupe n'est pas en temps réel, par choix.** Renommer, changer un rôle ou
+retirer un membre est rare ; la page est à jour à chaque ouverture, et un membre retiré qui
+agit encore reçoit un refus propre, puisque les droits sont vérifiés sous verrou. Publier sur
+le flux personnel ne coûterait presque rien, mais n'apporterait presque rien non plus.
+*Coût si erroné : un message `group.updated` à ajouter, le flux existe déjà.*
 ---
 
 ## Connexion — sortir le courriel du chemin critique
