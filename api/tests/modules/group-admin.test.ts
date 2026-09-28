@@ -115,3 +115,131 @@ it('rend 404 sur une cible qui n’est pas membre', async () => {
   expect(response.status).toBe(404)
   expect(await response.json()).toMatchObject({ code: 'member_not_found' })
 })
+
+const leave = async (groupId: string, headers: Headers) =>
+  send('DELETE', `/api/groups/${groupId}/members/${await userId(headers)}`, headers)
+
+it('laisse un membre quitter le groupe', async () => {
+  const alice = await signIn('alice@example.test')
+  const bob = await signIn('bob@example.test')
+  const groupId = await makeGroup(alice)
+  await addMember(groupId, bob)
+
+  const response = await leave(groupId, bob)
+
+  expect(await response.json()).toEqual({ groupDeleted: false })
+  expect(await prisma.groupMember.count({ where: { groupId } })).toBe(1)
+})
+
+it('laisse un admin retirer un membre, pas un membre retirer un autre', async () => {
+  const alice = await signIn('alice@example.test')
+  const bob = await signIn('bob@example.test')
+  const carla = await signIn('carla@example.test')
+  const groupId = await makeGroup(alice)
+  await addMember(groupId, bob)
+  await addMember(groupId, carla)
+
+  const byMember = await send(
+    'DELETE',
+    `/api/groups/${groupId}/members/${await userId(carla)}`,
+    bob,
+  )
+  expect(byMember.status).toBe(403)
+
+  const byAdmin = await send(
+    'DELETE',
+    `/api/groups/${groupId}/members/${await userId(carla)}`,
+    alice,
+  )
+  expect(byAdmin.status).toBe(200)
+  expect(await prisma.groupMember.count({ where: { groupId } })).toBe(2)
+})
+
+it('rend 404 au retrait de quelqu’un qui n’est pas membre', async () => {
+  const alice = await signIn('alice@example.test')
+  const groupId = await makeGroup(alice)
+
+  const response = await send('DELETE', `/api/groups/${groupId}/members/inconnu`, alice)
+
+  expect(response.status).toBe(404)
+  expect(await response.json()).toMatchObject({ code: 'member_not_found' })
+})
+
+it('promeut le membre le plus ancien quand le dernier admin part', async () => {
+  const alice = await signIn('alice@example.test')
+  const bob = await signIn('bob@example.test')
+  const carla = await signIn('carla@example.test')
+  const groupId = await makeGroup(alice)
+  await addMember(groupId, bob)
+  await addMember(groupId, carla)
+
+  await leave(groupId, alice)
+
+  expect(await roleOf(groupId, bob)).toBe('admin')
+  expect(await roleOf(groupId, carla)).toBe('member')
+})
+
+it('supprime le groupe au départ du dernier membre, sans toucher ses sorties', async () => {
+  const alice = await signIn('alice@example.test')
+  const groupId = await makeGroup(alice)
+  const created = await send('POST', '/api/events', alice, {
+    title: 'Raclette',
+    startsAt: new Date(Date.now() + 86_400_000).toISOString(),
+    endsAt: new Date(Date.now() + 90_000_000).toISOString(),
+    groupId,
+  })
+  const eventId = ((await created.json()) as { id: string }).id
+
+  const response = await leave(groupId, alice)
+
+  expect(await response.json()).toEqual({ groupDeleted: true })
+  expect(await prisma.group.count({ where: { id: groupId } })).toBe(0)
+  const event = await prisma.event.findUniqueOrThrow({ where: { id: eventId } })
+  expect(event.groupId).toBeNull()
+  expect(await prisma.eventParticipant.count({ where: { eventId } })).toBe(1)
+})
+
+it('laisse intactes les participations de qui part', async () => {
+  const alice = await signIn('alice@example.test')
+  const bob = await signIn('bob@example.test')
+  const groupId = await makeGroup(alice)
+  await addMember(groupId, bob)
+  await send('POST', '/api/events', alice, {
+    title: 'Raclette',
+    startsAt: new Date(Date.now() + 86_400_000).toISOString(),
+    endsAt: new Date(Date.now() + 90_000_000).toISOString(),
+    groupId,
+  })
+
+  await leave(groupId, bob)
+
+  expect(await prisma.eventParticipant.count({ where: { userId: await userId(bob) } })).toBe(1)
+})
+
+it('garde un admin quand deux admins partent en même temps', async () => {
+  for (let round = 0; round < 5; round += 1) {
+    const alice = await signIn(`alice-${round}@example.test`)
+    const bob = await signIn(`bob-${round}@example.test`)
+    const carla = await signIn(`carla-${round}@example.test`)
+    const groupId = await makeGroup(alice)
+    await addMember(groupId, bob, 'admin')
+    await addMember(groupId, carla)
+
+    await Promise.all([leave(groupId, alice), leave(groupId, bob)])
+
+    expect(await roleOf(groupId, carla)).toBe('admin')
+  }
+})
+
+it("dit à l'appelant qui il est dans la fiche du groupe", async () => {
+  const alice = await signIn('alice@example.test')
+  const groupId = await makeGroup(alice)
+
+  const { group } = (await (
+    await app.request(`/api/groups/${groupId}`, { headers: alice })
+  ).json()) as {
+    group: { viewer: { userId: string; role: string } }
+  }
+
+  expect(group.viewer).toEqual({ userId: await userId(alice), role: 'admin' })
+})

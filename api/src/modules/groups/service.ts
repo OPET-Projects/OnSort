@@ -102,7 +102,7 @@ export async function getGroup(userId: string, groupId: string) {
       status: event.status,
       rsvp: event.participants[0]?.rsvp ?? null,
     })),
-    viewer: { role: membership.role },
+    viewer: { userId, role: membership.role },
   }
 }
 
@@ -158,6 +158,52 @@ export async function setMemberRole(
   })
 
   return { ok: true as const }
+}
+
+// Quitter et retirer sont un même geste vu de deux côtés (spec « membres et amis »). Sous
+// verrou : deux admins qui partent ensemble liraient chacun « il reste un admin ».
+//
+// Aucun état absorbant (§3.1) : un groupe sans admin ne se gère plus, un groupe sans
+// membre ne se voit plus. Le premier promeut le plus ancien, le second disparaît — ses
+// sorties restent, détachées (`ON DELETE SET NULL`).
+export async function removeMember(userId: string, groupId: string, targetId: string) {
+  const membership = await loadMembership(userId, groupId)
+  const leaving = targetId === userId
+
+  if (!leaving && !canManageGroup(membership.role)) {
+    throw new ApiError('forbidden', 403, 'Seul un administrateur du groupe peut retirer un membre.')
+  }
+
+  return prisma.$transaction(async (tx) => {
+    await lockGroup(tx, groupId)
+
+    const removed = await tx.groupMember.deleteMany({ where: { groupId, userId: targetId } })
+
+    if (removed.count === 0) {
+      throw new ApiError('member_not_found', 404, "Cette personne n'est pas membre du groupe.")
+    }
+
+    const remaining = await tx.groupMember.findMany({
+      where: { groupId },
+      orderBy: { joinedAt: 'asc' },
+    })
+
+    const [oldest] = remaining
+
+    if (oldest === undefined) {
+      await tx.group.delete({ where: { id: groupId } })
+      return { groupDeleted: true }
+    }
+
+    if (!remaining.some((member) => member.role === 'admin')) {
+      await tx.groupMember.update({
+        where: { groupId_userId: { groupId, userId: oldest.userId } },
+        data: { role: 'admin' },
+      })
+    }
+
+    return { groupDeleted: false }
+  })
 }
 
 function inviteUrl(token: string): string {

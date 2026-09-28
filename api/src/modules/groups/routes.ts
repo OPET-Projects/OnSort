@@ -14,6 +14,7 @@ import {
   getGroupCalendar,
   inviteToGroup,
   listGroups,
+  removeMember,
   renameGroup,
   setMemberRole,
 } from './service.ts'
@@ -36,6 +37,10 @@ export const groupsRoutes = new Hono<{ Variables: SessionVariables }>()
   .patch('/:id/members/:userId', jsonBody(memberRoleSchema), async (c) => {
     const { id, userId } = c.req.param()
     return c.json(await setMemberRole(c.get('user').id, id, userId, c.req.valid('json')))
+  })
+  .delete('/:id/members/:userId', async (c) => {
+    const { id, userId } = c.req.param()
+    return c.json(await removeMember(c.get('user').id, id, userId))
   })
   .post('/:id/members', jsonBody(inviteMemberSchema), async (c) => {
     const result = await inviteToGroup(c.get('user').id, c.req.param('id'), c.req.valid('json'))
