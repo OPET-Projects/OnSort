@@ -1,5 +1,6 @@
 import { Hono } from 'hono'
 import { expect, it, vi } from 'vitest'
+import { config } from '../src/config.ts'
 import { renderApiError } from '../src/lib/http.ts'
 import { app } from '../src/main.ts'
 
@@ -19,6 +20,28 @@ it('refuse /api/me sans session', async () => {
     message: 'Authentification requise',
     details: {},
   })
+})
+
+// Le front s'appuie là-dessus pour afficher — ou taire — le bouton Google : un bouton
+// proposé sans clés mènerait droit sur une erreur du fournisseur.
+//
+// Les deux états sont posés explicitement plutôt que lus dans l'environnement : la suite
+// charge le `.env` du développeur, où les clés peuvent être présentes comme absentes.
+it.each([
+  ['configuré', { clientId: 'un-identifiant', clientSecret: 'un-secret' }, true],
+  ['absent', null, false],
+])('annonce Google %s, sans session', async (_state, credentials, expected) => {
+  const previous = config.google
+  config.google = credentials
+
+  try {
+    const response = await app.request('/api/auth-providers')
+
+    expect(response.status).toBe(200)
+    expect(await response.json()).toEqual({ google: expected })
+  } finally {
+    config.google = previous
+  }
 })
 
 it('expose le gestionnaire d’authentification', async () => {

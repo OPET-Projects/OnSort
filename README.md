@@ -51,15 +51,13 @@ produit est cohérent et se défend seul. Voir la section 9 de la conception.
 
 ### Où en est le projet
 
-**Les jalons M0 à M6 sont livrés** : comptes et connexion par lien magique, événements et
+**Les jalons M0 à M7 sont livrés** : comptes et connexion par lien magique, événements et
 invitations, activités avec vote et décompte en temps réel, dépenses et règlements, groupes
-et calendrier partagé, carte et géocodage, amis et notifications.
+et calendrier partagé, carte et géocodage, amis et notifications, puis les finitions — partage
+en pourcentage et en montant fixe, réordonnancement du programme, annulation d'une activité.
+Le paragraphe ci-dessus décrit le MVP visé : il est atteint.
 
-**Reste M7** — partage en pourcentage et en montant fixe, réordonnancement des activités,
-annulation. Le paragraphe ci-dessus décrit le MVP **visé** : ces trois finitions n'existent
-pas encore.
-
-Reste également dû, hors code : le déploiement sur une URL publique, livrable du jalon M1.
+Reste dû, hors code : le déploiement sur une URL publique, livrable du jalon M1.
 
 ### Reporté en V2
 

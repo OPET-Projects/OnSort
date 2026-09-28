@@ -115,13 +115,16 @@ it('rend l’événement et ses participants à un participant', async () => {
   expect(response.status).toBe(200)
   const { event } = (await response.json()) as {
     event: {
-      participants: { email: string }[]
+      participants: { participantId: string; email: string }[]
       viewer: { participantId: string; role: string }
     }
   }
   expect(event.participants[0]?.email).toBe('alice@example.test')
   expect(event.viewer.role).toBe('admin')
   expect(event.viewer.participantId).toEqual(expect.any(String))
+  // Chaque participation porte son identifiant : un partage en pourcentage ou en montant
+  // fixe désigne des **participations**, et le formulaire n'a pas d'autre source.
+  expect(event.participants[0]?.participantId).toBe(event.viewer.participantId)
 })
 
 it('interdit la modification à un simple participant', async () => {

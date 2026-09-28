@@ -88,6 +88,7 @@ Biome remplace ESLint et Prettier : un outil, une configuration.
 | `pinia` | 4.0.3 | |
 | `@vue/devtools-api` | 8.2.1 | peer de Pinia, déclaré explicitement |
 | `leaflet` | 1.9.4 | |
+| `@fontsource-variable/plus-jakarta-sans` | 5.3.0 | police auto-hébergée, aucun appel à un CDN tiers |
 | `vite` | 7.3.6 | développement |
 | `@vitejs/plugin-vue` | 6.0.8 | développement |
 | `tailwindcss` | 4.3.3 | développement |

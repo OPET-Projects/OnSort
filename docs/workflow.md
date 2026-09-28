@@ -20,10 +20,11 @@ avant la fin.
 | M4 | Groupes, calendrier partagé | Le créneau qui convient à tous — **terminé** |
 | M5 | Carte, géocodage | Le programme sur une carte — **terminé** |
 | M6 | Amis, notifications | **terminé** |
-| M7 | Finitions | |
+| M7 | Finitions : pourcentage et montant fixe, réordonnancement, annulation | **terminé** |
 
 À l'issue de M3, le produit est cohérent et se défend seul. Les jalons suivants s'ajoutent
-dans l'ordre du temps restant.
+dans l'ordre du temps restant. **Tous sont livrés** ; ne reste, hors code, que le déploiement
+de M1.
 
 **Une migration par jalon.** On ne crée pas aujourd'hui des tables que personne n'écrit
 encore. M0 ne contient que les quatre tables d'authentification, et c'est volontaire.

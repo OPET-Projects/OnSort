@@ -24,50 +24,57 @@ const canWithdraw = (settlement: PendingSettlement) =>
   settlement.fromParticipantId === props.viewerId
 
 const toneOf = (balanceCents: number) => {
-  if (balanceCents > 0) return 'text-emerald-700'
-  if (balanceCents < 0) return 'text-red-700'
-  return 'text-neutral-500'
+  if (balanceCents > 0) return 'text-free-ink'
+  if (balanceCents < 0) return 'text-fail-ink'
+  return 'text-muted'
 }
 </script>
 
 <template>
-  <section>
-    <h2 class="text-sm font-medium">Soldes</h2>
-    <ul class="mt-2 divide-y divide-neutral-100">
-      <li
-        v-for="balance in balances"
-        :key="balance.participantId"
-        class="flex items-center justify-between py-2 text-sm"
+  <section class="flex flex-col gap-6">
+    <div class="flex flex-col gap-2">
+      <h2 class="text-[13px] font-semibold text-label">Soldes</h2>
+      <ul class="flex flex-col rounded-card border border-line bg-surface">
+        <li
+          v-for="balance in balances"
+          :key="balance.participantId"
+          class="flex items-center justify-between gap-3 border-b border-line-soft px-4 py-3 last:border-b-0"
+        >
+          <span class="text-sm" :class="balance.you ? 'font-semibold' : 'font-medium'">
+            {{ balance.you ? 'Vous' : balance.name }}
+          </span>
+          <span class="text-sm font-semibold" :class="toneOf(balance.balanceCents)">
+            {{ formatCents(balance.balanceCents) }}
+          </span>
+        </li>
+      </ul>
+    </div>
+
+    <div class="flex flex-col gap-2">
+      <h2 class="text-[13px] font-semibold text-label">Virements à faire</h2>
+
+      <p
+        v-if="transfers.length === 0"
+        class="rounded-card border border-free-line bg-free px-4 py-3 text-[13px] text-free-ink-strong"
       >
-        <span :class="balance.you ? 'font-medium' : ''">
-          {{ balance.you ? 'Vous' : balance.name }}
-        </span>
-        <span :class="toneOf(balance.balanceCents)">{{ formatCents(balance.balanceCents) }}</span>
-      </li>
-    </ul>
-
-    <div class="mt-6">
-      <h2 class="text-sm font-medium">Virements à faire</h2>
-
-      <p v-if="transfers.length === 0" class="mt-2 text-sm text-neutral-600">
         Tout est réglé. Personne ne doit rien à personne.
       </p>
 
-      <ul v-else class="mt-2 flex flex-col gap-2">
+      <ul v-else class="flex flex-col gap-2">
         <li
           v-for="transfer in transfers"
           :key="`${transfer.fromParticipantId}-${transfer.toParticipantId}`"
-          class="flex flex-wrap items-center justify-between gap-2 rounded border border-neutral-200 p-3 text-sm"
+          class="flex flex-wrap items-center justify-between gap-2.5 rounded-field border border-line bg-surface px-4 py-3"
         >
-          <span>
+          <span class="text-sm">
             {{ isDebtor(transfer) ? 'Vous devez' : `${transfer.fromName} doit` }}
-            <strong>{{ formatCents(transfer.amountCents) }}</strong>
+            <strong class="font-bold">{{ formatCents(transfer.amountCents) }}</strong>
             à {{ transfer.toName }}
           </span>
           <button
             v-if="isDebtor(transfer)"
             type="button"
-            class="rounded bg-neutral-900 px-3 py-1 text-xs text-white"
+            class="flex h-11 shrink-0 items-center rounded-control bg-accent px-3.5 text-[13px] font-semibold text-white"
             @click="emit('declare', transfer.toParticipantId, transfer.amountCents)"
           >
             J'ai envoyé
@@ -76,27 +83,27 @@ const toneOf = (balanceCents: number) => {
       </ul>
     </div>
 
-    <div v-if="pendingSettlements.length > 0" class="mt-6">
-      <h2 class="text-sm font-medium">En attente de confirmation</h2>
-      <p class="mt-1 text-xs text-neutral-500">
+    <div v-if="pendingSettlements.length > 0" class="flex flex-col gap-2">
+      <h2 class="text-[13px] font-semibold text-label">En attente de confirmation</h2>
+      <p class="text-xs leading-relaxed text-faint">
         Un virement déclaré ne bouge le solde qu'une fois confirmé par celui qui le reçoit.
       </p>
 
-      <ul class="mt-2 flex flex-col gap-2">
+      <ul class="flex flex-col gap-2">
         <li
           v-for="settlement in pendingSettlements"
           :key="settlement.id"
-          class="flex flex-wrap items-center justify-between gap-2 rounded border border-neutral-200 p-3 text-sm"
+          class="flex flex-wrap items-center justify-between gap-2.5 rounded-field border border-line bg-surface px-4 py-3"
         >
-          <span>
+          <span class="text-sm">
             {{ canWithdraw(settlement) ? 'Vous avez déclaré' : `${settlement.fromName} a déclaré` }}
-            <strong>{{ formatCents(settlement.amountCents) }}</strong>
+            <strong class="font-bold">{{ formatCents(settlement.amountCents) }}</strong>
             à {{ canConfirm(settlement) ? 'vous' : settlement.toName }}
           </span>
           <button
             v-if="canConfirm(settlement)"
             type="button"
-            class="rounded bg-neutral-900 px-3 py-1 text-xs text-white"
+            class="flex h-11 shrink-0 items-center rounded-control bg-accent px-3.5 text-[13px] font-semibold text-white"
             @click="emit('confirm', settlement.id)"
           >
             J'ai reçu
@@ -104,7 +111,7 @@ const toneOf = (balanceCents: number) => {
           <button
             v-else-if="canWithdraw(settlement)"
             type="button"
-            class="rounded border border-neutral-300 px-3 py-1 text-xs"
+            class="flex h-11 shrink-0 items-center rounded-control border border-field px-3.5 text-[13px] font-medium text-ink-2"
             @click="emit('withdraw', settlement.id)"
           >
             Retirer

@@ -21,6 +21,7 @@ describe('loadConfig', () => {
       mapTilesUrl: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
       mapTilesAttribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
       resendApiKey: null,
+      google: null,
       mailFrom: valid.MAIL_FROM,
       isProduction: false,
     })
@@ -39,6 +40,37 @@ describe('loadConfig', () => {
 
   it('traite une clé Resend vide comme absente', () => {
     expect(loadConfig({ ...valid, RESEND_API_KEY: '' }).resendApiKey).toBeNull()
+  })
+
+  // `npm test` charge le .env du développeur : une clé réelle y enverrait de vrais
+  // courriels aux adresses inventées par les fixtures, sur son quota.
+  it('lit les identifiants Google quand les deux variables sont posées', () => {
+    const config = loadConfig({
+      ...valid,
+      GOOGLE_CLIENT_ID: 'un-identifiant',
+      GOOGLE_CLIENT_SECRET: 'un-secret',
+    })
+
+    expect(config.google).toEqual({ clientId: 'un-identifiant', clientSecret: 'un-secret' })
+  })
+
+  it('laisse Google absent quand aucune variable n’est posée', () => {
+    expect(loadConfig(valid).google).toBeNull()
+  })
+
+  // Une moitié seule est une faute de frappe ou une variable oubliée, jamais une intention :
+  // la laisser passer ferait échouer la connexion chez Google, loin de sa cause.
+  it.each([
+    ['GOOGLE_CLIENT_ID', { GOOGLE_CLIENT_ID: 'un-identifiant' }],
+    ['GOOGLE_CLIENT_SECRET', { GOOGLE_CLIENT_SECRET: 'un-secret' }],
+  ])('refuse %s sans son pendant', (_name, half) => {
+    expect(() => loadConfig({ ...valid, ...half })).toThrow(/GOOGLE_CLIENT_ID/)
+  })
+
+  it("ignore la clé d'envoi en environnement de test", () => {
+    const config = loadConfig({ ...valid, NODE_ENV: 'test', RESEND_API_KEY: 'cle-resend' })
+
+    expect(config.resendApiKey).toBeNull()
   })
 })
 

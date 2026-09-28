@@ -22,20 +22,16 @@ const payer = computed(() =>
 </script>
 
 <template>
-  <article class="rounded border border-neutral-200 p-4">
-    <div class="flex items-baseline justify-between gap-3">
-      <h3 class="font-medium">{{ expense.label }}</h3>
-      <span class="shrink-0 text-sm font-medium">{{ formatCents(expense.amountCents) }}</span>
-    </div>
-
-    <p class="mt-1 text-sm text-neutral-600">
-      {{ payer }}, partagé entre {{ expense.shares.length }}
-      {{ expense.shares.length > 1 ? 'personnes' : 'personne' }}
-    </p>
-
-    <p v-if="myShare !== undefined" class="mt-2 text-xs text-neutral-500">
-      Votre part : {{ formatCents(myShare) }}
-    </p>
-    <p v-else class="mt-2 text-xs text-neutral-500">Vous n'êtes pas concerné par cette dépense.</p>
+  <article class="flex items-center justify-between gap-3 rounded-card border border-line bg-surface p-4 shadow-rest">
+    <span class="flex min-w-0 flex-col gap-0.5">
+      <h3 class="truncate text-sm font-semibold">{{ expense.label }}</h3>
+      <span class="text-xs text-faint">
+        {{ payer }} · {{ expense.shares.length }}
+        {{ expense.shares.length > 1 ? 'parts' : 'part' }}
+        <template v-if="myShare !== undefined">· la vôtre : {{ formatCents(myShare) }}</template>
+        <template v-else>· vous n'êtes pas concerné</template>
+      </span>
+    </span>
+    <span class="shrink-0 text-[15px] font-semibold">{{ formatCents(expense.amountCents) }}</span>
   </article>
 </template>

@@ -81,8 +81,9 @@ it('demande un rechargement du programme sur les autres messages d’activité',
   instances[0]?.emit('activity.created', { type: 'activity.created', id: 'a1' })
   instances[0]?.emit('activity.updated', { type: 'activity.updated', id: 'a1' })
   instances[0]?.emit('activity.decided', { type: 'activity.decided', id: 'a1' })
+  instances[0]?.emit('activity.cancelled', { type: 'activity.cancelled', id: 'a1' })
 
-  expect(onActivityChange).toHaveBeenCalledTimes(3)
+  expect(onActivityChange).toHaveBeenCalledTimes(4)
   expect(onTally).not.toHaveBeenCalled()
   wrapper.unmount()
 })

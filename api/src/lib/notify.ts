@@ -6,8 +6,8 @@ import { publish, userRoom } from './sse.ts'
 // diffusée** : le flux sert à celui qui regarde, la table à celui qui revient. Diffuser sans
 // écrire perdrait tout pour qui n'était pas connecté — c'est-à-dire le cas courant.
 
-// Les dix types de §2.9, moins `activity.cancelled` : le type existe dans la conception,
-// mais l'annulation qui le déclencherait arrive en M7.
+// Les dix types de §2.9. `activity.cancelled` est arrivé en M7 avec l'annulation qui le
+// déclenche ; la liste est désormais complète.
 export type NotificationType =
   | 'friend.request'
   | 'friend.accepted'
@@ -15,6 +15,7 @@ export type NotificationType =
   | 'event.invited'
   | 'activity.proposed'
   | 'activity.decided'
+  | 'activity.cancelled'
   | 'expense.created'
   | 'settlement.declared'
   | 'settlement.confirmed'

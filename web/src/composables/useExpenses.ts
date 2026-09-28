@@ -30,6 +30,16 @@ export type Transfer = {
   amountCents: number
 }
 
+// Parts d'une dépense, dans la forme que le mode impose : un pourcentage entier, ou un
+// montant en centimes. L'API refuse l'une des deux formes sous l'autre mode.
+export type PercentShare = { participantId: string; percent: number }
+export type FixedShare = { participantId: string; amountCents: number }
+
+export type RecordInput =
+  | { label: string; amountCents: number; splitMode?: 'equal' }
+  | { label: string; amountCents: number; splitMode: 'percent'; shares: PercentShare[] }
+  | { label: string; amountCents: number; splitMode: 'fixed'; shares: FixedShare[] }
+
 export type PendingSettlement = {
   id: string
   fromParticipantId: string
@@ -76,10 +86,12 @@ export function useExpenses(eventId: string) {
     }
   }
 
-  async function record(input: { label: string; amountCents: number }): Promise<void> {
+  // Le mode par défaut reste `equal` : c'est le cas courant, et il ne demande rien de plus
+  // que le libellé et le montant.
+  async function record(input: RecordInput): Promise<void> {
     await apiFetch(`/api/events/${eventId}/expenses`, {
       method: 'POST',
-      body: JSON.stringify({ ...input, splitMode: 'equal' }),
+      body: JSON.stringify({ splitMode: 'equal', ...input }),
     })
     await reload()
   }

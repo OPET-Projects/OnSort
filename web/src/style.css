@@ -1,1 +1,67 @@
 @import 'tailwindcss';
+
+/*
+  Jetons du système de design. Tailwind 4 les expose automatiquement : `--color-accent`
+  donne `bg-accent`, `--radius-card` donne `rounded-card`, `--shadow-rest` donne
+  `shadow-rest`. Toute valeur écrite en dur dans un composant est une valeur à rapatrier
+  ici — c'est ce fichier qui fait foi.
+*/
+@theme {
+  --font-sans: 'Plus Jakarta Sans Variable', system-ui, sans-serif;
+
+  --color-canvas: #fbfcfd;
+  --color-surface: #ffffff;
+  --color-ink: #10141c;
+  --color-ink-2: #475467;
+  --color-label: #344054;
+  --color-muted: #667085;
+  --color-faint: #8a94a6;
+
+  --color-line: #e5e9f0;
+  --color-line-soft: #f0f2f6;
+  --color-field: #d6dbe4;
+  --color-fill: #f2f4f7;
+  --color-disabled: #eaedf2;
+
+  --color-accent: #4f46e5;
+  --color-accent-press: #3b34c4;
+  --color-accent-soft: #eef0fe;
+
+  /* Trois tons d'état, chacun avec son fond, sa bordure et son texte. */
+  --color-free: #ecfdf3;
+  --color-free-line: #a9e5c3;
+  --color-free-ink: #067647;
+  --color-free-ink-strong: #05603a;
+
+  --color-wait: #fffaeb;
+  --color-wait-line: #f7d9a0;
+  --color-wait-ink: #b54708;
+
+  --color-fail: #fef3f2;
+  --color-fail-line: #fda29b;
+  --color-fail-ink: #b42318;
+
+  --radius-control: 10px;
+  --radius-field: 12px;
+  --radius-card: 14px;
+  --radius-surface: 18px;
+
+  --shadow-rest: 0 1px 2px rgb(16 24 40 / 0.05);
+  --shadow-float: 0 8px 24px rgb(16 24 40 / 0.08);
+}
+
+@layer base {
+  body {
+    background-color: var(--color-canvas);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+  }
+
+  /*
+    Le clavier virtuel d'un téléphone écrase la hauteur utile : les écrans centrés
+    verticalement (connexion, invitation) doivent pouvoir défiler plutôt que rogner.
+  */
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+}

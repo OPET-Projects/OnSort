@@ -25,8 +25,22 @@ export const updateActivitySchema = z
   })
   .partial()
 
+// Le réordonnancement reçoit la **liste complète** des identifiants, pas un déplacement :
+// « monte celle-ci d'un cran » dépendrait de l'ordre supposé par le client, qui peut être
+// périmé. Une liste complète est vérifiable — le service exige qu'elle contienne exactement
+// les activités de l'événement.
+export const reorderActivitiesSchema = z.object({
+  activityIds: z.array(z.uuid()).min(1),
+})
+
 export const attendanceSchema = z.object({
   present: z.boolean(),
+})
+
+// Un booléen plutôt que deux routes : annuler et rétablir sont le même geste dans les deux
+// sens, et §3.7 n'a pas d'état absorbant à protéger.
+export const cancelSchema = z.object({
+  cancelled: z.boolean(),
 })
 
 export const voteSchema = z.object({

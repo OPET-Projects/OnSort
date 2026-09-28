@@ -1,3 +1,4 @@
+import '@fontsource-variable/plus-jakarta-sans'
 import { createPinia } from 'pinia'
 import { createApp } from 'vue'
 import App from './App.vue'

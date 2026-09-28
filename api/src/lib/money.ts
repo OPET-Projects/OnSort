@@ -40,6 +40,100 @@ export function splitEqually(amountCents: number, participantIds: readonly strin
   }))
 }
 
+// Ordre des identifiants, **exactement** celui de `splitEqually` : la comparaison par unités
+// de code d'un `sort()` sans argument, jamais `localeCompare`. Les deux ne classent pas
+// 'Z' et 'a' dans le même ordre, et « les premiers identifiants triés » doit désigner les
+// mêmes personnes dans les trois modes de partage.
+function byParticipantId(left: Share, right: Share): number {
+  if (left.participantId === right.participantId) return 0
+  return left.participantId < right.participantId ? -1 : 1
+}
+
+// Le reste d'une division, réparti par la règle unique de §3.5 : les `remainder` premiers
+// participants, **triés par identifiant**, reçoivent un centime supplémentaire. Les trois
+// modes de partage passent par ici — une seconde règle d'arrondi dans ce fichier finirait
+// par diverger de la première.
+function spreadRemainder(shares: Share[], amountCents: number): Share[] {
+  const sorted = [...shares].sort(byParticipantId)
+  const remainder = amountCents - sorted.reduce((sum, share) => sum + share.amountCents, 0)
+
+  return sorted.map((share, index) => ({
+    ...share,
+    amountCents: share.amountCents + (index < remainder ? 1 : 0),
+  }))
+}
+
+export type PercentWeight = {
+  participantId: string
+  percent: number
+}
+
+// Partage en pourcentage (§2.8 note 3). Les pourcentages sont **entiers** : un pourcentage
+// fractionnaire ferait dépendre le total de l'arithmétique flottante — 33,33 + 33,33 + 33,34
+// ne vaut pas exactement 100 en machine — et la vérification « le total fait 100 » perdrait
+// son sens. Le domaine financier n'admet aucun flottant, pas même un multiplicateur.
+export function splitByPercent(amountCents: number, weights: readonly PercentWeight[]): Share[] {
+  assertWholeCents(amountCents)
+
+  if (weights.length === 0) {
+    throw new Error('Une dépense doit être partagée entre au moins un participant.')
+  }
+
+  for (const weight of weights) {
+    if (!Number.isInteger(weight.percent) || weight.percent < 0) {
+      throw new Error(`Pourcentage entier positif attendu, reçu ${weight.percent}.`)
+    }
+  }
+
+  const total = weights.reduce((sum, weight) => sum + weight.percent, 0)
+
+  if (total !== 100) {
+    throw new Error(`Les pourcentages doivent totaliser 100, ils totalisent ${total}.`)
+  }
+
+  // `trunc` et non `round` : arrondir au plus proche pourrait distribuer plus que le montant,
+  // et le reste à répartir deviendrait négatif.
+  const floored = weights.map((weight) => ({
+    participantId: weight.participantId,
+    amountCents: Math.trunc((amountCents * weight.percent) / 100),
+  }))
+
+  return spreadRemainder(floored, amountCents)
+}
+
+// Partage en montant fixe (§2.8 note 3). Rien à calculer : les parts sont données, et la
+// seule chose à faire est de refuser celles qui casseraient l'invariant. L'écart figure dans
+// le message — un formulaire qui n'indique pas qu'il manque 3 € se solde par un refus
+// incompréhensible.
+export function splitByFixed(amountCents: number, parts: readonly Share[]): Share[] {
+  assertWholeCents(amountCents)
+
+  if (parts.length === 0) {
+    throw new Error('Une dépense doit être partagée entre au moins un participant.')
+  }
+
+  for (const part of parts) {
+    assertWholeCents(part.amountCents)
+
+    if (part.amountCents < 0) {
+      throw new Error(`Part positive attendue, reçue ${part.amountCents}.`)
+    }
+  }
+
+  const total = parts.reduce((sum, part) => sum + part.amountCents, 0)
+
+  if (total !== amountCents) {
+    const gap = amountCents - total
+    throw new Error(
+      `Les parts totalisent ${total} centimes au lieu de ${amountCents} : il ${gap > 0 ? `manque ${gap}` : `sort ${-gap}`} centimes.`,
+    )
+  }
+
+  return [...parts]
+    .map((part) => ({ participantId: part.participantId, amountCents: part.amountCents }))
+    .sort(byParticipantId)
+}
+
 export type BalanceInput = {
   participantIds: readonly string[]
   expenses: readonly { paidBy: string; amountCents: number; shares: readonly Share[] }[]

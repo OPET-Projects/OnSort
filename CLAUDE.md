@@ -30,26 +30,36 @@ même commit que le code**. Un document qui ment est pire que pas de document.
 
 ## État actuel
 
-Les jalons **M0 à M6** sont terminés côté code : socle et authentification, événement et
-invitations, activités et vote en temps réel, dépenses et règlements, groupes et calendrier
-partagé, carte et géocodage, puis amis et notifications.
+**Tous les jalons, M0 à M7, sont terminés côté code** : socle et authentification, événement
+et invitations, activités et vote en temps réel, dépenses et règlements, groupes et calendrier
+partagé, carte et géocodage, amis et notifications, puis les finitions.
 
 Un utilisateur crée un événement, invite, chacun répond, propose des activités et vote. Les
 dépenses se saisissent, les soldes s'en dérivent, et l'application propose le plus petit jeu
 de virements qui remet tout le monde à zéro. Un groupe superpose les indisponibilités de ses
 membres et fait apparaître les créneaux qui conviennent à tous. Le programme s'affiche sur
 une carte, pins numérotés dans l'ordre. Et chaque geste qui concerne quelqu'un le prévient,
-en direct, sans qu'il recharge.
+en direct, sans qu'il recharge. Une dépense se partage aussi en pourcentage ou en montant
+fixe, le programme se réordonne, et une activité s'annule sans disparaître — ses dépenses
+restent comptées.
 
 **M3 était le point de coupe** de `docs/conception.md` §9 : le produit se défend désormais
 seul.
 
-**Reste dû, hors code :** le déploiement sur une URL publique HTTPS, livrable de M1. La
-chaîne de livraison et l'accès au VPS ne sont pas tranchés.
+Depuis, deux chantiers hors jalons : le front porte un **système de design** — jetons dans
+`web/src/style.css`, coque de navigation (barre latérale au-delà de `md`, barre basse en
+dessous) — et la connexion accepte **Google** à côté du lien magique, ce qui sort le courriel
+du chemin critique. Le jeu de développement (`npm run db:seed`) pose un événement complet,
+votes, dépenses et virement en attente compris.
 
-Le jalon suivant est **M7 — finitions : partage en pourcentage et en montant fixe,
-réordonnancement des activités, annulation**. Le séquencement complet est en section 9 de
-`docs/conception.md`.
+**Reste dû, hors code :** le déploiement sur une URL publique HTTPS, livrable de M1. La
+chaîne de livraison et l'accès au VPS ne sont pas tranchés. Le même domaine débloquerait
+l'envoi de courriel vers des tiers (`docs/decisions-techniques.md` §2.8) et la connexion
+Google en production (§2.12).
+
+Le séquencement complet est en section 9 de `docs/conception.md` ; il est entièrement
+parcouru. Les chantiers suivants ne sont plus des jalons : le déploiement ci-dessus, puis ce
+que `docs/journal-decisions.md` range en « points laissés ouverts ».
 
 ## Stack
 
@@ -60,7 +70,7 @@ Monorepo `npm workspaces`, deux espaces : `api/` et `web/`.
 | Runtime | Node 24 LTS — version exacte dans `.nvmrc` |
 | API | Hono, servi par `@hono/node-server` |
 | Base | PostgreSQL 17 en conteneur, accès par Prisma 7 + `@prisma/adapter-pg` |
-| Authentification | Better Auth, greffon `magicLink` seul, **compte obligatoire** |
+| Authentification | Better Auth : greffon `magicLink` + Google en option, **compte obligatoire** |
 | Front | Vue 3 + Vite, SPA, Pinia, Vue Router, Tailwind |
 | Types partagés | Hono RPC — `web` importe `AppType` et `SessionUser` depuis le paquet `api` |
 | Carte | Leaflet, tuiles OpenStreetMap, géocodage Base Adresse Nationale — sans clé |
@@ -175,11 +185,26 @@ donc dès qu'on lance la suite. Relancer le seed avant une démonstration.
 des tables doit étendre `TABLES`. `TRUNCATE ... CASCADE` rend l'ordre indifférent, mais une
 table oubliée laisse des lignes entre les tests et les rend dépendants de leur ordre.
 
-**Prisma refuse `migrate reset` et `migrate dev` lancés par un agent.** Pour retravailler
-une migration en développement : éditer le `.sql`, puis
+**Un agent ne peut pas lancer `prisma migrate dev`, `reset` ni `diff` — et ce n'est pas
+Prisma qui refuse, c'est le bac à sable de l'agent.** Le refus est classé « Irreversible
+Local Destruction » : `migrate dev` peut proposer un `reset` qui efface la base, et il est
+interactif — il réclame un nom de migration. Le filtre est large : même `migrate diff
+--script`, pourtant en lecture seule, est bloqué. `migrate deploy` et `migrate status`
+passent.
+
+Écrire une migration sans `migrate dev`, donc : créer `api/prisma/migrations/<horodatage>_<nom>/migration.sql`
+à la main — le SQL est celui que Prisma aurait émis, prendre les migrations existantes pour
+modèle — puis, **depuis `api/`** (le chemin `../.env` en dépend), `npx prisma migrate deploy`
+et `npm run db:generate`. Vérifier par `npx prisma migrate status`, qui doit dire
+« Database schema is up to date! ». Un humain peut confirmer l'absence de dérive avec
+`npx prisma migrate dev` : « Already in sync » signifie que le `.sql` écrit à la main dit
+exactement ce que `schema.prisma` décrit.
+
+Pour retravailler une migration **déjà appliquée** : éditer le `.sql` casse sa somme de
+contrôle, il faut donc reconstruire le schéma —
 `docker exec onsort-db psql -U onsort -d onsort -c 'DROP SCHEMA public CASCADE; CREATE SCHEMA public;'`
-et `npm run db:migrate --workspace api` (qui appelle `migrate dev`) — ou demander à un
-humain de lancer `reset`. `migrate deploy` n'est pas bloqué.
+puis `npx prisma migrate deploy` depuis `api/` — ou demander à un humain de lancer `reset`.
+Les deux effacent le jeu de développement, que `npm run db:seed` repose.
 
 **PostgreSQL et JavaScript ne comparent pas les chaînes de la même façon.** La base est en
 `en_US.utf8`, dont l'ordre est linguistique : `'Z' < 'a'` y vaut **faux**, quand le même test

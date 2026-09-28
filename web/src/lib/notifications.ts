@@ -30,6 +30,13 @@ export function describeNotification(notification: Notification): string {
         : `Vous êtes invité dans le groupe « ${name} ».`
     case 'activity.proposed':
       return title === '' ? 'Une activité attend votre vote.' : `« ${title} » attend votre vote.`
+    // Le même type porte les deux sens : l'annulation se rétablit, et prévenir de l'un sans
+    // prévenir de l'autre laisserait le groupe sur une information fausse.
+    case 'activity.cancelled': {
+      const cancelled = payload.cancelled !== false
+      const verb = cancelled ? 'annulée' : 'rétablie'
+      return title === '' ? `Une activité a été ${verb}.` : `« ${title} » a été ${verb}.`
+    }
     case 'activity.decided':
       return title === '' ? 'Une activité a été tranchée.' : `« ${title} » a été tranchée.`
     case 'expense.created':

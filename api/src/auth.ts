@@ -13,6 +13,11 @@ export const auth = betterAuth({
   basePath: '/api/auth',
   database: prismaAdapter(prisma, { provider: 'postgresql' }),
   trustedOrigins: [config.appUrl],
+  // Google rend une adresse déjà vérifiée : l'identité de l'application reste l'adresse, et
+  // les invitations, les amis et la règle anti-énumération (conception §4) continuent de
+  // porter dessus. Sans clés configurées, aucun fournisseur n'est déclaré et le lien magique
+  // reste le seul chemin.
+  socialProviders: config.google === null ? {} : { google: config.google },
   databaseHooks: {
     user: {
       create: {

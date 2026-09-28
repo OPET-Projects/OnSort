@@ -600,6 +600,169 @@ Le script n'affiche désormais que l'essentiel, pour qu'aucun filtrage ne soit t
 `signIn` lit justement le lien magique dans cette sortie. L'échec apparaissait dans un test
 qui n'avait rien fait de mal.
 
+## Habillage — système de design et coque de navigation
+
+Les maquettes qui font foi vivent sur un canevas partagé : https://claude.ai/code/artifact/d5811af8-6a04-4f45-83a6-b0b13d15e74e — écrans mobiles
+en 360 et 390 px, écrans desktop en 1440, feuille des jetons, états de chargement, de
+vide et d'erreur. En cas d'écart entre le canevas et le code, c'est le code qui a tort.
+
+**Les jetons vivent dans `web/src/style.css`, jamais dans les composants.** Le front était
+écrit en utilitaires Tailwind bruts : `neutral-900`, `neutral-200`, `rounded`, sans aucune
+définition commune. Le bloc `@theme` nomme désormais les couleurs, les rayons et les ombres —
+`bg-accent`, `rounded-card`, `shadow-rest` — et Tailwind 4 les expose automatiquement. Une
+valeur écrite en dur dans un composant est donc une valeur à rapatrier dans ce fichier.
+*Ce que ça coûte si c'est mauvais* : renommer un jeton touche tous les gabarits d'un coup ;
+c'est un `sed`, pas une reprise.
+
+**La police est auto-hébergée, pas chargée depuis Google Fonts.** Un `<link>` vers
+`fonts.googleapis.com` n'aurait rien coûté en dépendances, mais il fait partir une requête
+vers un tiers à chaque visite — discutable au regard du RGPD — et l'interface change d'allure
+si le CDN est bloqué. `@fontsource-variable/plus-jakarta-sans`, épinglé, sert les fichiers
+depuis notre propre origine. C'est la seule dépendance ajoutée pour l'habillage.
+
+**La navigation devient une coque, pas des liens en clair.** Le tableau de bord portait trois
+liens soulignés vers les amis, les groupes et le calendrier ; les autres écrans en portaient
+un vers le tableau de bord, chacun au hasard de sa fin de page. `AppNav` rend la même liste
+deux fois : barre latérale au-delà de `md`, barre basse en dessous. Un écran de détail garde
+son onglet parent allumé — ouvrir un événement reste dans « Sorties ».
+*Ce que ça coûte si c'est mauvais* : une entrée de plus dans la barre est une ligne dans
+`destinations`, et les tests de `web/tests/nav.test.ts` disent immédiatement quel chemin
+allume quoi.
+
+**L'écran d'événement gagne une colonne de rappel au-delà de `md`, et rien en dessous.**
+Participants et programme retenu y sont répétés pendant qu'on saisit une dépense. Sur
+téléphone, cette colonne redirait mot pour mot l'onglet ouvert juste à côté : elle est
+simplement absente.
+
+---
+
+## Connexion — sortir le courriel du chemin critique
+
+**Brevo a été branché, puis retiré.** Resend ne livre qu'au titulaire du compte tant qu'un
+**domaine** n'est pas vérifié par DNS, ce qui rendait impossible une démonstration à
+plusieurs comptes. Brevo, qui valide une simple adresse d'expéditeur, semblait contourner le
+problème — il ne le contourne qu'à moitié : depuis les exigences Gmail/Yahoo de 2024,
+étendues à Microsoft en 2025, un expéditeur sans domaine authentifié voit son adresse
+réécrite et ses messages classés indésirables. Le contournement déplaçait la panne au lieu
+de la supprimer. Retour à Resend seul.
+
+**Ce qui règle vraiment le problème : Google.** La connexion ne passe plus par un courriel
+du tout — gratuit, sans quota, sans DNS. Et comme Google rend une adresse déjà vérifiée,
+l'identité de l'application ne bouge pas d'un pouce : invitations, amis et anti-énumération
+continuent de porter sur l'adresse (`conception.md` §4, `decisions-techniques.md` §2.12).
+*Ce que ça coûte si c'est mauvais* : `socialProviders` est un objet vide sans clés, et
+l'écran de connexion redevient ce qu'il était.
+
+**Le front demande à l'API quels fournisseurs existent**, plutôt que de le lire dans une
+variable `VITE_`. Une variable de construction vaudrait celle de l'image, pas celle du
+serveur qui répond — et un bouton proposé sans clés mène droit sur une erreur du
+fournisseur, loin de sa cause.
+
+**Les deux variables Google vont ensemble.** Une moitié seule fait échouer le démarrage avec
+un message qui la nomme. Sans cette garde, l'erreur serait apparue chez Google, au premier
+clic d'un utilisateur.
+
+**Un défaut réel trouvé en chemin : `npm test` envoyait de vrais courriels.** La suite charge
+le `.env` du développeur, clé d'envoi comprise ; depuis qu'une vraie clé y était posée,
+chaque exécution partait chez le fournisseur — sur son quota, vers les adresses inventées
+par les fixtures. La clé est désormais ignorée sous `NODE_ENV=test`. Le symptôme était
+spectaculaire : 202 tests rouges d'un coup, tous pour la même raison.
+
+**`PROTON_EMAIL` et `PROTON_PASSWORD` retirées de `.env.example`.** Jamais lues par
+`config.ts` : elles faisaient croire à un fournisseur inexistant. Proton ne propose de toute
+façon le SMTP qu'avec un abonnement payant.
+
+---
+
+## Jeu de données de développement — un événement, pas trois comptes vides
+
+**Le seed crée maintenant une sortie vivante.** Trois comptes nus obligeaient à ressaisir un
+événement, des votes et deux dépenses à la main après chaque `npm test`, qui vide la base.
+Il pose désormais un événement en cours, trois activités dont une retenue et quatre votes,
+deux dépenses aux parts figées, un virement déclaré et non confirmé, un groupe, deux
+indisponibilités, une amitié et une demande en attente.
+
+**Les dates sont relatives, jamais écrites en dur.** Un événement daté en clair devient passé
+au bout d'une semaine : il disparaît alors du tableau de bord et vide les créneaux libres, et
+la démonstration semble cassée alors que seul le calendrier a avancé.
+
+**Tout porte un identifiant préfixé `dev-`, et le seed supprime avant d'écrire.** Le rejouer
+remplace au lieu d'empiler — c'est le geste qu'on fait après chaque suite de tests.
+
+**Le seed est testé.** Non pour vérifier qu'il s'insère, mais qu'il reste cohérent avec le
+domaine : les parts somment au montant de leur dépense, les soldes dérivés tombent à zéro, et
+le virement en attente vaut exactement le déséquilibre. Un jeu de démonstration incohérent se
+verrait sur l'écran des dépenses, au pire moment.
+
+**Deuxième test qui dépendait du `.env` du développeur.** Celui de `/api/auth-providers`
+affirmait `google: false` — vrai jusqu'à ce que les clés Google soient posées en local, faux
+ensuite. Il pose désormais les deux états explicitement. Même leçon que pour la clé d'envoi :
+un test qui lit l'environnement du développeur teste sa machine, pas le code.
+
+---
+
+## Jalon M7 — pourcentage, montant fixe, réordonnancement, annulation
+
+**Une annulation se rétablit.** §3.7 ne décrit que la mise en place de `cancelled_at`, mais la
+règle du projet interdit les états absorbants. Annuler par erreur ne doit pas être définitif.
+*Coût si erroné : un bouton de moins, aucune donnée en jeu.*
+
+**Une activité annulée reste dans le programme**, barrée, et son vote se ferme. La retirer de
+la liste reviendrait à la supprimer aux yeux de l'utilisateur, ce que §3.7 refuse.
+*Coût si erroné : un filtre d'une ligne à la lecture.*
+
+**Les dépenses d'une activité annulée ne bougent pas.** §3.7 : « les dépenses associées
+survivent — un acompte non remboursable existe ». Les soldes sont calculés par événement, pas
+par activité : il n'y a donc rien à faire, et c'est justement le point à ne pas « corriger ».
+*Coût si erroné : des soldes faux, découverts tard — d'où un test qui compare les soldes avant
+et après l'annulation.*
+
+**Le réordonnancement reçoit la liste complète des identifiants**, pas un déplacement.
+Envoyer « monte celle-ci d'un cran » ferait dépendre le résultat de l'ordre supposé par le
+client, qui peut être périmé. Une liste complète est vérifiable : elle doit contenir exactement
+les activités de l'événement. *Coût si erroné : un corps de requête plus court, et des
+programmes mélangés sous concurrence.*
+
+**Réordonner et annuler sont réservés à l'administrateur.** §3.8 attribue « trancher le vote »
+et « clore l'événement » à l'administrateur ; l'ordre du programme et l'annulation relèvent de
+la même catégorie — ils engagent le groupe, pas une proposition personnelle. *Coût si erroné :
+deux gardes à retirer.*
+
+**En pourcentage, le reste suit la même règle qu'à parts égales** : les premiers participants
+triés par identifiant reçoivent un centime supplémentaire. Une seconde règle d'arrondi dans le
+même fichier finirait par diverger de la première. Le tri lui-même est devenu commun aux trois
+modes, et c'est **la comparaison par unités de code** d'un `sort()` sans argument, jamais
+`localeCompare` : les deux ne classent pas `'Z'` et `'a'` pareil, et « les premiers
+identifiants triés » désignerait alors des personnes différentes selon le mode. *Coût si
+erroné : un centime attribué à quelqu'un d'autre, et un test qui compare les deux modes le
+dirait.*
+
+**Les pourcentages sont des entiers.** Un pourcentage fractionnaire ferait dépendre le total
+de l'arithmétique flottante — 33,33 + 33,33 + 33,34 ne vaut pas exactement 100 en machine — et
+la vérification « le total fait 100 » perdrait son sens. Le domaine financier n'admet aucun
+flottant, pas même un multiplicateur. *Coût si erroné : un partage 12,5 / 87,5 impossible à
+exprimer autrement qu'en montant fixe, qui le permet déjà.*
+
+**Corriger une dépense ne peut pas être une union discriminée.** `splitMode` y est facultatif :
+réparer une faute de frappe dans un libellé ne doit ni obliger à redire le mode, ni le faire
+retomber sur sa valeur par défaut, ce qui convertirait la dépense en partage égal sans que
+personne l'ait demandé. En contrepartie, changer le **montant** d'une dépense en pourcentage
+sans redonner les pourcentages est refusé (`shares_required`) : les parts sont stockées en
+valeur absolue, et les déduire reviendrait à inventer une intention. *Coût si erroné : une
+correction en deux temps au lieu d'un.*
+
+**L'événement rend désormais l'identifiant de participation de chacun.** Parts, soldes et
+règlements sont tous indexés par participation ; un partage en pourcentage devait pouvoir
+nommer ses bénéficiaires, et le détail de l'événement ne donnait que l'identifiant
+d'utilisateur. Rien de neuf n'est exposé : les soldes portaient déjà ces identifiants vers
+tous les participants. *Coût si erroné : un champ de plus dans une réponse.*
+
+**Pas de glisser-déposer.** Il demanderait une dépendance ; deux flèches font le même travail
+et restent utilisables au clavier et au doigt. *Coût si erroné : un confort en moins sur
+écran large.*
+
+---
+
 ## Points laissés ouverts
 
 - `api/prisma.config.ts` charge `../.env`, chemin relatif au **répertoire courant** et non au
@@ -613,9 +776,6 @@ qui n'avait rien fait de mal.
 - **Déploiement M1.** `conception.md` §9 et `decisions-techniques.md` §2.10 font du
   déploiement (URL publique + HTTPS) un livrable de M1. Le code est prêt ; la chaîne de
   livraison et l'accès au VPS restent à trancher.
-- **Le partage en pourcentage et en montant fixe reste sans interface.** L'enum `split_mode`
-  porte les trois valeurs et le stockage est déjà identique dans les trois cas ; seul `equal`
-  est proposé à la saisie. §9 range les deux autres en M7.
 - **Aucun moyen de retirer un ami ni de bloquer quelqu'un.** §2.2 ne décrit ni l'un ni
   l'autre. Une amitié est aujourd'hui définitive.
 - **Les notifications ne s'effacent pas.** Elles se marquent lues, la liste est bornée à
