@@ -97,6 +97,7 @@ openssl rand -base64 32   # BETTER_AUTH_SECRET
 | `BETTER_AUTH_SECRET` | `openssl rand -base64 32`, 32 caractères au moins | l'API refuse de démarrer. Le changer plus tard invalide **toutes** les sessions ouvertes |
 | `RESEND_API_KEY` | tableau de bord Resend | l'application tourne, mais les liens de connexion restent dans les journaux du conteneur : **personne ne peut se connecter à distance** |
 | `MAIL_FROM` | `On Sort ? <no-reply@onsort.eliott-b.fr>` | l'API refuse de démarrer. Le domaine d'expédition doit être **vérifié chez Resend**, sinon les envois sont refusés |
+| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | identifiants OAuth 2.0, console Google Cloud | vides, le bouton Google n'apparaît pas et le lien magique reste le seul chemin ; une moitié seule fait échouer le démarrage. URL de redirection autorisée : `<APP_PUBLIC_URL>/api/auth/callback/google` |
 | `MAP_TILES_URL` | vide | les tuiles OpenStreetMap sont utilisées, sans clé. À renseigner seulement pour basculer vers un fournisseur |
 | `MAP_TILES_ATTRIBUTION` | vide | suit la source. Servir les tuiles d'un fournisseur sous l'attribution d'un autre serait faux |
 
