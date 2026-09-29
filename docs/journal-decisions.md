@@ -865,12 +865,28 @@ identifiant. *Coût si erroné : un déplacement de routes.*
 
 ---
 
+## Accessibilité — un nom pour chaque contrôle
+
+**Huit champs n'avaient pour libellé que leur texte indicatif** : proposer une activité, saisir
+une dépense, le lien d'invitation, ajouter un ami, créer un groupe, inviter dans un groupe. Un
+`placeholder` disparaît à la saisie et n'est pas toujours annoncé : un lecteur d'écran lisait
+« champ de saisie », sans dire lequel. Chacun porte désormais un `aria-label`.
+
+**Un test analyse les gabarits plutôt qu'un navigateur.** `web/tests/a11y.test.ts` lit chaque
+vue et chaque composant avec le compilateur de Vue et refuse un bouton ou un lien sans texte
+ni `aria-label`, un champ sans libellé, un dialogue sans nom, une image sans `alt`. Il ne
+remplace pas un passage au lecteur d'écran ; il empêche les oublis de revenir, et c'est lui
+qui a trouvé les huit cas. *Coût si erroné : une règle trop stricte à assouplir.*
+
+---
+
 ## Points laissés ouverts
 
 - La branche d'envoi réel de courriel n'est couverte par aucun test : la tester exigerait un
   appel réseau ou une bibliothèque de simulation, tous deux exclus.
-- Le parcours cliqué dans un navigateur et l'ergonomie au pouce à 375 px n'ont pas été validés
-  automatiquement — ils demandent un humain.
+- Le parcours cliqué dans un navigateur, l'ergonomie au pouce à 375 px et le passage au
+  lecteur d'écran n'ont pas été validés — ils demandent un humain. Le nom accessible de
+  chaque contrôle, lui, est vérifié par `web/tests/a11y.test.ts`.
 - **Déploiement groupé.** L'application est en ligne sur `https://onsort.eliott-b.fr`
   (Docker Compose derrière le nginx du VPS, `decisions-techniques.md` §2.10). Les évolutions
   s'accumulent sur la branche `feature` et partent ensemble, pour ménager les ressources de
