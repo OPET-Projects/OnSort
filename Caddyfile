@@ -50,6 +50,24 @@
 		# envoie l'origine **sans le chemin** : l'application est identifiée, et les jetons
 		# d'invitation qui voyagent dans les chemins ne fuient pas davantage.
 		Referrer-Policy "strict-origin-when-cross-origin"
+
+		# Appliqué : rien ici ne peut casser l'application. `frame-ancestors` empêche une
+		# page tierce d'intégrer le site pour piéger des clics — un vote, une dépense, une
+		# suppression. `X-Frame-Options` dit la même chose aux navigateurs anciens.
+		Content-Security-Policy "frame-ancestors 'none'; object-src 'none'; base-uri 'self'"
+		X-Frame-Options "DENY"
+
+		# En observation : la politique complète, que le navigateur signale dans sa console
+		# sans rien bloquer. À passer dans l'en-tête appliqué une fois la console vérifiée sur
+		# chaque écran — une erreur ici rendrait le site blanc. `img-src https:` parce que le
+		# fournisseur de tuiles est configurable (`MAP_TILES_URL`) ; `connect-src 'self'`
+		# couvre l'API et le flux SSE, servis sur la même origine.
+		Content-Security-Policy-Report-Only "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self'; connect-src 'self'; frame-ancestors 'none'; object-src 'none'; base-uri 'self'; form-action 'self'"
+
+		# Aucune de ces capacités n'est utilisée ; les couper retire une surface d'attaque à
+		# un script tiers qui trouverait le moyen de s'exécuter.
+		Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=(), usb=()"
+
 		-Server
 	}
 

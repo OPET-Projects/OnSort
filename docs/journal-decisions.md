@@ -863,6 +863,13 @@ identifiants sont des chaînes aléatoires que rien ne permet de deviner.*
 routes ; déclarées avant `/friends/:userId`, qui sinon lirait « blocks » comme un
 identifiant. *Coût si erroné : un déplacement de routes.*
 
+**Un blocage couvre aussi les invitations nominatives**, à une sortie comme à un groupe, dans
+les deux sens. Sa portée s'arrêtait d'abord aux demandes d'ami : un administrateur pouvait
+encore inviter par adresse quelqu'un qu'il avait bloqué, ou qui l'avait bloqué. Même règle
+que pour les demandes : réponse habituelle, rien d'écrit, personne de notifié, aucun
+courriel. *Coût si erroné : un administrateur surpris que son invitation n'arrive pas — il débloque
+d'abord.*
+
 ---
 
 ## Limite de connexion — la règle réelle
@@ -900,6 +907,25 @@ une table, le jour où l'API passe à plusieurs instances.*
 
 ---
 
+## En-têtes de sécurité — appliquer ce qui ne peut rien casser, observer le reste
+
+**Aucune protection contre l'intégration dans une page tierce, ni CSP, avant l'audit.** Un
+site malveillant pouvait intégrer l'application dans un cadre invisible et piéger des clics
+— un vote, une dépense, une suppression.
+
+**Deux en-têtes CSP plutôt qu'un.** L'appliqué ne porte que ce qui ne peut rien casser :
+`frame-ancestors 'none'`, `object-src 'none'`, `base-uri 'self'`. La politique complète part
+en `Report-Only` : une CSP fausse rend le site blanc, et aucun navigateur ne tourne ici pour
+la valider écran par écran. La bascule est décrite dans `deploiement.md`. *Coût si erroné :
+la protection contre l'injection de script reste en observation tant que personne ne fait
+la vérification.*
+
+**Tous les en-têtes dans la façade, sauf HSTS.** `Referrer-Policy` partait en double, posé
+par nginx et par Caddy. Dans l'image, un en-tête est versionné, testé et appliqué sans geste
+manuel sur le VPS ; nginx garde HSTS parce que c'est lui qui termine le TLS.
+
+---
+
 ## Accessibilité — un nom pour chaque contrôle
 
 **Huit champs n'avaient pour libellé que leur texte indicatif** : proposer une activité, saisir
@@ -926,14 +952,17 @@ qui a trouvé les huit cas. *Coût si erroné : une règle trop stricte à assou
   (Docker Compose derrière le nginx du VPS, `decisions-techniques.md` §2.10). Les évolutions
   s'accumulent sur la branche `feature` et partent ensemble, pour ménager les ressources de
   la machine.
-- **Un blocage n'empêche pas les invitations de groupe ou de sortie.** Sa portée s'arrête
-  aux demandes d'ami ; un admin peut encore inviter par adresse quelqu'un qu'il a bloqué, ou
-  qui l'a bloqué.
+- **Un blocage ne filtre ni les liens partageables ni les invitations antérieures.** Un lien
+  n'est adressé à personne, et une invitation reçue avant le blocage reste acceptable : c'est
+  un geste du bloqueur lui-même.
 - **Les notifications ne s'effacent pas.** Elles se marquent lues, la liste est bornée à
   cinquante, mais rien ne purge l'ancien.
 - **La recherche de lieu par nom n'existe pas.** §2.7 l'écarte au MVP : Photon demande 8 à
   16 Go de RAM. L'autocomplétion d'adresse la remplace en pratique, mais chercher « le Louvre »
-  ne marche pas — il faut une adresse.
+  ne marche pas — il faut une adresse. Réexaminée après la mise en ligne et **maintenue hors
+  périmètre** : les instances publiques (Photon de komoot, Nominatim) imposent un usage
+  modéré, et Nominatim interdit l'autocomplétion. Un hébergement propre reste la seule voie
+  sûre, et il ne tient pas sur le VPS partagé.
 - **Un solde est recalculé à chaque lecture**, sans cache. C'est délibéré et non mesuré : les
   volumes d'une sortie entre amis ne le justifient pas. À reconsidérer seulement avec un
   profil sous les yeux.

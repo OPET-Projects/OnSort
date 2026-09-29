@@ -80,7 +80,7 @@ services:
       # **Boucle locale uniquement.** Le TLS est terminé par le nginx de la machine, qui
       # relaie vers ce port ; publier sur 0.0.0.0 exposerait l'application en clair à
       # l'internet, court-circuitant le proxy et ses certificats.
-      - '127.0.0.1:${HTTP_PORT:-8080}:8080'
+      - '127.0.0.1:${HTTP_PORT:-6666}:8080'
     depends_on:
       - api
 
