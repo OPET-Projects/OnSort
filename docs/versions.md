@@ -62,7 +62,7 @@ Biome remplace ESLint et Prettier : un outil, une configuration.
 
 | Paquet | Version | |
 |---|---|---|
-| `hono` | 4.13.7 | |
+| `hono` | 4.13.9 | |
 | `@hono/node-server` | 2.1.1 | adaptateur Node |
 | `@hono/zod-validator` | 0.9.1 | |
 | `zod` | 4.5.4 | |
@@ -72,7 +72,7 @@ Biome remplace ESLint et Prettier : un outil, une configuration.
 | `better-auth` | 1.7.3 | |
 | `resend` | 6.26.0 | |
 | `prisma` | 7.10.0 | développement |
-| `tsx` | 4.23.13 | développement |
+| `tsx` | 4.23.15 | développement |
 | `typescript` | 6.0.3 | développement |
 | `vitest` | 4.1.11 | développement |
 | `@vitest/coverage-v8` | 4.1.11 | développement |
@@ -88,8 +88,9 @@ Biome remplace ESLint et Prettier : un outil, une configuration.
 | `pinia` | 4.0.3 | |
 | `@vue/devtools-api` | 8.2.1 | peer de Pinia, déclaré explicitement |
 | `leaflet` | 1.9.4 | |
+| `hono` | 4.13.9 | client typé Hono RPC ; même version que l'API |
 | `@fontsource-variable/plus-jakarta-sans` | 5.3.0 | police auto-hébergée, aucun appel à un CDN tiers |
-| `vite` | 7.3.6 | développement |
+| `vite` | 8.3.1 | développement |
 | `@vitejs/plugin-vue` | 6.0.8 | développement |
 | `tailwindcss` | 4.3.3 | développement |
 | `@tailwindcss/vite` | 4.3.3 | doit suivre `tailwindcss` à l'identique |
@@ -106,9 +107,9 @@ Biome remplace ESLint et Prettier : un outil, une configuration.
 |---|---|---|
 | `better-auth@1.7.3` : `vitest ^2 \|\| ^3 \|\| ^4` | **Vitest 4.1.11**, pas 5.0.0 | **`npm install` échoue** |
 | `better-auth@1.7.3` : `prisma` et `@prisma/client ^5 \|\| ^6 \|\| ^7` | Prisma 7.10.0 | bloquant |
-| `vitest@4.1.11` : `vite ^6 \|\| ^7 \|\| ^8` | Vite 7.3.6 retenu (voir 6.4) | — |
-| `vue-router@5.3.1` : `pinia ^3.0.4 \|\| ^4.0.2`, `vite ^7.3.0 \|\| ^8.0.0` | Pinia 4.0.3, Vite 7.3.6 | — |
-| `@hono/zod-validator@0.9.1` : `hono >=4.11.2`, `zod ^3.25.0 \|\| ^4.0.0` | Hono 4.13.7, Zod 4.5.4 | — |
+| `vitest@4.1.11` : `vite ^6 \|\| ^7 \|\| ^8` | Vite 8.3.1 (la rétrogradation en 7 a été annulée, voir 6.4) | — |
+| `vue-router@5.3.1` : `pinia ^3.0.4 \|\| ^4.0.2`, `vite ^7.3.0 \|\| ^8.0.0` | Pinia 4.0.3, Vite 8.3.1 | — |
+| `@hono/zod-validator@0.9.1` : `hono >=4.11.2`, `zod ^3.25.0 \|\| ^4.0.0` | Hono 4.13.9, Zod 4.5.4 | — |
 | `@hono/node-server@2.1.1` : `hono ^4` | Hono 4.x | — |
 
 Le premier point mérite attention : le peer **optionnel** de Better Auth sur Vitest fait
@@ -125,7 +126,8 @@ ne coûte donc rien d'autre.
 | Node 26.8.1 | 24.20.0 | Ligne *Current*, pas LTS |
 | Vitest 5.0.0 | 4.1.11 | Voir section 5 |
 | `vue` 3.6.0-beta.17 | 3.5.42 | Version bêta |
-| `@types/node` 26.5.0 | 24.13.3 | Doit correspondre à la ligne du runtime |
+| `@types/node` 26.6.3 | 24.13.3 | Doit correspondre à la ligne du runtime. Proposée par Dependabot et fusionnée, puis ramenée |
+| `@vitest/coverage-v8` 5.0.2 | 4.1.11 | Exige Vitest 5.0.2 à l'identique ; Vitest reste en 4 (section 5). Proposée par Dependabot et fusionnée — `npm ls` déclarait l'arbre invalide — puis ramenée |
 
 ## 6. Pièges rencontrés à l'installation
 
@@ -255,3 +257,9 @@ bougent que si quelqu'un y pense, correctifs de sécurité compris. La PR se rel
 autre montée : la CI joue la vérification complète, et une montée de `prisma`,
 `@prisma/engines` ou `esbuild` y échoue tant que `allowScripts` n'a pas été mis à jour à la
 main — c'est le garde-fou voulu (§6.3).
+
+**Certaines montées majeures sont exclues** dans `.github/dependabot.yml` : `@types/node`
+(ligne du runtime), `vitest` et `@vitest/coverage-v8` (plafond de Better Auth). Dependabot en
+avait proposé deux, fusionnées sans que rien ne casse visiblement : la CI n'exécute pas la
+couverture, et des types trop récents ne se trahissent qu'à l'usage d'une API absente de
+Node 24. Une contrainte levée se lève aussi dans ce fichier.

@@ -39,15 +39,20 @@ jobs:
       MAIL_FROM: On Sort ? <no-reply@example.test>
 
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-node@v5
+      - uses: actions/setup-node@v7
         with:
           node-version-file: .nvmrc
           cache: npm
 
       - name: Installer les dépendances
         run: npm ci
+
+      # `npm ci` installe un arbre qui viole une dépendance pair sans échouer ; `npm ls`, lui,
+      # le refuse. Une montée de `@vitest/coverage-v8` sans Vitest est passée ainsi.
+      - name: Cohérence de l'arbre de dépendances
+        run: npm ls > /dev/null
 
       - name: Format et lint
         run: npx biome ci .

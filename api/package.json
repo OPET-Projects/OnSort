@@ -24,7 +24,7 @@
     "@prisma/adapter-pg": "7.10.0",
     "@prisma/client": "7.10.0",
     "better-auth": "1.7.3",
-    "hono": "4.13.7",
+    "hono": "4.13.9",
     "pg": "8.23.0",
     "resend": "6.26.0",
     "zod": "4.5.4"
@@ -34,7 +34,7 @@
     "@types/pg": "8.23.1",
     "@vitest/coverage-v8": "4.1.11",
     "prisma": "7.10.0",
-    "tsx": "4.23.13",
+    "tsx": "4.23.15",
     "typescript": "6.0.3",
     "vitest": "4.1.11"
   }
