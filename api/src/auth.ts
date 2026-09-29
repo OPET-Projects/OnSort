@@ -42,11 +42,11 @@ export const auth = betterAuth({
       httpOnly: true,
     },
     ipAddress: {
-      // Better Auth limite `/sign-in/*` à trois requêtes par dix secondes en production,
-      // **par adresse IP**. Derrière un mandataire, il ne voit que celle du mandataire :
-      // sans cette ligne il n'en résout aucune et retombe sur « un seul seau partagé par
-      // chemin » — trois demandes de lien magique dans le monde entier, et plus personne ne
-      // se connecte pendant dix secondes.
+      // Better Auth limite les demandes de lien magique en production, **par adresse IP**
+      // (règle posée plus bas, dans le greffon). Derrière un mandataire, il ne voit que
+      // celle du mandataire : sans cette ligne il n'en résout aucune et retombe sur « un
+      // seul seau partagé par chemin » — cinq demandes par minute dans le monde entier, et
+      // plus personne ne se connecte.
       //
       // `x-real-ip` plutôt que `x-forwarded-for` : nginx **écrase** le premier avec
       // `$remote_addr`, alors que le second est une liste à laquelle le client peut
@@ -58,6 +58,10 @@ export const auth = betterAuth({
   plugins: [
     magicLink({
       expiresIn: 60 * 15,
+      // Cette règle **remplace** la règle générique de `/sign-in/*` (3 par 10 s) pour la
+      // demande et la vérification du lien. Écrite en clair, bien qu'égale au défaut du
+      // greffon, pour qu'une montée de version ne la change pas en silence.
+      rateLimit: { window: 60, max: 5 },
       async sendMagicLink({ email, url }) {
         await mailer.send({
           to: email,
