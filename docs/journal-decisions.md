@@ -936,7 +936,10 @@ manuel sur le VPS ; nginx garde HSTS parce que c'est lui qui termine le TLS.
   cinquante, mais rien ne purge l'ancien.
 - **La recherche de lieu par nom n'existe pas.** §2.7 l'écarte au MVP : Photon demande 8 à
   16 Go de RAM. L'autocomplétion d'adresse la remplace en pratique, mais chercher « le Louvre »
-  ne marche pas — il faut une adresse.
+  ne marche pas — il faut une adresse. Réexaminée après la mise en ligne et **maintenue hors
+  périmètre** : les instances publiques (Photon de komoot, Nominatim) imposent un usage
+  modéré, et Nominatim interdit l'autocomplétion. Un hébergement propre reste la seule voie
+  sûre, et il ne tient pas sur le VPS partagé.
 - **Un solde est recalculé à chaque lecture**, sans cache. C'est délibéré et non mesuré : les
   volumes d'une sortie entre amis ne le justifient pas. À reconsidérer seulement avec un
   profil sous les yeux.
