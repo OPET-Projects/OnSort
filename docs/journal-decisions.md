@@ -863,6 +863,13 @@ identifiants sont des chaînes aléatoires que rien ne permet de deviner.*
 routes ; déclarées avant `/friends/:userId`, qui sinon lirait « blocks » comme un
 identifiant. *Coût si erroné : un déplacement de routes.*
 
+**Un blocage couvre aussi les invitations nominatives**, à une sortie comme à un groupe, dans
+les deux sens. Sa portée s'arrêtait d'abord aux demandes d'ami : un administrateur pouvait
+encore inviter par adresse quelqu'un qu'il avait bloqué, ou qui l'avait bloqué. Même règle
+que pour les demandes : réponse habituelle, rien d'écrit, personne de notifié, aucun
+courriel. *Coût si erroné : un administrateur surpris que son invitation n'arrive pas — il débloque
+d'abord.*
+
 ---
 
 ## Points laissés ouverts
@@ -875,9 +882,9 @@ identifiant. *Coût si erroné : un déplacement de routes.*
   (Docker Compose derrière le nginx du VPS, `decisions-techniques.md` §2.10). Les évolutions
   s'accumulent sur la branche `feature` et partent ensemble, pour ménager les ressources de
   la machine.
-- **Un blocage n'empêche pas les invitations de groupe ou de sortie.** Sa portée s'arrête
-  aux demandes d'ami ; un admin peut encore inviter par adresse quelqu'un qu'il a bloqué, ou
-  qui l'a bloqué.
+- **Un blocage ne filtre ni les liens partageables ni les invitations antérieures.** Un lien
+  n'est adressé à personne, et une invitation reçue avant le blocage reste acceptable : c'est
+  un geste du bloqueur lui-même.
 - **Les notifications ne s'effacent pas.** Elles se marquent lues, la liste est bornée à
   cinquante, mais rien ne purge l'ancien.
 - **La recherche de lieu par nom n'existe pas.** §2.7 l'écarte au MVP : Photon demande 8 à

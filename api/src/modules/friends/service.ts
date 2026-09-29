@@ -1,5 +1,6 @@
 import { config } from '../../config.ts'
 import { prisma } from '../../db.ts'
+import { blockedEitherWay } from '../../lib/blocks.ts'
 import { renderEmail } from '../../lib/email.ts'
 import { normalisePair } from '../../lib/friendship.ts'
 import { ApiError } from '../../lib/http.ts'
@@ -42,21 +43,6 @@ async function acceptAndSeal(requestId: string, firstUserId: string, secondUserI
 
     await tx.friendship.upsert({ where: { userAId_userBId: pair }, create: pair, update: {} })
   })
-}
-
-// Un blocage, dans un sens ou dans l'autre, rend toute demande entre deux personnes
-// silencieuse : même réponse, rien d'écrit, personne de notifié. Le bloqué ne doit pas
-// pouvoir déduire qu'il l'est.
-async function blockedEitherWay(first: string, second: string): Promise<boolean> {
-  const count = await prisma.userBlock.count({
-    where: {
-      OR: [
-        { blockerId: first, blockedId: second },
-        { blockerId: second, blockedId: first },
-      ],
-    },
-  })
-  return count > 0
 }
 
 export async function requestFriendship(userId: string, input: FriendRequestInput) {
