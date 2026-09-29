@@ -16,7 +16,7 @@ termine le TLS. Le choix et ses écartés sont consignés dans
  ┌────▼──────────────────┐
  │  nginx (déjà présent) │  certificat, TLS
  └────┬──────────────────┘
-      │ HTTP, 127.0.0.1:8080
+      │ HTTP, 127.0.0.1:6666
  ┌────▼──────────────────────────────────┐
  │  pile Docker « onsort »               │
  │                                       │
@@ -85,15 +85,15 @@ Sur le VPS, dans `.env.production`. Ce fichier ne quitte jamais la machine : il 
 versionné, ni transmis par le déploiement.
 
 ```sh
-openssl rand -base64 24   # POSTGRES_PASSWORD
+openssl rand -hex 24      # POSTGRES_PASSWORD — hexadécimal, voir le tableau
 openssl rand -base64 32   # BETTER_AUTH_SECRET
 ```
 
 | Variable | Valeur | Ce qui arrive si elle manque ou est fausse |
 | --- | --- | --- |
 | `APP_PUBLIC_URL` | `https://onsort.eliott-b.fr` | l'API refuse de démarrer. Une valeur fausse produit des liens magiques et des invitations qui ne mènent nulle part, et Better Auth rejette l'origine |
-| `HTTP_PORT` | `8080` | défaut à 8080. À changer si le port est déjà pris sur la machine |
-| `POSTGRES_PASSWORD` | `openssl rand -base64 24` | l'API refuse de démarrer |
+| `HTTP_PORT` | `6666` | doit valoir **exactement** le `proxy_pass` du bloc nginx, sinon nginx répond 502. 6666 parce que le VPS est partagé et que 8080 y est pris ; ailleurs, changer les deux ensemble |
+| `POSTGRES_PASSWORD` | `openssl rand -hex 24` | l'API refuse de démarrer. **Hexadécimal, pas base64** : le mot de passe est placé tel quel dans l'URL de connexion, et un `/` ou un `+` la casse — `migrate` s'arrête sur `P1013 invalid port number`. C'est ce qui a fait échouer le premier déploiement |
 | `BETTER_AUTH_SECRET` | `openssl rand -base64 32`, 32 caractères au moins | l'API refuse de démarrer. Le changer plus tard invalide **toutes** les sessions ouvertes |
 | `RESEND_API_KEY` | tableau de bord Resend | l'application tourne, mais les liens de connexion restent dans les journaux du conteneur : **personne ne peut se connecter à distance** |
 | `MAIL_FROM` | `On Sort ? <no-reply@onsort.eliott-b.fr>` | l'API refuse de démarrer. Le domaine d'expédition doit être **vérifié chez Resend**, sinon les envois sont refusés |
@@ -107,7 +107,7 @@ Aucune de ces valeurs n'apparaît dans le dépôt, et aucune ne transite par Git
 
 ```sh
 docker compose -f docker-compose.prod.yml --env-file .env.production up -d --build
-curl -fsS http://127.0.0.1:8080/api/health   # {"status":"ok"}
+curl -fsS http://127.0.0.1:6666/api/health   # {"status":"ok"}
 ```
 
 Tant que nginx n'est pas configuré, l'application n'écoute que sur la boucle locale. C'est
@@ -134,9 +134,29 @@ silence si on la retire :
 | `proxy_buffering off` | un flux SSE ne se ferme jamais, donc le tampon ne se vide jamais : le temps réel disparaît sans aucune erreur |
 | `proxy_read_timeout 1h` | la coupure par défaut à 60 s ferme le flux sans cesse, et le client passe son temps à se reconnecter |
 | `proxy_set_header X-Real-IP` | sans elle, Better Auth ne résout aucune adresse et limite les connexions dans un seau **partagé par tous les visiteurs** |
-| `Referrer-Policy: strict-origin-when-cross-origin` | `same-origin` supprimerait l'en-tête que les serveurs de tuiles OpenStreetMap utilisent pour identifier l'application, mettant l'usage hors de leur politique |
 
 Puis `nginx -t && systemctl reload nginx`.
+
+### En-têtes de sécurité
+
+nginx ne pose que HSTS, parce qu'il termine le TLS. Tous les autres viennent de la façade,
+dans l'image (`Caddyfile`), et un test (`api/tests/facade.test.ts`) les épingle :
+
+| En-tête | Rôle |
+| --- | --- |
+| `Referrer-Policy: strict-origin-when-cross-origin` | `same-origin` supprimerait l'en-tête que les serveurs de tuiles OpenStreetMap utilisent pour identifier l'application ; celui-ci envoie l'origine sans le chemin, où voyagent les jetons |
+| `Content-Security-Policy` | **appliqué** : `frame-ancestors 'none'` (aucune page tierce ne peut intégrer le site pour piéger des clics), `object-src 'none'`, `base-uri 'self'` |
+| `Content-Security-Policy-Report-Only` | **en observation** : la politique complète. Le navigateur signale les violations dans sa console sans rien bloquer |
+| `X-Frame-Options: DENY` | la même interdiction d'intégration, pour les navigateurs anciens |
+| `Permissions-Policy` | caméra, micro, géolocalisation, paiement et USB coupés : l'application ne s'en sert pas |
+
+**Passer la CSP complète en appliqué** demande un humain : ouvrir chaque écran (connexion,
+tableau de bord, événement et sa carte, groupes, calendrier, amis), vérifier que la console
+ne signale aucune violation, puis déplacer la politique de l'en-tête `-Report-Only` vers
+l'en-tête appliqué. Le faire sans cette vérification risque un site blanc.
+
+Un VPS installé avant ce changement porte encore `Referrer-Policy` dans son bloc nginx :
+recopier le bloc versionné le retire, sinon l'en-tête part en double, sans autre effet.
 
 > **Le TLS doit être terminé quelque part.** Les cookies de session sont posés en `secure`
 > dès que `NODE_ENV` vaut `production` (`api/src/auth.ts`) : un navigateur ne les renvoie pas
