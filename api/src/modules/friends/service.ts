@@ -3,6 +3,7 @@ import { prisma } from '../../db.ts'
 import { renderEmail } from '../../lib/email.ts'
 import { normalisePair } from '../../lib/friendship.ts'
 import { ApiError } from '../../lib/http.ts'
+import { consumeInvitationQuota } from '../../lib/invitation-quota.ts'
 import { mailer } from '../../lib/mailer.ts'
 import { notify } from '../../lib/notify.ts'
 import type { FriendRequestInput } from './schema.ts'
@@ -67,6 +68,10 @@ export async function requestFriendship(userId: string, input: FriendRequestInpu
     // répondre n'apprend rien à personne.
     throw new ApiError('self_friend_request', 400, 'On ne se demande pas soi-même en ami.')
   }
+
+  // Compté que l'adresse ait un compte ou non : une demande à un inscrit n'envoie pas de
+  // courriel, mais la compter seule dirait lesquelles le sont.
+  consumeInvitationQuota(userId)
 
   // Correspondance stricte sur l'adresse, jamais partielle (§4).
   const target = await prisma.user.findUnique({ where: { email: input.email } })
