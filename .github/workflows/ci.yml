@@ -52,6 +52,10 @@ jobs:
       - name: Format et lint
         run: npx biome ci .
 
+      # Les avis connus sont tolérés nommément (docs/versions.md §7) ; tout autre échoue.
+      - name: Audit des dépendances
+        run: npm run audit:deps
+
       - name: Valider le schéma Prisma
         run: npx prisma validate --schema api/prisma/schema.prisma
 

@@ -20,6 +20,8 @@ export type NotificationType =
   | 'settlement.declared'
   | 'settlement.confirmed'
 
+const RETENTION_MS = 30 * 86_400_000
+
 type NotifyInput = {
   userIds: readonly string[]
   type: NotificationType
@@ -55,6 +57,17 @@ export async function notify(input: NotifyInput): Promise<void> {
       // revérifiés à l'émission.
       publish(userRoom(row.userId), { type: 'notification.created', id: row.id })
     }
+
+    // Rétention, au passage plutôt que par une tâche planifiée qu'il faudrait exploiter :
+    // une notification lue depuis plus de trente jours n'apprend plus rien. Les non-lues
+    // restent, quel que soit leur âge — les effacer ferait disparaître une information
+    // jamais vue.
+    await prisma.notification.deleteMany({
+      where: {
+        userId: { in: recipients },
+        readAt: { lt: new Date(Date.now() - RETENTION_MS) },
+      },
+    })
   } catch (error) {
     // **Une notification qui échoue n'échoue pas l'action.** Perdre une dépense saisie parce
     // qu'une ligne d'information n'a pas pu s'écrire serait le pire des échanges.
