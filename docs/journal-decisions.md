@@ -965,6 +965,25 @@ qui a trouvé les huit cas. *Coût si erroné : une règle trop stricte à assou
 
 ---
 
+## Écran d'un événement — découpé en onglets
+
+**`EventView.vue` passe de 960 à 255 lignes.** Chaque onglet devient un composant de
+`web/src/components/event/` — programme, dépenses, carte, participants — plus la colonne de
+côté ; la vue garde les données, le flux temps réel, l'en-tête et la mise en page. Les onglets
+reçoivent ce qu'ils affichent et les fonctions qu'ils déclenchent, en props : une fonction
+rend sa promesse, et le formulaire peut afficher l'erreur à l'endroit du geste, ce qu'un
+événement émis ne permet pas.
+
+**Un découpage ne doit rien changer, et deux choses auraient changé en silence.** La
+configuration de la carte reste chargée par la vue : dans l'onglet, elle serait redemandée à
+chaque ouverture. Le bandeau « lien copié » reste dans la vue : dans l'onglet, il disparaîtrait
+si l'on en change dans les trois secondes. Un jeu de tests de caractérisation —
+`web/tests/event-view.test.ts`, écrit **avant** le découpage — décrit chaque onglet et chaque
+geste de l'extérieur ; il est passé à l'identique. *Coût si erroné : aucun comportement,
+seulement l'endroit où vit le code.*
+
+---
+
 ## Points laissés ouverts
 
 - Le parcours cliqué dans un navigateur, l'ergonomie au pouce à 375 px et le passage au
