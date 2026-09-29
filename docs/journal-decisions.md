@@ -865,6 +865,25 @@ identifiant. *Coût si erroné : un déplacement de routes.*
 
 ---
 
+## En-têtes de sécurité — appliquer ce qui ne peut rien casser, observer le reste
+
+**Aucune protection contre l'intégration dans une page tierce, ni CSP, avant l'audit.** Un
+site malveillant pouvait intégrer l'application dans un cadre invisible et piéger des clics
+— un vote, une dépense, une suppression.
+
+**Deux en-têtes CSP plutôt qu'un.** L'appliqué ne porte que ce qui ne peut rien casser :
+`frame-ancestors 'none'`, `object-src 'none'`, `base-uri 'self'`. La politique complète part
+en `Report-Only` : une CSP fausse rend le site blanc, et aucun navigateur ne tourne ici pour
+la valider écran par écran. La bascule est décrite dans `deploiement.md`. *Coût si erroné :
+la protection contre l'injection de script reste en observation tant que personne ne fait
+la vérification.*
+
+**Tous les en-têtes dans la façade, sauf HSTS.** `Referrer-Policy` partait en double, posé
+par nginx et par Caddy. Dans l'image, un en-tête est versionné, testé et appliqué sans geste
+manuel sur le VPS ; nginx garde HSTS parce que c'est lui qui termine le TLS.
+
+---
+
 ## Points laissés ouverts
 
 - La branche d'envoi réel de courriel n'est couverte par aucun test : la tester exigerait un
