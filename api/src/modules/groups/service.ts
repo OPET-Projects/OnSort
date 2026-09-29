@@ -1,9 +1,11 @@
 import { config } from '../../config.ts'
 import { prisma } from '../../db.ts'
 import type { Prisma } from '../../generated/prisma/client.ts'
+import { blockedEitherWay } from '../../lib/blocks.ts'
 import { freeSlots } from '../../lib/calendar.ts'
 import { renderEmail } from '../../lib/email.ts'
 import { ApiError } from '../../lib/http.ts'
+import { consumeInvitationQuota } from '../../lib/invitation-quota.ts'
 import { mailer } from '../../lib/mailer.ts'
 import { notify } from '../../lib/notify.ts'
 import { canManageGroup, type GroupRole } from '../../lib/permissions.ts'
@@ -235,8 +237,14 @@ export async function inviteToGroup(userId: string, groupId: string, input: Invi
     throw new ApiError('forbidden', 403, 'Seul un administrateur du groupe peut inviter.')
   }
 
+  consumeInvitationQuota(userId)
+
   // Correspondance stricte sur l'adresse, jamais partielle (§4).
   const invited = await prisma.user.findUnique({ where: { email: input.email } })
+
+  if (invited !== null && (await blockedEitherWay(userId, invited.id))) {
+    return { status: 'sent' as const }
+  }
 
   const invitation = await prisma.invitation.create({
     data: {

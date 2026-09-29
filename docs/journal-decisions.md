@@ -863,26 +863,145 @@ identifiants sont des chaînes aléatoires que rien ne permet de deviner.*
 routes ; déclarées avant `/friends/:userId`, qui sinon lirait « blocks » comme un
 identifiant. *Coût si erroné : un déplacement de routes.*
 
+**Un blocage couvre aussi les invitations nominatives**, à une sortie comme à un groupe, dans
+les deux sens. Sa portée s'arrêtait d'abord aux demandes d'ami : un administrateur pouvait
+encore inviter par adresse quelqu'un qu'il avait bloqué, ou qui l'avait bloqué. Même règle
+que pour les demandes : réponse habituelle, rien d'écrit, personne de notifié, aucun
+courriel. *Coût si erroné : un administrateur surpris que son invitation n'arrive pas — il débloque
+d'abord.*
+
+---
+
+## Limite de connexion — la règle réelle
+
+**La documentation annonçait 3 requêtes par 10 secondes ; la connexion par lien en admet 5
+par minute.** Un audit en production a envoyé quatre demandes d'affilée, toutes acceptées, et
+a d'abord conclu à une limite cassée. Elle ne l'était pas : le greffon `magicLink` porte sa
+propre règle, qui **remplace** la règle générique de `/sign-in/*` pour la demande et la
+vérification du lien. La règle générique ne s'applique plus qu'aux autres connexions, Google
+compris.
+
+La règle est désormais écrite en clair dans `auth.ts`, bien qu'égale au défaut, et un test
+l'épingle : une montée de version de Better Auth ne peut plus la changer sans qu'on le voie,
+et la doc ne peut plus diverger du code en silence. *Coût si erroné : deux nombres.*
+
+---
+
+## Plafond des invitations par courriel
+
+**Vingt invitations par heure et par compte, un budget commun aux trois routes** qui envoient
+un courriel vers une adresse choisie — sortie, groupe, ami inconnu. En ligne, sans plafond, un
+seul compte faisait de l'application un relais de spam sous notre domaine : quota Resend
+épuisé, puis domaine classé indésirable, et les liens de connexion avec. Séparés, les budgets
+se contourneraient en alternant les routes. Au-delà : `429 too_many_invitations`, avec
+`retryAfterSeconds`. *Coût si erroné : une constante à changer.*
+
+**Chaque tentative compte, que l'adresse ait un compte ou non.** Une demande d'ami vers un
+inscrit n'envoie pas de courriel ; ne compter que les envois réels ferait du plafond un oracle
+d'énumération (§4). Le décompte vient après le contrôle d'autorisation : un appel refusé ne
+consomme rien. Un lien partageable, qui n'envoie rien, n'est pas compté.
+
+**En mémoire, comme le bus SSE.** Un seul processus applicatif est supposé ; un redémarrage
+remet les compteurs à zéro, acceptable pour une protection contre l'abus. *Coût si erroné :
+une table, le jour où l'API passe à plusieurs instances.*
+
+---
+
+## En-têtes de sécurité — appliquer ce qui ne peut rien casser, observer le reste
+
+**Aucune protection contre l'intégration dans une page tierce, ni CSP, avant l'audit.** Un
+site malveillant pouvait intégrer l'application dans un cadre invisible et piéger des clics
+— un vote, une dépense, une suppression.
+
+**Deux en-têtes CSP plutôt qu'un.** L'appliqué ne porte que ce qui ne peut rien casser :
+`frame-ancestors 'none'`, `object-src 'none'`, `base-uri 'self'`. La politique complète part
+en `Report-Only` : une CSP fausse rend le site blanc, et aucun navigateur ne tourne ici pour
+la valider écran par écran. La bascule est décrite dans `deploiement.md`. *Coût si erroné :
+la protection contre l'injection de script reste en observation tant que personne ne fait
+la vérification.*
+
+**Tous les en-têtes dans la façade, sauf HSTS.** `Referrer-Policy` partait en double, posé
+par nginx et par Caddy. Dans l'image, un en-tête est versionné, testé et appliqué sans geste
+manuel sur le VPS ; nginx garde HSTS parce que c'est lui qui termine le TLS.
+
+---
+
+## Rétention des notifications
+
+**Une notification lue depuis plus de trente jours est effacée ; une non-lue ne l'est
+jamais.** Rien ne purgeait l'ancien, et la table grossissait sans borne. Effacer une non-lue
+ferait disparaître une information que personne n'a vue. *Coût si erroné : une constante.*
+
+**Au passage, pas par une tâche planifiée.** La purge suit l'écriture d'une notification,
+pour les seuls destinataires, dans le même bloc protégé : un échec reste journalisé et
+n'interrompt pas l'action. Un cron serait une pièce de plus à exploiter sur le VPS, et un
+compte qui ne reçoit plus rien ne grossit plus non plus. *Coût si erroné : les lignes d'un
+compte inactif restent jusqu'à sa prochaine notification.*
+
+---
+
+## La branche d'envoi réel, enfin testée
+
+**Il ne fallait ni réseau ni bibliothèque de simulation, seulement une injection.** Le
+journal tenait cette branche pour intestable. `createMailer` accepte désormais un `client`
+qui a la forme de Resend — le vrai par défaut — et les tests lui passent une doublure de dix
+lignes : ce qui part chez le fournisseur, l'absence de `html` quand il n'y en a pas, et
+l'erreur lisible quand il refuse. *Coût si erroné : un paramètre optionnel de plus.*
+
+---
+
+## Accessibilité — un nom pour chaque contrôle
+
+**Huit champs n'avaient pour libellé que leur texte indicatif** : proposer une activité, saisir
+une dépense, le lien d'invitation, ajouter un ami, créer un groupe, inviter dans un groupe. Un
+`placeholder` disparaît à la saisie et n'est pas toujours annoncé : un lecteur d'écran lisait
+« champ de saisie », sans dire lequel. Chacun porte désormais un `aria-label`.
+
+**Un test analyse les gabarits plutôt qu'un navigateur.** `web/tests/a11y.test.ts` lit chaque
+vue et chaque composant avec le compilateur de Vue et refuse un bouton ou un lien sans texte
+ni `aria-label`, un champ sans libellé, un dialogue sans nom, une image sans `alt`. Il ne
+remplace pas un passage au lecteur d'écran ; il empêche les oublis de revenir, et c'est lui
+qui a trouvé les huit cas. *Coût si erroné : une règle trop stricte à assouplir.*
+
+---
+
+## Écran d'un événement — découpé en onglets
+
+**`EventView.vue` passe de 960 à 255 lignes.** Chaque onglet devient un composant de
+`web/src/components/event/` — programme, dépenses, carte, participants — plus la colonne de
+côté ; la vue garde les données, le flux temps réel, l'en-tête et la mise en page. Les onglets
+reçoivent ce qu'ils affichent et les fonctions qu'ils déclenchent, en props : une fonction
+rend sa promesse, et le formulaire peut afficher l'erreur à l'endroit du geste, ce qu'un
+événement émis ne permet pas.
+
+**Un découpage ne doit rien changer, et deux choses auraient changé en silence.** La
+configuration de la carte reste chargée par la vue : dans l'onglet, elle serait redemandée à
+chaque ouverture. Le bandeau « lien copié » reste dans la vue : dans l'onglet, il disparaîtrait
+si l'on en change dans les trois secondes. Un jeu de tests de caractérisation —
+`web/tests/event-view.test.ts`, écrit **avant** le découpage — décrit chaque onglet et chaque
+geste de l'extérieur ; il est passé à l'identique. *Coût si erroné : aucun comportement,
+seulement l'endroit où vit le code.*
+
 ---
 
 ## Points laissés ouverts
 
-- La branche d'envoi réel de courriel n'est couverte par aucun test : la tester exigerait un
-  appel réseau ou une bibliothèque de simulation, tous deux exclus.
-- Le parcours cliqué dans un navigateur et l'ergonomie au pouce à 375 px n'ont pas été validés
-  automatiquement — ils demandent un humain.
+- Le parcours cliqué dans un navigateur, l'ergonomie au pouce à 375 px et le passage au
+  lecteur d'écran n'ont pas été validés — ils demandent un humain. Le nom accessible de
+  chaque contrôle, lui, est vérifié par `web/tests/a11y.test.ts`.
 - **Déploiement groupé.** L'application est en ligne sur `https://onsort.eliott-b.fr`
   (Docker Compose derrière le nginx du VPS, `decisions-techniques.md` §2.10). Les évolutions
   s'accumulent sur la branche `feature` et partent ensemble, pour ménager les ressources de
   la machine.
-- **Un blocage n'empêche pas les invitations de groupe ou de sortie.** Sa portée s'arrête
-  aux demandes d'ami ; un admin peut encore inviter par adresse quelqu'un qu'il a bloqué, ou
-  qui l'a bloqué.
-- **Les notifications ne s'effacent pas.** Elles se marquent lues, la liste est bornée à
-  cinquante, mais rien ne purge l'ancien.
+- **Un blocage ne filtre ni les liens partageables ni les invitations antérieures.** Un lien
+  n'est adressé à personne, et une invitation reçue avant le blocage reste acceptable : c'est
+  un geste du bloqueur lui-même.
 - **La recherche de lieu par nom n'existe pas.** §2.7 l'écarte au MVP : Photon demande 8 à
   16 Go de RAM. L'autocomplétion d'adresse la remplace en pratique, mais chercher « le Louvre »
-  ne marche pas — il faut une adresse.
+  ne marche pas — il faut une adresse. Réexaminée après la mise en ligne et **maintenue hors
+  périmètre** : les instances publiques (Photon de komoot, Nominatim) imposent un usage
+  modéré, et Nominatim interdit l'autocomplétion. Un hébergement propre reste la seule voie
+  sûre, et il ne tient pas sur le VPS partagé.
 - **Un solde est recalculé à chaque lecture**, sans cache. C'est délibéré et non mesuré : les
   volumes d'une sortie entre amis ne le justifient pas. À reconsidérer seulement avec un
   profil sous les yeux.

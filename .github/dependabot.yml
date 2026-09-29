@@ -1,0 +1,36 @@
+# Montées de version proposées chaque semaine. Les versions sont épinglées à l'exact : sans
+# ce fichier, rien ne bouge tant que personne n'y pense, correctifs de sécurité compris.
+#
+# Politique de `docs/versions.md` §9, que Dependabot respecte par construction :
+# - une montée par PR, jamais groupée — une régression doit pouvoir être attribuée ;
+# - aucune version `beta`, `rc` ou `next` — Dependabot n'en propose pas pour une dépendance
+#   épinglée sur une version stable.
+#
+# Une montée de `prisma`, `@prisma/engines` ou `esbuild` échouera en CI tant que
+# `allowScripts` (package.json) n'a pas été mis à jour à la main : c'est voulu, le script
+# d'installation d'une nouvelle version doit être autorisé explicitement (§6.3).
+
+version: 2
+updates:
+  - package-ecosystem: npm
+    # Un seul verrou à la racine couvre les deux espaces de travail.
+    directory: /
+    target-branch: feature
+    schedule:
+      interval: weekly
+      day: monday
+    # `increase` réécrit la version épinglée elle-même, au lieu d'élargir une plage.
+    versioning-strategy: increase
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: chore(deps)
+
+  - package-ecosystem: github-actions
+    directory: /
+    target-branch: feature
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 3
+    commit-message:
+      prefix: chore(ci)
