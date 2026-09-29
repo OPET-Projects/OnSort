@@ -878,6 +878,8 @@ La règle est désormais écrite en clair dans `auth.ts`, bien qu'égale au déf
 l'épingle : une montée de version de Better Auth ne peut plus la changer sans qu'on le voie,
 et la doc ne peut plus diverger du code en silence. *Coût si erroné : deux nombres.*
 
+---
+
 ## Plafond des invitations par courriel
 
 **Vingt invitations par heure et par compte, un budget commun aux trois routes** qui envoient
@@ -895,6 +897,25 @@ consomme rien. Un lien partageable, qui n'envoie rien, n'est pas compté.
 **En mémoire, comme le bus SSE.** Un seul processus applicatif est supposé ; un redémarrage
 remet les compteurs à zéro, acceptable pour une protection contre l'abus. *Coût si erroné :
 une table, le jour où l'API passe à plusieurs instances.*
+
+---
+
+## En-têtes de sécurité — appliquer ce qui ne peut rien casser, observer le reste
+
+**Aucune protection contre l'intégration dans une page tierce, ni CSP, avant l'audit.** Un
+site malveillant pouvait intégrer l'application dans un cadre invisible et piéger des clics
+— un vote, une dépense, une suppression.
+
+**Deux en-têtes CSP plutôt qu'un.** L'appliqué ne porte que ce qui ne peut rien casser :
+`frame-ancestors 'none'`, `object-src 'none'`, `base-uri 'self'`. La politique complète part
+en `Report-Only` : une CSP fausse rend le site blanc, et aucun navigateur ne tourne ici pour
+la valider écran par écran. La bascule est décrite dans `deploiement.md`. *Coût si erroné :
+la protection contre l'injection de script reste en observation tant que personne ne fait
+la vérification.*
+
+**Tous les en-têtes dans la façade, sauf HSTS.** `Referrer-Policy` partait en double, posé
+par nginx et par Caddy. Dans l'image, un en-tête est versionné, testé et appliqué sans geste
+manuel sur le VPS ; nginx garde HSTS parce que c'est lui qui termine le TLS.
 
 ---
 

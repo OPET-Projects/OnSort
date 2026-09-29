@@ -134,9 +134,29 @@ silence si on la retire :
 | `proxy_buffering off` | un flux SSE ne se ferme jamais, donc le tampon ne se vide jamais : le temps réel disparaît sans aucune erreur |
 | `proxy_read_timeout 1h` | la coupure par défaut à 60 s ferme le flux sans cesse, et le client passe son temps à se reconnecter |
 | `proxy_set_header X-Real-IP` | sans elle, Better Auth ne résout aucune adresse et limite les connexions dans un seau **partagé par tous les visiteurs** |
-| `Referrer-Policy: strict-origin-when-cross-origin` | `same-origin` supprimerait l'en-tête que les serveurs de tuiles OpenStreetMap utilisent pour identifier l'application, mettant l'usage hors de leur politique |
 
 Puis `nginx -t && systemctl reload nginx`.
+
+### En-têtes de sécurité
+
+nginx ne pose que HSTS, parce qu'il termine le TLS. Tous les autres viennent de la façade,
+dans l'image (`Caddyfile`), et un test (`api/tests/facade.test.ts`) les épingle :
+
+| En-tête | Rôle |
+| --- | --- |
+| `Referrer-Policy: strict-origin-when-cross-origin` | `same-origin` supprimerait l'en-tête que les serveurs de tuiles OpenStreetMap utilisent pour identifier l'application ; celui-ci envoie l'origine sans le chemin, où voyagent les jetons |
+| `Content-Security-Policy` | **appliqué** : `frame-ancestors 'none'` (aucune page tierce ne peut intégrer le site pour piéger des clics), `object-src 'none'`, `base-uri 'self'` |
+| `Content-Security-Policy-Report-Only` | **en observation** : la politique complète. Le navigateur signale les violations dans sa console sans rien bloquer |
+| `X-Frame-Options: DENY` | la même interdiction d'intégration, pour les navigateurs anciens |
+| `Permissions-Policy` | caméra, micro, géolocalisation, paiement et USB coupés : l'application ne s'en sert pas |
+
+**Passer la CSP complète en appliqué** demande un humain : ouvrir chaque écran (connexion,
+tableau de bord, événement et sa carte, groupes, calendrier, amis), vérifier que la console
+ne signale aucune violation, puis déplacer la politique de l'en-tête `-Report-Only` vers
+l'en-tête appliqué. Le faire sans cette vérification risque un site blanc.
+
+Un VPS installé avant ce changement porte encore `Referrer-Policy` dans son bloc nginx :
+recopier le bloc versionné le retire, sinon l'en-tête part en double, sans autre effet.
 
 > **Le TLS doit être terminé quelque part.** Les cookies de session sont posés en `secure`
 > dès que `NODE_ENV` vaut `production` (`api/src/auth.ts`) : un navigateur ne les renvoie pas
