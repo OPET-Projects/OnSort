@@ -24,6 +24,19 @@ updates:
     open-pull-requests-limit: 5
     commit-message:
       prefix: chore(deps)
+    # Montées majeures bloquées par une contrainte documentée (docs/versions.md §5). Les
+    # mineures et correctives continuent d'arriver.
+    ignore:
+      # Le runtime est Node 24 (.nvmrc) : des types d'une ligne plus récente autoriseraient
+      # des API absentes en production.
+      - dependency-name: '@types/node'
+        update-types: ['version-update:semver-major']
+      # Better Auth plafonne Vitest à ^4, et le greffon de couverture exige Vitest à
+      # l'identique : l'un ne monte pas sans l'autre.
+      - dependency-name: vitest
+        update-types: ['version-update:semver-major']
+      - dependency-name: '@vitest/coverage-v8'
+        update-types: ['version-update:semver-major']
 
   - package-ecosystem: github-actions
     directory: /
