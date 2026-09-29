@@ -27,7 +27,7 @@
     "db:seed": "npm run db:seed --workspace api"
   },
   "devDependencies": {
-    "@biomejs/biome": "2.5.12"
+    "@biomejs/biome": "2.5.14"
   },
   "allowScripts": {
     "prisma@7.10.0": true,
