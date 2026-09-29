@@ -865,6 +865,20 @@ identifiant. *Coût si erroné : un déplacement de routes.*
 
 ---
 
+## Rétention des notifications
+
+**Une notification lue depuis plus de trente jours est effacée ; une non-lue ne l'est
+jamais.** Rien ne purgeait l'ancien, et la table grossissait sans borne. Effacer une non-lue
+ferait disparaître une information que personne n'a vue. *Coût si erroné : une constante.*
+
+**Au passage, pas par une tâche planifiée.** La purge suit l'écriture d'une notification,
+pour les seuls destinataires, dans le même bloc protégé : un échec reste journalisé et
+n'interrompt pas l'action. Un cron serait une pièce de plus à exploiter sur le VPS, et un
+compte qui ne reçoit plus rien ne grossit plus non plus. *Coût si erroné : les lignes d'un
+compte inactif restent jusqu'à sa prochaine notification.*
+
+---
+
 ## Points laissés ouverts
 
 - La branche d'envoi réel de courriel n'est couverte par aucun test : la tester exigerait un
@@ -878,8 +892,6 @@ identifiant. *Coût si erroné : un déplacement de routes.*
 - **Un blocage n'empêche pas les invitations de groupe ou de sortie.** Sa portée s'arrête
   aux demandes d'ami ; un admin peut encore inviter par adresse quelqu'un qu'il a bloqué, ou
   qui l'a bloqué.
-- **Les notifications ne s'effacent pas.** Elles se marquent lues, la liste est bornée à
-  cinquante, mais rien ne purge l'ancien.
 - **La recherche de lieu par nom n'existe pas.** §2.7 l'écarte au MVP : Photon demande 8 à
   16 Go de RAM. L'autocomplétion d'adresse la remplace en pratique, mais chercher « le Louvre »
   ne marche pas — il faut une adresse.
