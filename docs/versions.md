@@ -240,3 +240,10 @@ npm ci && npm run db:generate && npx biome ci . && npm run typecheck && npm test
   `allowScripts` dans `package.json`.
 - Avant toute montée, relire les contraintes déclarées avec les commandes de la section 8,
   puis relancer la vérification complète.
+
+**Dependabot propose les montées chaque lundi** (`.github/dependabot.yml`), une PR par
+dépendance et vers `feature`, npm et actions GitHub. Sans lui, des versions épinglées ne
+bougent que si quelqu'un y pense, correctifs de sécurité compris. La PR se relit comme toute
+autre montée : la CI joue la vérification complète, et une montée de `prisma`,
+`@prisma/engines` ou `esbuild` y échoue tant que `allowScripts` n'a pas été mis à jour à la
+main — c'est le garde-fou voulu (§6.3).
