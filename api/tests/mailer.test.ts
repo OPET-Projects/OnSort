@@ -40,3 +40,62 @@ describe('createMailer sans clé', () => {
     expect(lines.join('\n')).not.toContain('https://example.test/autre')
   })
 })
+
+describe('createMailer avec une clé', () => {
+  // Un client qui a la forme de Resend, injecté : la branche d'envoi réel se teste sans
+  // réseau ni bibliothèque de simulation.
+  function fakeClient(result: { error: { message: string } | null }) {
+    const sent: unknown[] = []
+    return {
+      sent,
+      client: {
+        emails: {
+          async send(payload: unknown) {
+            sent.push(payload)
+            return result
+          },
+        },
+      },
+    }
+  }
+
+  it('transmet l’expéditeur, le destinataire, l’objet, le texte et le HTML', async () => {
+    const { sent, client } = fakeClient({ error: null })
+    const mailer = createMailer({ apiKey: 're_test', from: 'On Sort ? <no-reply@x.test>', client })
+
+    await mailer.send({
+      to: 'alice@example.test',
+      subject: 'Objet',
+      text: 'Texte',
+      html: '<p>HTML</p>',
+    })
+
+    expect(sent).toEqual([
+      {
+        from: 'On Sort ? <no-reply@x.test>',
+        to: 'alice@example.test',
+        subject: 'Objet',
+        text: 'Texte',
+        html: '<p>HTML</p>',
+      },
+    ])
+  })
+
+  it('omet le HTML quand il n’y en a pas', async () => {
+    const { sent, client } = fakeClient({ error: null })
+    const mailer = createMailer({ apiKey: 're_test', from: 'x@x.test', client })
+
+    await mailer.send({ to: 'alice@example.test', subject: 'Objet', text: 'Texte' })
+
+    expect(sent[0]).not.toHaveProperty('html')
+  })
+
+  it('lève une erreur lisible quand le fournisseur refuse', async () => {
+    const { client } = fakeClient({ error: { message: 'domain not verified' } })
+    const mailer = createMailer({ apiKey: 're_test', from: 'x@x.test', client })
+
+    await expect(
+      mailer.send({ to: 'alice@example.test', subject: 'Objet', text: 'Texte' }),
+    ).rejects.toThrow('Envoi du courriel échoué : domain not verified')
+  })
+})

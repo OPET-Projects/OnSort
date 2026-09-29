@@ -940,10 +940,18 @@ compte inactif restent jusqu'à sa prochaine notification.*
 
 ---
 
+## La branche d'envoi réel, enfin testée
+
+**Il ne fallait ni réseau ni bibliothèque de simulation, seulement une injection.** Le
+journal tenait cette branche pour intestable. `createMailer` accepte désormais un `client`
+qui a la forme de Resend — le vrai par défaut — et les tests lui passent une doublure de dix
+lignes : ce qui part chez le fournisseur, l'absence de `html` quand il n'y en a pas, et
+l'erreur lisible quand il refuse. *Coût si erroné : un paramètre optionnel de plus.*
+
+---
+
 ## Points laissés ouverts
 
-- La branche d'envoi réel de courriel n'est couverte par aucun test : la tester exigerait un
-  appel réseau ou une bibliothèque de simulation, tous deux exclus.
 - Le parcours cliqué dans un navigateur et l'ergonomie au pouce à 375 px n'ont pas été validés
   automatiquement — ils demandent un humain.
 - **Déploiement groupé.** L'application est en ligne sur `https://onsort.eliott-b.fr`

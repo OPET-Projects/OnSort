@@ -12,13 +12,28 @@ export type Mailer = {
   send(mail: Mail): Promise<void>
 }
 
+// La part de Resend dont le mailer se sert. Injectable, pour tester la branche d'envoi réel
+// sans réseau ni bibliothèque de simulation.
+type EmailClient = {
+  emails: {
+    send(payload: {
+      from: string
+      to: string
+      subject: string
+      text: string
+      html?: string
+    }): Promise<{ error: { message: string } | null }>
+  }
+}
+
 type Options = {
   apiKey: string | null
   from: string
   logger?: (line: string) => void
+  client?: EmailClient
 }
 
-export function createMailer({ apiKey, from, logger }: Options): Mailer {
+export function createMailer({ apiKey, from, logger, client }: Options): Mailer {
   if (apiKey === null) {
     return {
       async send(mail) {
@@ -39,7 +54,7 @@ export function createMailer({ apiKey, from, logger }: Options): Mailer {
     }
   }
 
-  const resend = new Resend(apiKey)
+  const resend: EmailClient = client ?? new Resend(apiKey)
 
   return {
     async send(mail) {
