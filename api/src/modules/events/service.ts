@@ -2,6 +2,7 @@ import { config } from '../../config.ts'
 import { prisma } from '../../db.ts'
 import { renderEmail } from '../../lib/email.ts'
 import { ApiError } from '../../lib/http.ts'
+import { consumeInvitationQuota } from '../../lib/invitation-quota.ts'
 import { mailer } from '../../lib/mailer.ts'
 import { notify } from '../../lib/notify.ts'
 import { canManageEvent, type ParticipantRole } from '../../lib/permissions.ts'
@@ -228,6 +229,8 @@ export async function createInvitation(userId: string, eventId: string, input: I
 
     return { url: inviteUrl(token) }
   }
+
+  consumeInvitationQuota(userId)
 
   // Correspondance stricte sur l'adresse, jamais partielle (conception §4).
   const invited = await prisma.user.findUnique({ where: { email: input.email } })

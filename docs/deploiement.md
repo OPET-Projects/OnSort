@@ -233,6 +233,7 @@ façade, et qu'une erreur de proxy les annule sans bruit.
 | Cookies | `httpOnly`, `sameSite=lax`, **`secure`** | que le TLS soit terminé par nginx |
 | Lien magique | 15 minutes, usage unique | — |
 | Limite de débit | **3 requêtes par 10 s** sur `/api/auth/sign-in/*`, par adresse IP | `X-Real-IP` posé par nginx |
+| Invitations par courriel | **20 par heure et par compte**, sorties, groupes et amis confondus (`api/src/lib/invitation-quota.ts`) | un seul processus applicatif |
 
 Deux conséquences à ne pas perdre de vue :
 

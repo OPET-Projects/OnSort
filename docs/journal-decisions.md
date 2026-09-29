@@ -865,6 +865,26 @@ identifiant. *Coût si erroné : un déplacement de routes.*
 
 ---
 
+## Plafond des invitations par courriel
+
+**Vingt invitations par heure et par compte, un budget commun aux trois routes** qui envoient
+un courriel vers une adresse choisie — sortie, groupe, ami inconnu. En ligne, sans plafond, un
+seul compte faisait de l'application un relais de spam sous notre domaine : quota Resend
+épuisé, puis domaine classé indésirable, et les liens de connexion avec. Séparés, les budgets
+se contourneraient en alternant les routes. Au-delà : `429 too_many_invitations`, avec
+`retryAfterSeconds`. *Coût si erroné : une constante à changer.*
+
+**Chaque tentative compte, que l'adresse ait un compte ou non.** Une demande d'ami vers un
+inscrit n'envoie pas de courriel ; ne compter que les envois réels ferait du plafond un oracle
+d'énumération (§4). Le décompte vient après le contrôle d'autorisation : un appel refusé ne
+consomme rien. Un lien partageable, qui n'envoie rien, n'est pas compté.
+
+**En mémoire, comme le bus SSE.** Un seul processus applicatif est supposé ; un redémarrage
+remet les compteurs à zéro, acceptable pour une protection contre l'abus. *Coût si erroné :
+une table, le jour où l'API passe à plusieurs instances.*
+
+---
+
 ## Points laissés ouverts
 
 - La branche d'envoi réel de courriel n'est couverte par aucun test : la tester exigerait un
