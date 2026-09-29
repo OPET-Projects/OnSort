@@ -232,8 +232,7 @@ façade, et qu'une erreur de proxy les annule sans bruit.
 | Origine de confiance | `APP_PUBLIC_URL` seule | l'URL publique doit être exacte |
 | Cookies | `httpOnly`, `sameSite=lax`, **`secure`** | que le TLS soit terminé par nginx |
 | Lien magique | 15 minutes, usage unique | — |
-| Limite de débit | **3 requêtes par 10 s** sur `/api/auth/sign-in/*`, par adresse IP | `X-Real-IP` posé par nginx |
-
+| Limite de débit | **5 requêtes par minute** sur la demande et la vérification du lien magique ; 3 par 10 s sur les autres `/api/auth/sign-in/*` (Google). Par adresse IP | `X-Real-IP` posé par nginx |
 Deux conséquences à ne pas perdre de vue :
 
 **Les cookies `secure` exigent le HTTPS.** Servir l'application en clair produirait une
@@ -242,8 +241,8 @@ navigateur ne renvoie jamais un cookie `secure` sur du HTTP.
 
 **La limite de débit exige `X-Real-IP`.** Derrière un mandataire, l'application ne voit que
 l'adresse du mandataire. Sans en-tête de confiance déclarée, Better Auth n'en résout aucune
-et retombe sur un seau unique par chemin : trois demandes de lien magique tous visiteurs
-confondus, puis plus personne ne se connecte pendant dix secondes. L'application lit
+et retombe sur un seau unique par chemin : cinq demandes de lien magique par minute, tous
+visiteurs confondus, puis plus personne ne se connecte. L'application lit
 `X-Real-IP` et non `X-Forwarded-For`, parce que nginx **écrase** la première alors que la
 seconde est une liste à laquelle le client peut préfixer ce qu'il veut.
 

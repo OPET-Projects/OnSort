@@ -865,6 +865,21 @@ identifiant. *Coût si erroné : un déplacement de routes.*
 
 ---
 
+## Limite de connexion — la règle réelle
+
+**La documentation annonçait 3 requêtes par 10 secondes ; la connexion par lien en admet 5
+par minute.** Un audit en production a envoyé quatre demandes d'affilée, toutes acceptées, et
+a d'abord conclu à une limite cassée. Elle ne l'était pas : le greffon `magicLink` porte sa
+propre règle, qui **remplace** la règle générique de `/sign-in/*` pour la demande et la
+vérification du lien. La règle générique ne s'applique plus qu'aux autres connexions, Google
+compris.
+
+La règle est désormais écrite en clair dans `auth.ts`, bien qu'égale au défaut, et un test
+l'épingle : une montée de version de Better Auth ne peut plus la changer sans qu'on le voie,
+et la doc ne peut plus diverger du code en silence. *Coût si erroné : deux nombres.*
+
+---
+
 ## Points laissés ouverts
 
 - La branche d'envoi réel de courriel n'est couverte par aucun test : la tester exigerait un
