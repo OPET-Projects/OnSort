@@ -105,3 +105,16 @@ it('mène une connexion complète, du lien magique à la session', async () => {
 it("résout l'adresse du client depuis l'en-tête posé par le mandataire", () => {
   expect(auth.options.advanced?.ipAddress?.ipAddressHeaders).toEqual(['x-real-ip'])
 })
+
+// La règle du greffon `magicLink` remplace la règle générique de `/sign-in/*` (3 par 10 s) :
+// c'est elle qui s'applique à la connexion par lien. Épinglée ici pour que la documentation
+// et le code ne puissent plus diverger sans qu'un test le dise.
+it('limite la demande et la vérification du lien magique à cinq par minute', () => {
+  const plugin = auth.options.plugins?.find((candidate) => candidate.id === 'magic-link')
+  const rule = plugin?.rateLimit?.[0]
+
+  expect(rule?.window).toBe(60)
+  expect(rule?.max).toBe(5)
+  expect(rule?.pathMatcher('/sign-in/magic-link')).toBe(true)
+  expect(rule?.pathMatcher('/magic-link/verify')).toBe(true)
+})
