@@ -208,6 +208,14 @@ d'une.
 **Décision** : conserver, documenter, et réévaluer à chaque montée de Better Auth ou de
 Prisma.
 
+**Ces avis sont tolérés nommément, et tout autre fait échouer la CI.** Affichés en permanence,
+les mêmes quatre avis apprenaient à ne plus lire l'audit : un nouveau se serait noyé dans
+l'ancien. `npm run audit:deps` (`scripts/audit.mjs`) lance `npm audit`, tolère les trois
+identifiants examinés ci-dessus — `GHSA-3f6p-5ww8-9rcr` et `GHSA-rgwj-5xj2-c3m3` pour
+`mysql2`, `GHSA-ggr8-5vv4-36mx` pour `deepmerge-ts` — et échoue sur tout autre. Il signale
+aussi un avis toléré qui n'est plus rapporté, pour qu'on le retire de la liste. Ajouter un
+avis à la liste suppose de l'avoir d'abord examiné et consigné dans ce tableau.
+
 ## 8. Revérifier
 
 ```sh
@@ -240,3 +248,10 @@ npm ci && npm run db:generate && npx biome ci . && npm run typecheck && npm test
   `allowScripts` dans `package.json`.
 - Avant toute montée, relire les contraintes déclarées avec les commandes de la section 8,
   puis relancer la vérification complète.
+
+**Dependabot propose les montées chaque lundi** (`.github/dependabot.yml`), une PR par
+dépendance et vers `feature`, npm et actions GitHub. Sans lui, des versions épinglées ne
+bougent que si quelqu'un y pense, correctifs de sécurité compris. La PR se relit comme toute
+autre montée : la CI joue la vérification complète, et une montée de `prisma`,
+`@prisma/engines` ou `esbuild` y échoue tant que `allowScripts` n'a pas été mis à jour à la
+main — c'est le garde-fou voulu (§6.3).

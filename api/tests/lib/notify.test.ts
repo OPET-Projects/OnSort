@@ -99,3 +99,45 @@ it('ne notifie qu’une fois un destinataire répété', async () => {
 
   expect(await prisma.notification.count()).toBe(1)
 })
+
+// Rétention : une notification lue depuis plus de trente jours disparaît au passage, quand
+// une nouvelle est écrite pour la même personne. Les non-lues restent, quel que soit leur âge.
+const DAY = 86_400_000
+
+async function seedNotification(userId: string, readDaysAgo: number | null, ageDays = 60) {
+  return prisma.notification.create({
+    data: {
+      userId,
+      type: 'friend.request',
+      createdAt: new Date(Date.now() - ageDays * DAY),
+      readAt: readDaysAgo === null ? null : new Date(Date.now() - readDaysAgo * DAY),
+    },
+  })
+}
+
+it('efface les notifications lues depuis plus de trente jours', async () => {
+  const alice = await makeUser('alice')
+  const old = await seedNotification(alice, 31)
+
+  await notify({ userIds: [alice], type: 'friend.accepted' })
+
+  expect(await prisma.notification.findUnique({ where: { id: old.id } })).toBeNull()
+})
+
+it('garde celles lues plus récemment', async () => {
+  const alice = await makeUser('alice')
+  const recent = await seedNotification(alice, 29)
+
+  await notify({ userIds: [alice], type: 'friend.accepted' })
+
+  expect(await prisma.notification.findUnique({ where: { id: recent.id } })).not.toBeNull()
+})
+
+it('garde les non-lues, même anciennes', async () => {
+  const alice = await makeUser('alice')
+  const unread = await seedNotification(alice, null, 400)
+
+  await notify({ userIds: [alice], type: 'friend.accepted' })
+
+  expect(await prisma.notification.findUnique({ where: { id: unread.id } })).not.toBeNull()
+})

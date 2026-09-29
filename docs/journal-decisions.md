@@ -926,6 +926,30 @@ manuel sur le VPS ; nginx garde HSTS parce que c'est lui qui termine le TLS.
 
 ---
 
+## Rétention des notifications
+
+**Une notification lue depuis plus de trente jours est effacée ; une non-lue ne l'est
+jamais.** Rien ne purgeait l'ancien, et la table grossissait sans borne. Effacer une non-lue
+ferait disparaître une information que personne n'a vue. *Coût si erroné : une constante.*
+
+**Au passage, pas par une tâche planifiée.** La purge suit l'écriture d'une notification,
+pour les seuls destinataires, dans le même bloc protégé : un échec reste journalisé et
+n'interrompt pas l'action. Un cron serait une pièce de plus à exploiter sur le VPS, et un
+compte qui ne reçoit plus rien ne grossit plus non plus. *Coût si erroné : les lignes d'un
+compte inactif restent jusqu'à sa prochaine notification.*
+
+---
+
+## La branche d'envoi réel, enfin testée
+
+**Il ne fallait ni réseau ni bibliothèque de simulation, seulement une injection.** Le
+journal tenait cette branche pour intestable. `createMailer` accepte désormais un `client`
+qui a la forme de Resend — le vrai par défaut — et les tests lui passent une doublure de dix
+lignes : ce qui part chez le fournisseur, l'absence de `html` quand il n'y en a pas, et
+l'erreur lisible quand il refuse. *Coût si erroné : un paramètre optionnel de plus.*
+
+---
+
 ## Accessibilité — un nom pour chaque contrôle
 
 **Huit champs n'avaient pour libellé que leur texte indicatif** : proposer une activité, saisir
@@ -943,8 +967,6 @@ qui a trouvé les huit cas. *Coût si erroné : une règle trop stricte à assou
 
 ## Points laissés ouverts
 
-- La branche d'envoi réel de courriel n'est couverte par aucun test : la tester exigerait un
-  appel réseau ou une bibliothèque de simulation, tous deux exclus.
 - Le parcours cliqué dans un navigateur, l'ergonomie au pouce à 375 px et le passage au
   lecteur d'écran n'ont pas été validés — ils demandent un humain. Le nom accessible de
   chaque contrôle, lui, est vérifié par `web/tests/a11y.test.ts`.
@@ -955,8 +977,6 @@ qui a trouvé les huit cas. *Coût si erroné : une règle trop stricte à assou
 - **Un blocage ne filtre ni les liens partageables ni les invitations antérieures.** Un lien
   n'est adressé à personne, et une invitation reçue avant le blocage reste acceptable : c'est
   un geste du bloqueur lui-même.
-- **Les notifications ne s'effacent pas.** Elles se marquent lues, la liste est bornée à
-  cinquante, mais rien ne purge l'ancien.
 - **La recherche de lieu par nom n'existe pas.** §2.7 l'écarte au MVP : Photon demande 8 à
   16 Go de RAM. L'autocomplétion d'adresse la remplace en pratique, mais chercher « le Louvre »
   ne marche pas — il faut une adresse. Réexaminée après la mise en ligne et **maintenue hors
