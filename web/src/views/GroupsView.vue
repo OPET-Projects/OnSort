@@ -85,6 +85,7 @@ async function submit(): Promise<void> {
         <h2 class="text-sm font-semibold">Créer un groupe</h2>
         <input
           v-model="name"
+          aria-label="Nom du groupe"
           type="text"
           required
           maxlength="120"

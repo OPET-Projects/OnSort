@@ -488,6 +488,7 @@ async function sendEmailInvite(): Promise<void> {
               <h2 class="text-sm font-semibold">Proposer une activité</h2>
               <input
                 v-model="proposal.title"
+                aria-label="Nom de l'activité"
                 type="text"
                 required
                 maxlength="200"
@@ -497,6 +498,7 @@ async function sendEmailInvite(): Promise<void> {
               <div class="relative">
                 <input
                   v-model="proposal.address"
+                  aria-label="Adresse de l'activité, facultative"
                   type="text"
                   maxlength="500"
                   autocomplete="off"
@@ -584,6 +586,7 @@ async function sendEmailInvite(): Promise<void> {
                 <h2 class="text-sm font-semibold">Saisir une dépense</h2>
                 <input
                   v-model="spending.label"
+                  aria-label="Objet de la dépense"
                   type="text"
                   required
                   maxlength="200"
@@ -592,6 +595,7 @@ async function sendEmailInvite(): Promise<void> {
                 />
                 <input
                   v-model="spending.amount"
+                  aria-label="Montant en euros"
                   type="text"
                   inputmode="decimal"
                   required
@@ -841,6 +845,7 @@ async function sendEmailInvite(): Promise<void> {
               <div v-if="inviteUrl" class="flex gap-2">
                 <input
                   :value="inviteUrl"
+                  aria-label="Lien d'invitation à partager"
                   readonly
                   class="h-11 min-w-0 flex-1 rounded-control border border-line bg-canvas px-3 text-xs text-muted"
                 />

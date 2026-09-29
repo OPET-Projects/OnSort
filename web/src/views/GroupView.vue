@@ -306,6 +306,7 @@ const rsvpTone: Record<string, string> = {
             <div class="flex gap-2">
               <input
                 v-model="email"
+                aria-label="Adresse de la personne à inviter"
                 type="email"
                 required
                 placeholder="adresse@exemple.fr"

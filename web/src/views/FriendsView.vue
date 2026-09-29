@@ -227,6 +227,7 @@ async function submit(): Promise<void> {
         <div class="flex gap-2">
           <input
             v-model="email"
+            aria-label="Adresse de l'ami à ajouter"
             type="email"
             required
             placeholder="adresse@exemple.fr"
