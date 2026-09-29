@@ -79,8 +79,8 @@ non-votants, suggestions intelligentes.
 | Types front ↔ back | Hono RPC                                                    |
 | Base de données    | PostgreSQL 17                                               |
 | Accès aux données  | Prisma 7 + `@prisma/adapter-pg`                             |
-| Authentification   | Better Auth (plugin `magicLink`), compte obligatoire        |
-| Carte              | Leaflet + tuiles raster MapTiler ou Stadia (offre gratuite) |
+| Authentification   | Better Auth : lien magique et Google, compte obligatoire    |
+| Carte              | Leaflet + tuiles OpenStreetMap, sans clé                    |
 | Géocodage          | API Base Adresse Nationale (`api-adresse.data.gouv.fr`)     |
 | Email              | Resend                                                      |
 | Temps réel         | SSE, deux flux : par événement et personnel                 |

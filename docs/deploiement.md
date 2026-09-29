@@ -16,7 +16,7 @@ termine le TLS. Le choix et ses écartés sont consignés dans
  ┌────▼──────────────────┐
  │  nginx (déjà présent) │  certificat, TLS
  └────┬──────────────────┘
-      │ HTTP, 127.0.0.1:8080
+      │ HTTP, 127.0.0.1:6666
  ┌────▼──────────────────────────────────┐
  │  pile Docker « onsort »               │
  │                                       │
@@ -85,15 +85,15 @@ Sur le VPS, dans `.env.production`. Ce fichier ne quitte jamais la machine : il 
 versionné, ni transmis par le déploiement.
 
 ```sh
-openssl rand -base64 24   # POSTGRES_PASSWORD
+openssl rand -hex 24      # POSTGRES_PASSWORD — hexadécimal, voir le tableau
 openssl rand -base64 32   # BETTER_AUTH_SECRET
 ```
 
 | Variable | Valeur | Ce qui arrive si elle manque ou est fausse |
 | --- | --- | --- |
 | `APP_PUBLIC_URL` | `https://onsort.eliott-b.fr` | l'API refuse de démarrer. Une valeur fausse produit des liens magiques et des invitations qui ne mènent nulle part, et Better Auth rejette l'origine |
-| `HTTP_PORT` | `8080` | défaut à 8080. À changer si le port est déjà pris sur la machine |
-| `POSTGRES_PASSWORD` | `openssl rand -base64 24` | l'API refuse de démarrer |
+| `HTTP_PORT` | `6666` | doit valoir **exactement** le `proxy_pass` du bloc nginx, sinon nginx répond 502. 6666 parce que le VPS est partagé et que 8080 y est pris ; ailleurs, changer les deux ensemble |
+| `POSTGRES_PASSWORD` | `openssl rand -hex 24` | l'API refuse de démarrer. **Hexadécimal, pas base64** : le mot de passe est placé tel quel dans l'URL de connexion, et un `/` ou un `+` la casse — `migrate` s'arrête sur `P1013 invalid port number`. C'est ce qui a fait échouer le premier déploiement |
 | `BETTER_AUTH_SECRET` | `openssl rand -base64 32`, 32 caractères au moins | l'API refuse de démarrer. Le changer plus tard invalide **toutes** les sessions ouvertes |
 | `RESEND_API_KEY` | tableau de bord Resend | l'application tourne, mais les liens de connexion restent dans les journaux du conteneur : **personne ne peut se connecter à distance** |
 | `MAIL_FROM` | `On Sort ? <no-reply@onsort.eliott-b.fr>` | l'API refuse de démarrer. Le domaine d'expédition doit être **vérifié chez Resend**, sinon les envois sont refusés |
@@ -107,7 +107,7 @@ Aucune de ces valeurs n'apparaît dans le dépôt, et aucune ne transite par Git
 
 ```sh
 docker compose -f docker-compose.prod.yml --env-file .env.production up -d --build
-curl -fsS http://127.0.0.1:8080/api/health   # {"status":"ok"}
+curl -fsS http://127.0.0.1:6666/api/health   # {"status":"ok"}
 ```
 
 Tant que nginx n'est pas configuré, l'application n'écoute que sur la boucle locale. C'est
